@@ -824,9 +824,10 @@ const areaCharts = {};
 const DMX_API_URL_KEY = 'dmx_google_sheets_api_url_v1';
 let dmxApiStatus = { connected: false, loading: false, lastError: null, debug: null, counts: {kpis:0, kpisAplicados:0, mensal:0, semanal:0, catalogoLocal:0}, source: 'local' };
 window.dmxApiStatus = dmxApiStatus;
+const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec";
 
 function dmxGetApiUrl() {
-  try { return (localStorage.getItem(DMX_API_URL_KEY) || '').trim(); } catch(e) { return ''; }
+try { return (localStorage.getItem(DMX_API_URL_KEY) || DEFAULT_API_URL).trim(); } catch(e) { return DEFAULT_API_URL; }
 }
 
 function dmxSetApiUrl(url) {
