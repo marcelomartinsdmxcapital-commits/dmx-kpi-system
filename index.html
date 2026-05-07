@@ -1222,6 +1222,104 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
 
 // \u2500\u2500\u2500 INIT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function init() {
+  const usuario = dmxObterSessao();
+
+if(!usuario){
+  document.body.innerHTML = `
+    <div style="
+      width:100vw;
+      height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#0b0b0b;
+      font-family:DM Sans,sans-serif;
+    ">
+      <div style="
+        width:380px;
+        background:white;
+        border-radius:24px;
+        padding:40px;
+        box-shadow:0 20px 60px rgba(0,0,0,.25);
+      ">
+        <div style="text-align:center;margin-bottom:24px;">
+          <img src='https://i.imgur.com/5kW6G6x.png'
+               style='width:140px;margin-bottom:12px;'>
+          <h2 style='margin:0;color:#111;'>DMX KPIs</h2>
+          <p style='color:#666;font-size:14px;'>
+            Acesso restrito
+          </p>
+        </div>
+
+        <input id="loginEmail"
+          placeholder="E-mail"
+          style="
+            width:100%;
+            padding:14px;
+            border:1px solid #DDD;
+            border-radius:12px;
+            margin-bottom:12px;
+            font-size:14px;
+          ">
+
+        <input id="loginSenha"
+          type="password"
+          placeholder="Senha"
+          style="
+            width:100%;
+            padding:14px;
+            border:1px solid #DDD;
+            border-radius:12px;
+            margin-bottom:18px;
+            font-size:14px;
+          ">
+
+        <button id="btnLogin"
+          style="
+            width:100%;
+            padding:14px;
+            border:none;
+            background:#0A7C66;
+            color:white;
+            border-radius:12px;
+            font-size:15px;
+            font-weight:700;
+            cursor:pointer;
+          ">
+          Entrar
+        </button>
+
+        <div id="loginErro"
+          style="
+            color:#D33;
+            margin-top:14px;
+            font-size:13px;
+            text-align:center;
+          ">
+        </div>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    document.getElementById('btnLogin').onclick = async () => {
+      try{
+        const email = document.getElementById('loginEmail').value;
+        const senha = document.getElementById('loginSenha').value;
+
+        await dmxLogin(email, senha);
+
+        location.reload();
+
+      }catch(err){
+        document.getElementById('loginErro').innerText =
+          err.message || 'Falha no login';
+      }
+    };
+  }, 100);
+
+  return;
+}
   try { dmxApplyCatalog(dmxLoadCatalogFromStorage()); } catch(e) {}
   try { launches = JSON.parse(localStorage.getItem('dmx_launches') || 'null') || buildLaunches(); } catch(e) { launches = buildLaunches(); }
   try { planos = JSON.parse(localStorage.getItem('dmx_planos') || 'null') || PLANOS_RAW.map(p => ({...p})); } catch(e) { planos = PLANOS_RAW.map(p => ({...p})); }
