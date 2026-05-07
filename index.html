@@ -830,6 +830,52 @@ const areaCharts = {};
 // A URL fica salva no navegador para evitar editar código.
 // Use a URL do Apps Script publicada como App da Web, terminando em /exec.
 const DMX_API_URL_KEY = 'dmx_google_sheets_api_url_v1';
+  // =========================
+// SEGURANÇA E LOGIN
+// =========================
+
+const DMX_SESSION_KEY = 'dmx_usuario_logado_v1';
+
+function dmxSalvarSessao(usuario){
+  localStorage.setItem(DMX_SESSION_KEY, JSON.stringify(usuario));
+}
+
+function dmxObterSessao(){
+  try{
+    return JSON.parse(localStorage.getItem(DMX_SESSION_KEY) || 'null');
+  }catch(e){
+    return null;
+  }
+}
+
+function dmxLogout(){
+  localStorage.removeItem(DMX_SESSION_KEY);
+  location.reload();
+}
+
+function dmxUsuarioLogado(){
+  return !!dmxObterSessao();
+}
+
+async function dmxLogin(email, senha){
+  const api = dmxGetApiUrl();
+
+  const url =
+    api +
+    '?tipo=login' +
+    '&email=' + encodeURIComponent(email) +
+    '&senha=' + encodeURIComponent(senha);
+
+  const resp = await fetch(url);
+  const data = await resp.json();
+
+  if(data.ok && data.usuario){
+    dmxSalvarSessao(data.usuario);
+    return data.usuario;
+  }
+
+  throw new Error(data.error || 'Falha no login');
+}
 let dmxApiStatus = { connected: false, loading: false, lastError: null, debug: null, counts: {kpis:0, kpisAplicados:0, mensal:0, semanal:0, catalogoLocal:0}, source: 'local' };
 window.dmxApiStatus = dmxApiStatus;
 const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec";
