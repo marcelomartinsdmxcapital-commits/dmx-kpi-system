@@ -995,8 +995,13 @@ function dmxApiToKpi(row, idx) {
 }
 
 function dmxApiUrlWithTipo(url, tipo) {
-  const base = String(url || '').trim().replace(/\?tipo=[^&]*/,'').replace(/&tipo=[^&]*/,'');
-  return base + (base.includes('?') ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  const base = String(url || '').trim()
+    .replace(/\?tipo=[^&]*/,'')
+    .replace(/&tipo=[^&]*/,'')
+    .replace(/\?_ts=[^&]*/,'')
+    .replace(/&_ts=[^&]*/,'');
+  const sep = base.includes('?') ? '&' : '?';
+  return base + sep + 'tipo=' + encodeURIComponent(tipo) + '&_ts=' + Date.now();
 }
 
 function dmxApiToLaunch(row) {
@@ -1018,11 +1023,11 @@ function dmxApiToLaunch(row) {
   const peso = num(row.peso_ebitda, num(kpi.peso_ebitda, 0));
   return {
     id_kpi: id,
-    area: row.area || kpi.area || 'Sem área',
+    area: kpi.area || row.area || 'Sem área',
     indicador: row.indicador || row.nome_kpi || kpi.indicador || id,
     ano: ano,
     mes_num: mes,
-    unidade: row.unidade || kpi.unidade || '%',
+    unidade: kpi.unidade || row.unidade || '%',
     sentido: sentido,
     meta: meta,
     minimo: minimo,
@@ -1044,7 +1049,10 @@ function dmxApplyMensalRows(rows) {
     else launches.push(novo);
     count++;
   });
-  try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {}
+  try {
+    if (typeof dmxReconcileLaunchesWithCatalog === 'function') dmxReconcileLaunchesWithCatalog();
+    localStorage.setItem('dmx_launches', JSON.stringify(launches));
+  } catch(e) {}
   return count;
 }
 
@@ -1065,7 +1073,7 @@ function dmxApiToWeekly(row) {
   const maximo = num(row.maximo_semana ?? row.maximo, num(kpi.maximo, null));
   return {
     id_kpi: id,
-    area: row.area || kpi.area || 'Sem área',
+    area: kpi.area || row.area || 'Sem área',
     ano,
     mes_num: mes,
     etapa,
@@ -1208,6 +1216,11 @@ async function dmxCarregarCatalogoDaAPI(manual=true) {
     dmxReconcileLaunchesWithCatalog();
     const qtdMensal = dmxApplyMensalRows(dataMensal);
     const qtdSemanal = (typeof dmxApplySemanalRows === 'function') ? dmxApplySemanalRows(dataSemanal) : 0;
+    try {
+      dmxReconcileLaunchesWithCatalog();
+      localStorage.setItem('dmx_launches', JSON.stringify(launches));
+      dmxSaveCatalogToStorage();
+    } catch(e) {}
     buildSidebar();
     buildFilters();
     if (typeof fillWeeklyFilters === 'function') fillWeeklyFilters();
@@ -1260,7 +1273,7 @@ if(!usuario){
         <div style="text-align:center;margin-bottom:24px;">
           <img src='logo-dmx.png'
                style='width:140px;margin-bottom:12px;'>
-          <h2 style='margin:0;color:#111;font-size:34px;line-height:1.2;'>Sistema de Gestão e Performance</h2>
+          <h2 style='margin:0;color:#111;font-size:34px;line-height:1.2;'>Sistema de Gestão de Performance</h2>
           <p style='color:#666;font-size:14px;'>
             Acesso restrito
           </p>
@@ -1346,7 +1359,7 @@ if(!usuario){
   renderDashboard();
   updatePlanosBadge();
   // Se uma URL do Apps Script já tiver sido configurada, atualiza o catálogo automaticamente.
-  setTimeout(() => dmxCarregarCatalogoDaAPI(false), 300);
+  setTimeout(() => dmxCarregarCatalogoDaAPI(true), 300);
 }
 
 function buildLaunches() {
