@@ -3,15 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DMX Capital | Sistema Corporativo de Gestão de KPIs</title>
-
-<meta name="description" content="Sistema corporativo de gestão de KPIs integrado ao Google Sheets para acompanhamento executivo, diretoria, performance e planos de ação.">
-
-<meta property="og:title" content="DMX Capital | Sistema Corporativo de Gestão de KPIs">
-
-<meta property="og:description" content="Painel executivo integrado para gestão de KPIs, performance e acompanhamento estratégico.">
-
-<meta property="og:type" content="website">
+<title>DMX Capital · Sistema de Gestão de KPIs v29 v28</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -495,18 +487,6 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
     <div class="nav-item" data-page="semanal-operacional" onclick="nav(this)"><span class="icon">▣</span> Semanal</div>
     <div class="nav-section-label">Área</div>
     <div id="area-nav-items"></div>
-  <div onclick="dmxLogout()" style="
-    margin:16px;
-    padding:12px;
-    border-radius:10px;
-    cursor:pointer;
-    background:#C62828;
-    color:white;
-    text-align:center;
-    font-weight:600;
-">
-    Sair
-</div>
   </nav>
 </aside>
 
@@ -792,11 +772,8 @@ function dmxLoadCatalogFromStorage() {
     const raw = localStorage.getItem(DMX_CATALOG_KEY);
     const arr = raw ? JSON.parse(raw) : null;
     return Array.isArray(arr) && arr.length ? arr : null;
-  } catch(e) {
-    return null;
-  }
+  } catch(e) { return null; }
 }
-
 function dmxSaveCatalogToStorage() {
   try { localStorage.setItem(DMX_CATALOG_KEY, JSON.stringify(kpis || KPI_CATALOG)); } catch(e) {}
 }
@@ -822,14 +799,12 @@ function dmxApplyCatalog(arr) {
   refreshDimensions();
   return true;
 }
-const DMX_STORED_CATALOG = dmxLoadCatalogFromStorage();
-if (DMX_STORED_CATALOG) {
-  KPI_CATALOG.length = 0;
-  dmxNormalizeCatalogAreas(DMX_STORED_CATALOG).forEach(k => KPI_CATALOG.push(k));
-}
+// FIX-SYNC: catálogo local ignorado na carga — Google Sheets é a única fonte oficial.
+// O localStorage só é gravado APÓS sync bem-sucedido do Sheets (em dmxCarregarCatalogoDaAPI).
+// Limpamos qualquer cache antigo para evitar que dados desatualizados persistam entre sessões.
+try { localStorage.removeItem('dmx_kpi_catalog_v13'); } catch(e) {}
 let kpis = dmxNormalizeCatalogAreas(KPI_CATALOG);
 window.kpis = kpis;
-try { dmxSaveCatalogToStorage(); } catch(e) {}
 const MES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 let AREAS = [...new Set(kpis.map(k => k.area))].sort(); window.AREAS = AREAS;
 let PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
@@ -845,58 +820,11 @@ const areaCharts = {};
 // A URL fica salva no navegador para evitar editar código.
 // Use a URL do Apps Script publicada como App da Web, terminando em /exec.
 const DMX_API_URL_KEY = 'dmx_google_sheets_api_url_v1';
-  // =========================
-// SEGURANÇA E LOGIN
-// =========================
-
-const DMX_SESSION_KEY = 'dmx_usuario_logado_v1';
-
-function dmxSalvarSessao(usuario){
-  localStorage.setItem(DMX_SESSION_KEY, JSON.stringify(usuario));
-}
-
-function dmxObterSessao(){
-  try{
-    return JSON.parse(localStorage.getItem(DMX_SESSION_KEY) || 'null');
-  }catch(e){
-    return null;
-  }
-}
-
-function dmxLogout(){
-  localStorage.removeItem(DMX_SESSION_KEY);
-  location.reload();
-}
-
-function dmxUsuarioLogado(){
-  return !!dmxObterSessao();
-}
-
-async function dmxLogin(email, senha){
-  const api = dmxGetApiUrl();
-
-  const url =
-    api +
-    '?tipo=login' +
-    '&email=' + encodeURIComponent(email) +
-    '&senha=' + encodeURIComponent(senha);
-
-  const resp = await fetch(url);
-  const data = await resp.json();
-
-  if(data.ok && data.usuario){
-    dmxSalvarSessao(data.usuario);
-    return data.usuario;
-  }
-
-  throw new Error(data.error || 'Falha no login');
-}
 let dmxApiStatus = { connected: false, loading: false, lastError: null, debug: null, counts: {kpis:0, kpisAplicados:0, mensal:0, semanal:0, catalogoLocal:0}, source: 'local' };
 window.dmxApiStatus = dmxApiStatus;
-const DEFAULT_API_URL = "https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec";
 
 function dmxGetApiUrl() {
-try { return (localStorage.getItem(DMX_API_URL_KEY) || DEFAULT_API_URL).trim(); } catch(e) { return DEFAULT_API_URL; }
+  try { return (localStorage.getItem(DMX_API_URL_KEY) || '').trim(); } catch(e) { return ''; }
 }
 
 function dmxSetApiUrl(url) {
@@ -995,13 +923,8 @@ function dmxApiToKpi(row, idx) {
 }
 
 function dmxApiUrlWithTipo(url, tipo) {
-  const base = String(url || '').trim()
-    .replace(/\?tipo=[^&]*/,'')
-    .replace(/&tipo=[^&]*/,'')
-    .replace(/\?_ts=[^&]*/,'')
-    .replace(/&_ts=[^&]*/,'');
-  const sep = base.includes('?') ? '&' : '?';
-  return base + sep + 'tipo=' + encodeURIComponent(tipo) + '&_ts=' + Date.now();
+  const base = String(url || '').trim().replace(/\?tipo=[^&]*/,'').replace(/&tipo=[^&]*/,'');
+  return base + (base.includes('?') ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
 }
 
 function dmxApiToLaunch(row) {
@@ -1023,11 +946,11 @@ function dmxApiToLaunch(row) {
   const peso = num(row.peso_ebitda, num(kpi.peso_ebitda, 0));
   return {
     id_kpi: id,
-    area: kpi.area || row.area || 'Sem área',
+    area: row.area || kpi.area || 'Sem área',
     indicador: row.indicador || row.nome_kpi || kpi.indicador || id,
     ano: ano,
     mes_num: mes,
-    unidade: kpi.unidade || row.unidade || '%',
+    unidade: row.unidade || kpi.unidade || '%',
     sentido: sentido,
     meta: meta,
     minimo: minimo,
@@ -1049,10 +972,7 @@ function dmxApplyMensalRows(rows) {
     else launches.push(novo);
     count++;
   });
-  try {
-    if (typeof dmxReconcileLaunchesWithCatalog === 'function') dmxReconcileLaunchesWithCatalog();
-    localStorage.setItem('dmx_launches', JSON.stringify(launches));
-  } catch(e) {}
+  try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {}
   return count;
 }
 
@@ -1073,7 +993,7 @@ function dmxApiToWeekly(row) {
   const maximo = num(row.maximo_semana ?? row.maximo, num(kpi.maximo, null));
   return {
     id_kpi: id,
-    area: kpi.area || row.area || 'Sem área',
+    area: row.area || kpi.area || 'Sem área',
     ano,
     mes_num: mes,
     etapa,
@@ -1174,7 +1094,7 @@ function dmxMensagemConexao(qtdKpisApi, qtdKpisAplicados, qtdMensal, qtdSemanal)
   return '⚠ API conectada, mas Cadastro_KPIs não retornou KPIs válidos';
 }
 
-async function dmxCarregarCatalogoDaAPI(manual=true) {
+async function dmxCarregarCatalogoDaAPI(manual=false) {
   const url = dmxGetApiUrl();
   if (!url) return false;
   dmxApiStatus.loading = true;
@@ -1216,11 +1136,6 @@ async function dmxCarregarCatalogoDaAPI(manual=true) {
     dmxReconcileLaunchesWithCatalog();
     const qtdMensal = dmxApplyMensalRows(dataMensal);
     const qtdSemanal = (typeof dmxApplySemanalRows === 'function') ? dmxApplySemanalRows(dataSemanal) : 0;
-    try {
-      dmxReconcileLaunchesWithCatalog();
-      localStorage.setItem('dmx_launches', JSON.stringify(launches));
-      dmxSaveCatalogToStorage();
-    } catch(e) {}
     buildSidebar();
     buildFilters();
     if (typeof fillWeeklyFilters === 'function') fillWeeklyFilters();
@@ -1250,116 +1165,18 @@ async function dmxCarregarCatalogoDaAPI(manual=true) {
 
 // \u2500\u2500\u2500 INIT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function init() {
-  const usuario = dmxObterSessao();
-
-if(!usuario){
-  document.body.innerHTML = `
-    <div style="
-      width:100vw;
-      height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#0b0b0b;
-      font-family:DM Sans,sans-serif;
-    ">
-      <div style="
-        width:380px;
-        background:white;
-        border-radius:24px;
-        padding:40px;
-        box-shadow:0 20px 60px rgba(0,0,0,.25);
-      ">
-        <div style="text-align:center;margin-bottom:24px;">
-          <img src='logo-dmx.png'
-               style='width:140px;margin-bottom:12px;'>
-          <h2 style='margin:0;color:#111;font-size:34px;line-height:1.2;'>Sistema de Gestão de Performance</h2>
-          <p style='color:#666;font-size:14px;'>
-            Acesso restrito
-          </p>
-        </div>
-
-        <input id="loginEmail"
-          placeholder="E-mail"
-          style="
-            width:100%;
-            padding:14px;
-            border:1px solid #DDD;
-            border-radius:12px;
-            margin-bottom:12px;
-            font-size:14px;
-          ">
-
-        <input id="loginSenha"
-          type="password"
-          placeholder="Senha"
-          style="
-            width:100%;
-            padding:14px;
-            border:1px solid #DDD;
-            border-radius:12px;
-            margin-bottom:18px;
-            font-size:14px;
-          ">
-
-        <button id="btnLogin"
-          style="
-            width:100%;
-            padding:14px;
-            border:none;
-            background:#0A7C66;
-            color:white;
-            border-radius:12px;
-            font-size:15px;
-            font-weight:700;
-            cursor:pointer;
-          ">
-          Entrar
-        </button>
-
-        <div id="loginErro"
-          style="
-            color:#D33;
-            margin-top:14px;
-            font-size:13px;
-            text-align:center;
-          ">
-        </div>
-      </div>
-    </div>
-  `;
-
-  setTimeout(() => {
-    document.getElementById('btnLogin').onclick = async () => {
-      try{
-        const email = document.getElementById('loginEmail').value;
-        const senha = document.getElementById('loginSenha').value;
-
-        await dmxLogin(email, senha);
-
-        location.reload();
-
-      }catch(err){
-        document.getElementById('loginErro').innerText =
-          err.message || 'Falha no login';
-      }
-    };
-  }, 100);
-
-  return;
-}
-  try { dmxApplyCatalog(dmxLoadCatalogFromStorage()); } catch(e) {}
+  // FIX-SYNC: não recarregar catálogo do localStorage no init — Sheets é a fonte oficial.
   try { launches = JSON.parse(localStorage.getItem('dmx_launches') || 'null') || buildLaunches(); } catch(e) { launches = buildLaunches(); }
   try { planos = JSON.parse(localStorage.getItem('dmx_planos') || 'null') || PLANOS_RAW.map(p => ({...p})); } catch(e) { planos = PLANOS_RAW.map(p => ({...p})); }
   try { dmxNormalizeCatalogAreas(kpis); refreshDimensions(); } catch(e) {}
   dmxReconcileLaunchesWithCatalog();
-  try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); dmxSaveCatalogToStorage(); } catch(e) {}
+  try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {} // FIX-SYNC: dmxSaveCatalogToStorage removido — catálogo só salvo após sync do Sheets
   buildSidebar();
   buildFilters();
   renderDashboard();
   updatePlanosBadge();
   // Se uma URL do Apps Script já tiver sido configurada, atualiza o catálogo automaticamente.
-  setTimeout(() => dmxCarregarCatalogoDaAPI(true), 300);
+  setTimeout(() => dmxCarregarCatalogoDaAPI(false), 300);
 }
 
 function buildLaunches() {
@@ -6490,7 +6307,11 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
         btn.className = 'topbar-btn btn-outline';
         btn.innerHTML = '↻ Sheets';
         btn.title = 'Recarregar dados oficiais do Google Sheets';
-        btn.onclick = function(){ dmxCarregarCatalogoDaAPI(true); };
+        btn.onclick = function(){
+          // FIX-SYNC: limpa cache local antes de buscar dados frescos do Sheets
+          try { localStorage.removeItem('dmx_kpi_catalog_v13'); } catch(e) {}
+          dmxCarregarCatalogoDaAPI(true);
+        };
         bar.appendChild(btn);
       }
     },500);
@@ -6624,7 +6445,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
           <div class="filter-row" style="margin-bottom:10px">
             <button class="btn btn-primary" onclick="dmxOpenSheet()">↗ Abrir Google Sheets</button>
             <button class="btn btn-ghost" onclick="dmxSetSheetUrl()">Configurar link da base</button>
-            <button class="btn btn-ghost" onclick="dmxCarregarCatalogoDaAPI(true)">↻ Sincronizar agora</button>
+            <button class="btn btn-ghost" onclick="try{localStorage.removeItem('dmx_kpi_catalog_v13')}catch(e){}; dmxCarregarCatalogoDaAPI(true)">↻ Sincronizar agora</button>
             <button class="btn btn-danger" onclick="dmxRestaurarDatabaseMaster()">⚠ Restaurar base pelo sistema</button>
           </div>
           <div class="text-sm text-muted" style="word-break:break-all">${sheetUrl ? esc(sheetUrl) : 'Nenhum link de planilha salvo neste navegador.'}</div>
@@ -6921,265 +6742,6 @@ function sharedEntriesFor(area){
 })();
 
 window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPIs.compartilhar é a fonte oficial', exemplos:'Comercial/Cobrança ou Controle:Jurídico'}; };
-})();
-</script>
-
-
-<script>
-/* PATCH v34 — Sincronização forte Google Sheets como fonte oficial
-   Corrige atualização do catálogo/dados vindos do Sheets sem depender do cache local. */
-(function(){
-  if (window.__dmxSheetsStrongSyncV34) return;
-  window.__dmxSheetsStrongSyncV34 = true;
-
-  const CATALOG_KEY = 'dmx_kpi_catalog_v13';
-  const LAUNCHES_KEY = 'dmx_launches';
-
-  function normKey(s){
-    return String(s == null ? '' : s)
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-  }
-  function num(v, def=0){
-    if(v === null || v === undefined || v === '') return def;
-    const s = String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.');
-    const n = Number(s);
-    return Number.isFinite(n) ? n : def;
-  }
-  function rowToObject(row, kind){
-    if(!Array.isArray(row)) return row || {};
-    const kpiHeaders = ['id','area','pilar','abrangencia','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','compartilhar','fonte','sentido','acumulado','peso_indice','peso_ebitda','sensibilidade_vop','tipo_vop','status_impl','ativo','selecao_semanal','atualizado_em','atualizado_por'];
-    const mensalHeaders = ['id_kpi','area','indicador','ano','mes','mes_num','unidade','sentido','meta','minimo','maximo','peso_ebitda','realizado','status','impacto','comentario','justificativa','atualizado_em','atualizado_por'];
-    const semanalHeaders = ['id_kpi','area','ano','mes','mes_num','semana','etapa','realizado','meta','minimo','maximo','tendencia_fechamento','comentario','justificativa','atualizado_em','atualizado_por'];
-    const headers = kind === 'mensal' ? mensalHeaders : kind === 'semanal' ? semanalHeaders : kpiHeaders;
-    const o = {};
-    headers.forEach((h,i)=>o[h]=row[i]);
-    return o;
-  }
-  function canon(row, kind){
-    row = rowToObject(row, kind);
-    const out = {};
-    Object.keys(row || {}).forEach(k=>{ out[normKey(k)] = row[k]; });
-    return Object.assign({}, row, out);
-  }
-  function pick(row, kind, keys, def=''){
-    const r0 = rowToObject(row, kind);
-    const r = canon(row, kind);
-    for(const k of keys){
-      if(r0 && r0[k] !== undefined && r0[k] !== null && String(r0[k]).trim() !== '') return r0[k];
-      const nk = normKey(k);
-      if(r[nk] !== undefined && r[nk] !== null && String(r[nk]).trim() !== '') return r[nk];
-    }
-    return def;
-  }
-  function normalizeList(resp, preferredKey){
-    if(Array.isArray(resp)) return resp;
-    if(!resp || typeof resp !== 'object') return [];
-    const preferred = [preferredKey, 'kpis','catalogo','cadastro_kpis','mensal','dados_mensais','semanal','dados_semanais','planos','justificativas','data','dados','result','rows','items','values','valores','payload'];
-    for(const k of preferred){
-      if(k && Array.isArray(resp[k])) return resp[k];
-      if(k && resp[k] && typeof resp[k] === 'object'){
-        const nested = normalizeList(resp[k], preferredKey);
-        if(nested.length) return nested;
-      }
-    }
-    let best = [];
-    Object.keys(resp).forEach(k=>{
-      const v = resp[k];
-      if(Array.isArray(v) && v.length > best.length) best = v;
-      else if(v && typeof v === 'object'){
-        const n = normalizeList(v, preferredKey);
-        if(n.length > best.length) best = n;
-      }
-    });
-    return best;
-  }
-  function apiToKpi(row, idx){
-    const id = String(pick(row,'kpis',['id','id_kpi','id kpi','codigo','código','codigo_kpi','código_kpi','kpi_id','kpi id','cod','cód'], '')).trim() || ('KPI' + String((idx||0)+1).padStart(3,'0'));
-    const area = String(pick(row,'kpis',['area','área','area_dona','área_dona','setor','departamento','responsavel_area'], '')).trim() || 'Sem área';
-    const indicador = String(pick(row,'kpis',['indicador','nome_kpi','nome kpi','nome_do_kpi','nome do kpi','nome','kpi','descrição','descricao','indicador_kpi'], '')).trim() || id;
-    const pilar = String(pick(row,'kpis',['pilar','categoria','grupo','perspectiva'], '')).trim() || 'Gestão de Performance';
-    return {
-      id, pilar, area,
-      abrangencia: pick(row,'kpis',['abrangencia','abrangência'], ''),
-      vertente: pick(row,'kpis',['vertente','tipo','classificacao','classificação'], 'Meta'),
-      indicador,
-      objetivo: pick(row,'kpis',['objetivo','finalidade'], ''),
-      formula: pick(row,'kpis',['formula','fórmula','calculo','cálculo'], ''),
-      unidade: pick(row,'kpis',['unidade','unid','medida'], '%'),
-      frequencia: pick(row,'kpis',['frequencia','frequência','periodicidade'], 'Mensal'),
-      controle: pick(row,'kpis',['controle','ritual'], 'Mensal'),
-      responsavel: pick(row,'kpis',['responsavel','responsável','dono','owner'], area),
-      compartilhar: pick(row,'kpis',['compartilhar','areas_permitidas','áreas_permitidas','compartilhamento'], ''),
-      fonte: pick(row,'kpis',['fonte','origem'], 'Google Sheets'),
-      sentido: pick(row,'kpis',['sentido','direcao','direção','regra'], 'Maior Melhor'),
-      meta: num(pick(row,'kpis',['meta','meta_padrao','meta_padrão','meta padrão'], ''), 0),
-      minimo: num(pick(row,'kpis',['minimo','mínimo','minimo_padrao','mínimo_padrão','minimo padrão'], ''), 0),
-      maximo: num(pick(row,'kpis',['maximo','máximo','maximo_padrao','máximo_padrão','maximo padrão'], ''), 0),
-      peso_ebitda: num(pick(row,'kpis',['peso_ebitda','peso vop','peso_vop'], ''), 0),
-      sensibilidade_vop: num(pick(row,'kpis',['sensibilidade_vop','sensibilidade'], ''), 0),
-      tipo_vop: pick(row,'kpis',['tipo_vop','tipo vop'], ''),
-      peso_indice: num(pick(row,'kpis',['peso_indice','peso_índice','peso índice','peso','peso_ppr'], ''), 0),
-      acumulado: pick(row,'kpis',['acumulado','forma_acumulado','criterio_acumulado'], 'média'),
-      status_impl: pick(row,'kpis',['status_impl','status','implantacao','implantação'], 'Google Sheets'),
-      ativo: pick(row,'kpis',['ativo','status_ativo'], 'SIM'),
-      selecao_semanal: pick(row,'kpis',['selecao_semanal','seleção_semanal','semanal'], ''),
-      obs: pick(row,'kpis',['obs','observacao','observação','comentario','comentário'], '')
-    };
-  }
-  function apiToLaunch(row){
-    const id = String(pick(row,'mensal',['id_kpi','id','id kpi','codigo','código','codigo_kpi','kpi_id'], '')).trim();
-    if(!id) return null;
-    const ano = num(pick(row,'mensal',['ano','year'], ''), (typeof currentAno !== 'undefined' ? currentAno : new Date().getFullYear()));
-    const mes = num(pick(row,'mensal',['mes_num','mês_num','mes','mês','month'], ''), (typeof currentMes !== 'undefined' ? currentMes : new Date().getMonth()+1));
-    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k=>String(k.id)===id) : null) || {};
-    const sentido = pick(row,'mensal',['sentido','direcao','direção'], kpi.sentido || 'Maior Melhor');
-    const meta = num(pick(row,'mensal',['meta','meta_padrao','meta_padrão'], ''), num(kpi.meta,0));
-    const minimo = num(pick(row,'mensal',['minimo','mínimo'], ''), num(kpi.minimo,0));
-    const maximo = num(pick(row,'mensal',['maximo','máximo'], ''), num(kpi.maximo,0));
-    const realizado = num(pick(row,'mensal',['realizado','valor','resultado'], ''), null);
-    const peso = num(pick(row,'mensal',['peso_ebitda','peso_vop'], ''), num(kpi.peso_ebitda,0));
-    return {
-      id_kpi:id,
-      area: pick(row,'mensal',['area','área'], kpi.area || 'Sem área'),
-      indicador: pick(row,'mensal',['indicador','nome_kpi','nome do kpi','nome'], kpi.indicador || id),
-      ano, mes_num:mes,
-      unidade: pick(row,'mensal',['unidade','unid'], kpi.unidade || '%'),
-      sentido, meta, minimo, maximo,
-      peso_ebitda:peso,
-      realizado,
-      status: (typeof calcStatus === 'function') ? calcStatus(sentido, realizado, meta) : '',
-      impacto: (typeof calcImpact === 'function') ? calcImpact(sentido, realizado, meta, peso) : 0,
-      comentario: pick(row,'mensal',['comentario','comentário','justificativa','obs'], '')
-    };
-  }
-  function apiToWeekly(row){
-    const id = String(pick(row,'semanal',['id_kpi','id','id kpi','codigo','código','codigo_kpi','kpi_id'], '')).trim();
-    if(!id) return null;
-    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || {};
-    return {
-      id_kpi:id,
-      area: pick(row,'semanal',['area','área'], kpi.area || 'Sem área'),
-      ano: num(pick(row,'semanal',['ano','year'], ''), (typeof currentAno !== 'undefined' ? currentAno : new Date().getFullYear())),
-      mes_num: num(pick(row,'semanal',['mes_num','mês_num','mes','mês','month'], ''), (typeof currentMes !== 'undefined' ? currentMes : new Date().getMonth()+1)),
-      etapa: num(pick(row,'semanal',['etapa','semana','fase'], ''), 1),
-      realizado: num(pick(row,'semanal',['realizado','valor','resultado'], ''), null),
-      meta: num(pick(row,'semanal',['meta','meta_semana'], ''), num(kpi.meta, null)),
-      minimo: num(pick(row,'semanal',['minimo','mínimo','minimo_semana'], ''), num(kpi.minimo, null)),
-      maximo: num(pick(row,'semanal',['maximo','máximo','maximo_semana'], ''), num(kpi.maximo, null)),
-      tendencia_fechamento: num(pick(row,'semanal',['tendencia_fechamento','tendência_fechamento','tendencia'], ''), null),
-      comentario: pick(row,'semanal',['comentario','comentário','justificativa','obs'], ''),
-      atualizado_por: pick(row,'semanal',['atualizado_por'], ''),
-      atualizado_em: pick(row,'semanal',['atualizado_em'], '')
-    };
-  }
-  function forceCatalog(catalogo){
-    if(!Array.isArray(catalogo) || !catalogo.length) return 0;
-    const clean = catalogo.filter(k=>k && String(k.id||'').trim()).map(k=>Object.assign({}, k));
-    if(!clean.length) return 0;
-    if(typeof KPI_CATALOG !== 'undefined' && Array.isArray(KPI_CATALOG)){
-      KPI_CATALOG.length = 0;
-      clean.forEach(k=>KPI_CATALOG.push(k));
-      window.kpis = KPI_CATALOG;
-      try { kpis = KPI_CATALOG; } catch(e) {}
-    } else {
-      window.kpis = clean;
-      try { kpis = clean; } catch(e) {}
-    }
-    try { if(typeof dmxNormalizeCatalogAreas === 'function') dmxNormalizeCatalogAreas(window.kpis); } catch(e) {}
-    try { if(typeof refreshDimensions === 'function') refreshDimensions(); } catch(e) {}
-    try { localStorage.setItem(CATALOG_KEY, JSON.stringify(window.kpis)); } catch(e) {}
-    return window.kpis.length;
-  }
-  function forceMensal(rows){
-    if(!Array.isArray(rows)) return 0;
-    const mapped = rows.map(apiToLaunch).filter(Boolean);
-    if(!mapped.length) return 0;
-    if(!Array.isArray(window.launches)) window.launches = [];
-    try { launches = window.launches = Array.isArray(launches) ? launches : window.launches; } catch(e) {}
-    mapped.forEach(novo=>{
-      const i = launches.findIndex(l=>String(l.id_kpi)===String(novo.id_kpi) && Number(l.ano)===Number(novo.ano) && Number(l.mes_num)===Number(novo.mes_num));
-      if(i >= 0) launches[i] = Object.assign({}, launches[i], novo);
-      else launches.push(novo);
-    });
-    try { if(typeof dmxReconcileLaunchesWithCatalog === 'function') dmxReconcileLaunchesWithCatalog(); } catch(e) {}
-    try { localStorage.setItem(LAUNCHES_KEY, JSON.stringify(launches)); } catch(e) {}
-    return mapped.length;
-  }
-  function forceSemanal(rows){
-    if(!Array.isArray(rows)) return 0;
-    const mapped = rows.map(apiToWeekly).filter(Boolean);
-    if(!mapped.length) return 0;
-    window.__dmxApplyingSheetsData = true;
-    try {
-      if(typeof upsertWeekly === 'function') upsertWeekly(mapped);
-      else localStorage.setItem('dmx_weekly_stage_data_v18_1', JSON.stringify(mapped));
-    } catch(e) { console.warn('Falha ao aplicar semanal do Sheets:', e); }
-    finally { setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0); }
-    return mapped.length;
-  }
-  function rerenderAll(){
-    try { if(typeof refreshDimensions === 'function') refreshDimensions(); } catch(e) {}
-    try { if(typeof buildSidebar === 'function') buildSidebar(); } catch(e) {}
-    try { if(typeof buildFilters === 'function') buildFilters(); } catch(e) {}
-    try { if(typeof fillWeeklyFilters === 'function') fillWeeklyFilters(); } catch(e) {}
-    try { if(typeof renderCurrentPage === 'function') renderCurrentPage(); else if(typeof renderDashboard === 'function') renderDashboard(); } catch(e) { console.warn('Render pós-Sheets falhou:', e); }
-    setTimeout(()=>{
-      try { if(typeof buildSidebar === 'function') buildSidebar(); if(typeof renderCurrentPage === 'function') renderCurrentPage(); } catch(e) {}
-    }, 250);
-  }
-
-  window.dmxNormalizeApiList = normalizeList;
-  window.dmxApiToKpi = dmxApiToKpi = apiToKpi;
-  window.dmxApiToLaunch = dmxApiToLaunch = apiToLaunch;
-  window.dmxApiToWeekly = dmxApiToWeekly = apiToWeekly;
-  window.dmxApplyCatalog = dmxApplyCatalog = function(arr){ return !!forceCatalog(arr); };
-  window.dmxApplyMensalRows = dmxApplyMensalRows = function(rows){ return forceMensal(rows); };
-  window.dmxApplySemanalRows = dmxApplySemanalRows = function(rows){ return forceSemanal(rows); };
-
-  window.dmxCarregarCatalogoDaAPI = dmxCarregarCatalogoDaAPI = async function(manual=true){
-    const url = (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : '').trim();
-    if(!url) return false;
-    if(window.dmxApiStatus) window.dmxApiStatus.loading = true;
-    try{
-      const [rawKpis, rawMensal, rawSemanal, rawPlanos, rawJust] = await Promise.all([
-        dmxFetchJsonTipo(url, 'kpis'),
-        dmxFetchJsonTipo(url, 'mensal'),
-        dmxFetchJsonTipo(url, 'semanal'),
-        dmxFetchJsonTipo(url, 'planos').catch(()=>[]),
-        dmxFetchJsonTipo(url, 'justificativas').catch(()=>[])
-      ]);
-      const dataKpis = normalizeList(rawKpis, 'kpis');
-      const dataMensal = normalizeList(rawMensal, 'mensal');
-      const dataSemanal = normalizeList(rawSemanal, 'semanal');
-      const catalogo = dataKpis.map(apiToKpi).filter(k=>k && String(k.id||'').trim());
-      const qtdKpis = forceCatalog(catalogo);
-      const qtdMensal = forceMensal(dataMensal);
-      const qtdSemanal = forceSemanal(dataSemanal);
-      try { if(typeof dmxApplyPlanosRows === 'function') dmxApplyPlanosRows(normalizeList(rawPlanos, 'planos')); } catch(e) {}
-      try { if(typeof dmxApplyJustificativasRows === 'function') dmxApplyJustificativasRows(normalizeList(rawJust, 'justificativas')); } catch(e) {}
-      if(window.dmxApiStatus){
-        window.dmxApiStatus.connected = true;
-        window.dmxApiStatus.loading = false;
-        window.dmxApiStatus.lastError = null;
-        window.dmxApiStatus.source = qtdKpis ? 'google_sheets' : 'fallback_local';
-        window.dmxApiStatus.counts = Object.assign({}, window.dmxApiStatus.counts || {}, {kpis:dataKpis.length, kpisAplicados:qtdKpis, mensal:qtdMensal, semanal:qtdSemanal});
-      }
-      rerenderAll();
-      if(typeof showToast === 'function') showToast(qtdKpis ? ('✓ Sheets sincronizado · '+qtdKpis+' KPIs · '+qtdMensal+' lançamentos mensais · '+qtdSemanal+' semanais') : '⚠ Sheets lido, mas Cadastro_KPIs não retornou KPIs válidos');
-      console.log('[DMX v34] Sincronização Sheets', {rawKpis, dataKpis, catalogo, dataMensal, dataSemanal});
-      return true;
-    }catch(err){
-      console.error('[DMX v34] Erro ao sincronizar Sheets:', err);
-      if(window.dmxApiStatus){ window.dmxApiStatus.connected=false; window.dmxApiStatus.loading=false; window.dmxApiStatus.lastError=err; }
-      if(manual) alert('Não consegui sincronizar o Google Sheets.\n\nErro: ' + (err && err.message ? err.message : err));
-      return false;
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(function(){ try { dmxCarregarCatalogoDaAPI(false); } catch(e) {} }, 900);
-  });
 })();
 </script>
 
