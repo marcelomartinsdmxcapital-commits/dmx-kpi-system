@@ -827,7 +827,7 @@ let kpis = dmxNormalizeCatalogAreas(KPI_CATALOG);
 window.kpis = kpis;
   AREAS = [...new Set(kpis.map(k => k.area).filter(a => String(a||'').trim() && String(a||'').trim() !== 'Mensal'))].sort(); window.AREAS = AREAS;
   PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
-}
+
 let donutChart = null, trendChart = null, ebitdaBarChart = null;
 const areaCharts = {};
 
