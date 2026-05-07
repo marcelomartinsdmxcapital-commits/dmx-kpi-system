@@ -820,11 +820,17 @@ const areaCharts = {};
 // A URL fica salva no navegador para evitar editar código.
 // Use a URL do Apps Script publicada como App da Web, terminando em /exec.
 const DMX_API_URL_KEY = 'dmx_google_sheets_api_url_v1';
+// URL oficial do Apps Script — hardcoded como padrão para garantir conexão sem configuração manual
+const DMX_API_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
 let dmxApiStatus = { connected: false, loading: false, lastError: null, debug: null, counts: {kpis:0, kpisAplicados:0, mensal:0, semanal:0, catalogoLocal:0}, source: 'local' };
 window.dmxApiStatus = dmxApiStatus;
 
 function dmxGetApiUrl() {
-  try { return (localStorage.getItem(DMX_API_URL_KEY) || '').trim(); } catch(e) { return ''; }
+  try {
+    const saved = (localStorage.getItem(DMX_API_URL_KEY) || '').trim();
+    // Retorna a URL salva se valida, senao usa a URL padrao hardcoded
+    return (saved && saved.includes('script.google.com')) ? saved : DMX_API_URL_DEFAULT;
+  } catch(e) { return DMX_API_URL_DEFAULT; }
 }
 
 function dmxSetApiUrl(url) {
@@ -1166,6 +1172,13 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
 // \u2500\u2500\u2500 INIT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function init() {
   // FIX-SYNC: não recarregar catálogo do localStorage no init — Sheets é a fonte oficial.
+  // Garante que a URL da API sempre esteja salva no localStorage (evita prompt ao usuário)
+  try {
+    const _savedUrl = localStorage.getItem('dmx_google_sheets_api_url_v1') || '';
+    if (!_savedUrl || !_savedUrl.includes('script.google.com')) {
+      localStorage.setItem('dmx_google_sheets_api_url_v1', DMX_API_URL_DEFAULT);
+    }
+  } catch(e) {}
   try { launches = JSON.parse(localStorage.getItem('dmx_launches') || 'null') || buildLaunches(); } catch(e) { launches = buildLaunches(); }
   try { planos = JSON.parse(localStorage.getItem('dmx_planos') || 'null') || PLANOS_RAW.map(p => ({...p})); } catch(e) { planos = PLANOS_RAW.map(p => ({...p})); }
   try { dmxNormalizeCatalogAreas(kpis); refreshDimensions(); } catch(e) {}
@@ -6059,7 +6072,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
     const x = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
     return Number.isFinite(x) ? x : def;
   }
-  function getUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
+  function getUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec')).trim(); }
   function withTipo(tipo){ return typeof dmxApiUrlWithTipo === 'function' ? dmxApiUrlWithTipo(getUrl(), tipo) : getUrl() + (getUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo); }
   function toast(m){ if(typeof showToast === 'function') showToast(m); }
   function refresh(){
@@ -6332,7 +6345,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   const LOG_CACHE_KEY = 'dmx_logs_cache_v20';
 
   function toast(msg){ if(typeof showToast==='function') showToast(msg); else console.log(msg); }
-  function getApiUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
+  function getApiUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec')).trim(); }
   function withTipo(tipo){ return (typeof dmxApiUrlWithTipo === 'function') ? dmxApiUrlWithTipo(getApiUrl(), tipo) : getApiUrl() + (getApiUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo); }
   function esc(v){ return String(v ?? '').replace(/[&<>'"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m])); }
   async function getArray(tipo){
