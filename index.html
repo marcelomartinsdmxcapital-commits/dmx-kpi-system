@@ -1216,6 +1216,7 @@ async function dmxCarregarCatalogoDaAPI(manual=true) {
     }
     dmxReconcileLaunchesWithCatalog();
     const qtdMensal = dmxApplyMensalRows(dataMensal);
+    dmxReconcileLaunchesWithCatalog();
     const qtdSemanal = (typeof dmxApplySemanalRows === 'function') ? dmxApplySemanalRows(dataSemanal) : 0;
     try {
       dmxReconcileLaunchesWithCatalog();
