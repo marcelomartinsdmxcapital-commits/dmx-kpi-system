@@ -788,7 +788,14 @@ let planos = [];
 // Catálogo editável e persistente: mantém alterações importadas via CSV mesmo após atualização/reabertura.
 const DMX_CATALOG_KEY = 'dmx_kpi_catalog_v13';
 function dmxLoadCatalogFromStorage() {
-  return null;
+  try {
+    const raw = localStorage.getItem(DMX_CATALOG_KEY);
+    const arr = raw ? JSON.parse(raw) : null;
+    return Array.isArray(arr) && arr.length ? arr : null;
+  } catch(e) {
+    return null;
+  }
+}
 
 function dmxSaveCatalogToStorage() {
   try { localStorage.setItem(DMX_CATALOG_KEY, JSON.stringify(kpis || KPI_CATALOG)); } catch(e) {}
