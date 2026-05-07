@@ -823,19 +823,8 @@ function dmxApplyCatalog(arr) {
   refreshDimensions();
   return true;
 }
-const DMX_STORED_CATALOG = dmxLoadCatalogFromStorage();
-if (DMX_STORED_CATALOG) {
-  KPI_CATALOG.length = 0;
-  dmxNormalizeCatalogAreas(DMX_STORED_CATALOG).forEach(k => KPI_CATALOG.push(k));
-}
 let kpis = dmxNormalizeCatalogAreas(KPI_CATALOG);
 window.kpis = kpis;
-try { dmxSaveCatalogToStorage(); } catch(e) {}
-const MES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-let AREAS = [...new Set(kpis.map(k => k.area))].sort(); window.AREAS = AREAS;
-let PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
-function refreshDimensions() {
-  try { dmxNormalizeCatalogAreas(kpis); } catch(e) {}
   AREAS = [...new Set(kpis.map(k => k.area).filter(a => String(a||'').trim() && String(a||'').trim() !== 'Mensal'))].sort(); window.AREAS = AREAS;
   PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
 }
