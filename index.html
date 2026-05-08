@@ -976,6 +976,11 @@ function dmxApplyMensalRows(rows) {
     const i = launches.findIndex(l => String(l.id_kpi) === String(novo.id_kpi) && Number(l.ano) === Number(novo.ano) && Number(l.mes_num) === Number(novo.mes_num));
     if (i >= 0) launches[i] = { ...launches[i], ...novo };
     else launches.push(novo);
+    // FIX-JUSTIFICATIVA: sincroniza comentário/justificativa do Sheets com o localStorage de obs
+    // para que renderKPISlide (getObs) mostre sempre o texto atualizado do Sheets
+    if (novo.comentario) {
+      try { localStorage.setItem(obsKey(novo.id_kpi, novo.mes_num, novo.ano), novo.comentario); } catch(e) {}
+    }
     count++;
   });
   try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {}
@@ -1133,23 +1138,15 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
         const okApply = dmxApplyCatalog(catalogo);
         dmxSaveCatalogToStorage();
         qtdKpisAplicados = (okApply && Array.isArray(window.kpis) && window.kpis.length) ? window.kpis.length : catalogo.length;
-        // FIX-NOME: após aplicar catálogo do Sheets, atualiza o nome/area de todos os launches
-        // para garantir que nomes antigos do localStorage não persistam nos cards
+        // FIX-TEXTO-SHEETS: catálogo oficial chegou do Sheets — descarta launches do localStorage
+        // para que dmxReconcileLaunchesWithCatalog reconstrua tudo com os textos atualizados
+        // (indicador, area, objetivo, formula, sentido, unidade vêm sempre do catálogo fresco)
         try {
           kpis = KPI_CATALOG; window.kpis = KPI_CATALOG; refreshDimensions();
-          if (Array.isArray(launches)) {
-            const kpiMap = {};
-            KPI_CATALOG.forEach(k => { kpiMap[k.id] = k; });
-            launches.forEach(l => {
-              const k = kpiMap[l.id_kpi];
-              if (k) {
-                l.indicador = k.indicador;
-                l.area = k.area;
-                l.unidade = k.unidade;
-                l.sentido = k.sentido;
-              }
-            });
-          }
+          // Limpa cache de launches para evitar que textos antigos sobrevivam
+          localStorage.removeItem('dmx_launches');
+          // Reconstrói launches em memória do zero (sem dados do localStorage)
+          launches = buildLaunches ? buildLaunches() : [];
         } catch(e) {}
       } else {
         console.warn('v33: API retornou linhas, mas nenhuma virou KPI válido. Amostra:', dataKpis.slice(0,3));
