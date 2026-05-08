@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de KPIs v34 Admin Governance</title>
+<title>DMX Capital · Sistema de Gestão de KPIs v45 Governança Admin Completa</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -463,7 +463,17 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 
 /* v5: CSV desativado — Google Sheets é a fonte única de dados */
 #import-modal, #catalog-modal { display: none !important; }
+
+/* v36: conexões movidas para Admin / Sheets */
+#dmx-open-sheets-btn, #dmx-sync-sheets-btn { display: none !important; }
 </style>
+
+<style id="dmx-v40-admin-sem-logs-css">
+  /* v40: Admin sem logs — mantém a aba Admin inteira e remove somente o bloco pesado de auditoria da tela */
+  #dmx-admin-kpi-table-wrap { max-height: 520px; overflow: auto; }
+  .dmx-admin-compact-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -507,8 +517,6 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <span style="font-size:10px;color:var(--muted);font-weight:600">ANO</span>
       <select id="ano-sel" onchange="onPeriodChange()"><option value="2026" selected>2026</option></select>
     </div>
-    <button class="topbar-btn btn-outline" onclick="configurarApiDMX()">☁ Conectar API</button>
-    <div class="period-selector" title="Base oficial de dados"><span style="font-size:10px;color:var(--muted);font-weight:600">BASE</span><span style="font-size:12px;font-weight:700;color:var(--teal)">Google Sheets</span></div>
   </div>
 
   <div class="content">
@@ -4518,7 +4526,8 @@ window.addEventListener('DOMContentLoaded', init);
     const qEl = document.getElementById('watch-search');
     const q = qEl ? qEl.value.toLowerCase().trim() : '';
     const selected = new Set(getWatchedKPIIds(area));
-    const all = (window.kpis||KPI_CATALOG||[]).filter(k => String(k.area||'').trim() !== String(area||'').trim());
+    const allRaw = (window.kpis||KPI_CATALOG||[]).filter(k => String(k.area||'').trim() !== String(area||'').trim());
+    const all = allRaw;
     const filtered = all.filter(k => !q || String(k.indicador||'').toLowerCase().includes(q) || String(k.area||'').toLowerCase().includes(q) || String(k.id||'').toLowerCase().includes(q));
     const areas = [...new Set(filtered.map(k=>k.area||'Sem área'))].sort();
     let body = '<p class="text-muted text-sm mt-1 mb-3">Escolha KPIs de outras áreas para acompanhar nesta visão. Isso não muda dono, meta, peso ou PPR; é apenas uma visão individual salva neste navegador.</p>'+
@@ -4556,7 +4565,8 @@ window.addEventListener('DOMContentLoaded', init);
   // Override da tela da área: adiciona terceira aba “KPIs Acompanhados”.
   const originalRenderAreaDetail = window.renderAreaDetail;
   window.renderAreaDetail = renderAreaDetail = function(area){
-    const allK = (window.kpis||KPI_CATALOG||[]);
+    const allKRaw = (window.kpis||KPI_CATALOG||[]);
+    const allK = allKRaw;
     const areaKPIs = allK.filter(k => String(k.area||'').trim() === String(area||'').trim());
     const data = byPeriod(currentMes, currentAno).filter(l => String(l.area||'').trim() === String(area||'').trim());
     const v = data.filter(l => l.status === 'VERDE').length;
@@ -6328,6 +6338,37 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   const SHEET_URL_KEY = 'dmx_google_sheets_base_url_v20';
   const PERM_CACHE_KEY = 'dmx_permissoes_cache_v20';
   const LOG_CACHE_KEY = 'dmx_logs_cache_v20';
+  const DMX_CARGOS_PADRAO = ['Administrador','CEO','Diretoria','Gerência','Liderança','Analista','Assistente'];
+  window.DMX_CARGOS_PADRAO = DMX_CARGOS_PADRAO;
+
+  function normalizeCargo(v){
+    const s = String(v||'').trim();
+    return DMX_CARGOS_PADRAO.find(c => c.toLowerCase() === s.toLowerCase()) || s || 'Assistente';
+  }
+  function parseCargos(v){
+    if(Array.isArray(v)) return v.map(normalizeCargo).filter(Boolean);
+    return String(v||'').split(/[;,|]/).map(normalizeCargo).filter(Boolean);
+  }
+  function cargosToText(v){ return parseCargos(v).join('; '); }
+  function cargoOptions(selected){
+    selected = normalizeCargo(selected);
+    return DMX_CARGOS_PADRAO.map(c => `<option value="${esc(c)}"${c===selected?' selected':''}>${esc(c)}</option>`).join('');
+  }
+  function cargoChecks(selected){
+    const set = new Set(parseCargos(selected));
+    const cargos = DMX_CARGOS_PADRAO.filter(c=>c!=='Administrador');
+    const allChecked = cargos.length && cargos.every(c=>set.has(c));
+    const todos = `<label style="font-size:12px;display:flex;gap:6px;align-items:center;font-weight:800;color:var(--teal)"><input type="checkbox" id="adm-kpi-cargo-todos" ${allChecked?'checked':''} onchange="dmxToggleTodosCargos(this)"> Todos</label>`;
+    return todos + cargos.map(c => `<label style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" class="adm-kpi-cargo" value="${esc(c)}" ${set.has(c)?'checked':''} onchange="dmxSyncTodosCargos()"> ${esc(c)}</label>`).join('');
+  }
+  window.dmxCanAccessKPI = function(user, kpi){
+    user = user || {}; kpi = kpi || {};
+    const cargo = normalizeCargo(user.cargo || user.perfil || '');
+    if(cargo === 'Administrador' || String(user.perfil||'').toLowerCase()==='admin') return true;
+    if(String(user.area||'').trim() && String(user.area||'').trim() === String(kpi.area||'').trim()) return true;
+    const allowed = parseCargos(kpi.cargos_permitidos || kpi.allowedRoles || kpi.acesso_cargos || kpi.cargos || '');
+    return allowed.includes(cargo);
+  };
 
   function toast(msg){ if(typeof showToast==='function') showToast(msg); else console.log(msg); }
   function getApiUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
@@ -6374,8 +6415,9 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   };
 
   async function loadAdminData(){
+    // v40: Admin leve. Não buscamos nem renderizamos Logs_Alteracoes nesta tela.
+    // Isso evita lentidão quando a aba de logs fica grande. A auditoria pode continuar no Sheets/backend.
     const out = {logs:[], permissoes:[], config:[], debug:null, kpisApi:[], mensalApi:[], semanalApi:[]};
-    try { out.logs = await getArray('logs'); localStorage.setItem(LOG_CACHE_KEY, JSON.stringify(out.logs)); } catch(e){ try{ out.logs = JSON.parse(localStorage.getItem(LOG_CACHE_KEY)||'[]'); }catch(_){} }
     try { out.permissoes = await getArray('permissoes'); localStorage.setItem(PERM_CACHE_KEY, JSON.stringify(out.permissoes)); } catch(e){ try{ out.permissoes = JSON.parse(localStorage.getItem(PERM_CACHE_KEY)||'[]'); }catch(_){} }
     try { out.config = await getArray('config'); } catch(e){}
     try { const r = await fetch(withTipo('debug'), {method:'GET', cache:'no-store'}); out.debug = await r.json(); if (window.dmxApiStatus) window.dmxApiStatus.debug = out.debug; } catch(e) { out.debug = (window.dmxApiStatus && window.dmxApiStatus.debug) || null; }
@@ -6388,9 +6430,10 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   window.dmxAddPermissao = async function(){
     const email = (document.getElementById('adm-email')?.value || '').trim();
     const perfil = (document.getElementById('adm-perfil')?.value || 'editor').trim();
+    const cargo = normalizeCargo(document.getElementById('adm-cargo')?.value || 'Assistente');
     const area = (document.getElementById('adm-area')?.value || '').trim();
     if(!email || !/.+@.+\..+/.test(email)){ alert('Informe um e-mail válido.'); return; }
-    const payload = {email, perfil, area, ativo:'SIM'};
+    const payload = {email, perfil, cargo, area, ativo:'SIM'};
     const r = await post('salvarPermissao', payload);
     if(r.ok){ toast('✓ Permissão registrada no Google Sheets'); renderAdminDMX(true); }
   };
@@ -6406,7 +6449,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       chave:'config_sistema',
       sheet_url: localStorage.getItem(SHEET_URL_KEY) || '',
       seguranca_ativa: document.getElementById('adm-seguranca')?.checked ? 'SIM' : 'NAO',
-      log_edicoes: document.getElementById('adm-logs')?.checked ? 'SIM' : 'NAO',
+      log_edicoes: 'NAO',
       versao_frontend:'v21_frontend_diagnostico'
     };
     const r = await post('salvarConfig', cfg);
@@ -6416,7 +6459,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   window.renderAdminDMX = async function(force=false){
     const host = document.getElementById('admin-root');
     if(!host) return;
-    host.innerHTML = '<div class="block-card"><div class="section-title">Carregando administração...</div><div class="text-muted text-sm mt-2">Lendo Logs_Alteracoes, Permissoes e Config_Sistema.</div></div>';
+    host.innerHTML = '<div class="block-card"><div class="section-title">Carregando administração...</div><div class="text-muted text-sm mt-2">Lendo Permissões, Config_Sistema e diagnóstico da conexão.</div></div>';
     const data = await loadAdminData();
     const sheetUrl = localStorage.getItem(SHEET_URL_KEY) || '';
     const apiUrl = getApiUrl();
@@ -6427,21 +6470,21 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
     const totalKpisApi = data.kpisApi.length || apiCounts.kpis || 0;
     const totalKpisTela = (typeof kpis !== 'undefined' && Array.isArray(kpis)) ? kpis.length : 0;
     const fonteDados = (window.dmxApiStatus && window.dmxApiStatus.source)==='google_sheets' ? 'Google Sheets' : 'Local/Fallback';
-    const logs = (data.logs||[]).slice(-30).reverse();
+    const logs = []; // v40: logs desativados na tela Admin
     const perms = data.permissoes||[];
     const areas = (window.AREAS || []).filter(Boolean).map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
     host.innerHTML = `
-      <div class="cards-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="cards-row" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi-card teal"><div class="card-label">API</div><div class="card-value teal">${apiUrl?'ON':'OFF'}</div><div class="card-sub">${esc(dbg.versao || 'Apps Script Web App')}</div></div>
         <div class="kpi-card blue"><div class="card-label">KPIs Sheets</div><div class="card-value blue">${totalKpisApi || '—'}</div><div class="card-sub">Cadastro_KPIs retornado pela API</div></div>
         <div class="kpi-card amber"><div class="card-label">KPIs em tela</div><div class="card-value amber">${totalKpisTela}</div><div class="card-sub">Fonte atual: ${esc(fonteDados)}</div></div>
-        <div class="kpi-card green"><div class="card-label">Logs</div><div class="card-value green">${logs.length}</div><div class="card-sub">Últimas alterações carregadas</div></div>
       </div>
       <div class="two-col">
         <div class="block-card">
           <div class="section-header"><div><div class="section-title">Base oficial Google Sheets</div><div class="text-muted text-sm mt-1">Acesso rápido à planilha oficial usada pelo sistema.</div></div></div>
           <div class="filter-row" style="margin-bottom:10px">
             <button class="btn btn-primary" onclick="dmxOpenSheet()">↗ Abrir Google Sheets</button>
+            <button class="btn btn-ghost" onclick="configurarApiDMX()">☁ Configurar API</button>
             <button class="btn btn-ghost" onclick="dmxSetSheetUrl()">Configurar link da base</button>
             <button class="btn btn-ghost" onclick="dmxCarregarCatalogoDaAPI(true)">↻ Sincronizar agora</button>
             <button class="btn btn-danger" onclick="dmxRestaurarDatabaseMaster()">⚠ Restaurar base pelo sistema</button>
@@ -6467,30 +6510,22 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
         <div class="block-card">
           <div class="section-title">Configurações de governança</div>
           <label class="flex items-center gap-2 mt-3" style="font-size:12px"><input id="adm-seguranca" type="checkbox"> Ativar bloqueio por permissão no frontend</label>
-          <label class="flex items-center gap-2 mt-2" style="font-size:12px"><input id="adm-logs" type="checkbox" checked> Registrar logs de alterações</label>
           <button class="btn btn-primary mt-3" onclick="dmxSalvarConfigAdmin()">Salvar Configurações</button>
           <div class="mt-3" style="font-size:11px;color:var(--muted);line-height:1.55">Nesta versão o controle de permissões já fica estruturado no Sheets. O bloqueio rígido por usuário deve ser ativado depois de validar os perfis.</div>
         </div>
       </div>
-      <div class="two-col">
-        <div class="block-card">
-          <div class="section-header"><div><div class="section-title">Permissões / Multiusuário</div><div class="text-muted text-sm mt-1">Estrutura inicial: admin, editor, leitura ou área.</div></div></div>
-          <div class="filter-row">
-            <input id="adm-email" class="filter-input" placeholder="email@empresa.com" style="flex:1;min-width:180px">
-            <select id="adm-perfil" class="filter-input"><option value="admin">Admin</option><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="area">Somente área</option></select>
-            <select id="adm-area" class="filter-input"><option value="">Todas as áreas</option>${areas}</select>
-            <button class="btn btn-primary" onclick="dmxAddPermissao()">Adicionar</button>
-          </div>
-          <div class="table-wrap"><table class="data-table"><thead><tr><th>E-mail</th><th>Perfil</th><th>Área</th><th>Ativo</th><th></th></tr></thead><tbody>
-            ${perms.length ? perms.map(p=>`<tr><td>${esc(p.email||p.usuario||'')}</td><td>${esc(p.perfil||'')}</td><td>${esc(p.area||'Todas')}</td><td>${esc(p.ativo||'SIM')}</td><td><button class="btn btn-danger btn-sm" onclick="dmxDisablePermissao('${esc(p.email||p.usuario||'')}')">Desativar</button></td></tr>`).join('') : '<tr><td colspan="5" class="text-muted">Nenhuma permissão cadastrada.</td></tr>'}
-          </tbody></table></div>
+      <div class="block-card">
+        <div class="section-header"><div><div class="section-title">Permissões / Multiusuário</div><div class="text-muted text-sm mt-1">Defina perfil, cargo e área. Administrador tem acesso total; demais acessam a própria área e KPIs liberados por cargo.</div></div></div>
+        <div class="filter-row">
+          <input id="adm-email" class="filter-input" placeholder="email@empresa.com" style="flex:1;min-width:180px">
+          <select id="adm-perfil" class="filter-input"><option value="admin">Admin</option><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="area">Somente área</option></select>
+          <select id="adm-cargo" class="filter-input">${cargoOptions('Assistente')}</select>
+          <select id="adm-area" class="filter-input"><option value="">Todas as áreas</option>${areas}</select>
+          <button class="btn btn-primary" onclick="dmxAddPermissao()">Adicionar</button>
         </div>
-        <div class="block-card">
-          <div class="section-header"><div><div class="section-title">Logs de alterações</div><div class="text-muted text-sm mt-1">Últimos registros da aba Logs_Alteracoes.</div></div><button class="btn btn-ghost btn-sm" onclick="renderAdminDMX(true)">Atualizar</button></div>
-          <div class="table-wrap"><table class="data-table"><thead><tr><th>Quando</th><th>Usuário</th><th>Tipo</th><th>Chave</th></tr></thead><tbody>
-            ${logs.length ? logs.map(l=>`<tr><td>${esc(l.timestamp||l.atualizado_em||'')}</td><td>${esc(l.usuario||l.atualizado_por||'')}</td><td>${esc(l.tipo||l.acao||'')}</td><td>${esc(l.chave||'')}</td></tr>`).join('') : '<tr><td colspan="4" class="text-muted">Sem logs carregados. Salve uma alteração para popular a auditoria.</td></tr>'}
-          </tbody></table></div>
-        </div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>E-mail</th><th>Perfil</th><th>Cargo</th><th>Área</th><th>Ativo</th><th></th></tr></thead><tbody>
+          ${perms.length ? perms.map(p=>`<tr><td>${esc(p.email||p.usuario||'')}</td><td>${esc(p.perfil||'')}</td><td>${esc(p.cargo||'—')}</td><td>${esc(p.area||'Todas')}</td><td>${esc(p.ativo||'SIM')}</td><td><button class="btn btn-danger btn-sm" onclick="dmxDisablePermissao('${esc(p.email||p.usuario||'')}')">Desativar</button></td></tr>`).join('') : '<tr><td colspan="6" class="text-muted">Nenhuma permissão cadastrada.</td></tr>'}
+        </tbody></table></div>
       </div>`;
   };
 
@@ -6584,7 +6619,7 @@ function serializeShare(kpi, sh){
   const ctrl = uniq(Object.keys(sh.controle_areas||{}).filter(a=>!eq(a,own))).map(a=>'Controle:'+a);
   return [...meta, ...ctrl].join('/');
 }
-function getKpi(id){ return (typeof getKPI==='function' ? getKPI(id) : null) || (Array.isArray(window.kpis)?window.kpis.find(k=>String(k.id)===String(id)):null); }
+function getKpi(id){ const list = adminAllKpis(); return (typeof getKPI==='function' ? getKPI(id) : null) || list.find(k=>String(k.id)===String(id)) || null; }
 async function persistKpiShare(kpi, sh){
   if(!kpi || !kpi.id) return {ok:false};
   const compartilhar = serializeShare(kpi, sh);
@@ -6766,6 +6801,62 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const num = (v,def=0)=>{ if(v===null||v===undefined||v==='') return def; const n=Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.')); return Number.isFinite(n)?n:def; };
   const toast = (m)=>{ if(typeof showToast==='function') showToast(m); else console.log(m); };
 
+  const DMX_CARGOS_PADRAO_LOCAL = ['Administrador','CEO','Diretoria','Gerência','Liderança','Analista','Assistente'];
+
+  function parseCargosLocal(v){
+    if(Array.isArray(v)) return v.filter(Boolean).map(x=>String(x).trim()).filter(Boolean);
+    return String(v || '')
+      .split(/[;,|]/)
+      .map(x=>x.trim())
+      .filter(Boolean);
+  }
+
+  function cargosToText(v){
+    return parseCargosLocal(v).join('; ');
+  }
+
+  function cargoChecks(selected){
+    const set = new Set(parseCargosLocal(selected));
+    const cargos = DMX_CARGOS_PADRAO_LOCAL.filter(c => c !== 'Administrador');
+    const allChecked = cargos.length && cargos.every(c => set.has(c));
+    const todos = `<label style="font-size:12px;display:flex;gap:6px;align-items:center;font-weight:800;color:var(--teal)"><input type="checkbox" id="adm-kpi-cargo-todos" ${allChecked ? 'checked' : ''} onchange="dmxToggleTodosCargos(this)"> Todos</label>`;
+    return todos + cargos
+      .map(c => `<label style="font-size:12px;display:flex;gap:6px;align-items:center">
+        <input type="checkbox" class="adm-kpi-cargo" value="${esc(c)}" ${set.has(c) ? 'checked' : ''} onchange="dmxSyncTodosCargos()"> ${esc(c)}
+      </label>`)
+      .join('');
+  }
+
+  function adminAllKpis(){
+    try {
+      if (Array.isArray(window.kpis) && window.kpis.length) return window.kpis;
+    } catch(e) {}
+    try {
+      if (typeof kpis !== 'undefined' && Array.isArray(kpis) && kpis.length) {
+        window.kpis = kpis;
+        return kpis;
+      }
+    } catch(e) {}
+    try {
+      if (typeof KPI_CATALOG !== 'undefined' && Array.isArray(KPI_CATALOG) && KPI_CATALOG.length) {
+        window.kpis = KPI_CATALOG;
+        return KPI_CATALOG;
+      }
+    } catch(e) {}
+    try {
+      const raw = localStorage.getItem('dmx_kpi_catalog_v1') || localStorage.getItem('DMX_KPI_CATALOG') || '';
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          window.kpis = parsed;
+          return parsed;
+        }
+      }
+    } catch(e) {}
+    return [];
+  }
+
+
   function manualApiUrl(){ try{return String(localStorage.getItem(API_KEY)||'').trim();}catch(e){return '';} }
   function defaultApiUrl(){ return String(window.DMX_DEFAULT_API_URL||'').trim(); }
 
@@ -6795,15 +6886,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     dmxCarregarCatalogoDaAPI(true);
   };
 
-  function getKpi(id){ return (typeof getKPI==='function' ? getKPI(id) : null) || (Array.isArray(window.kpis)?window.kpis.find(k=>String(k.id)===String(id)):null); }
-  function allAreas(){ return Array.from(new Set((window.kpis||[]).map(k=>k.area).filter(Boolean))).sort(); }
-  function allPilares(){ return Array.from(new Set((window.kpis||[]).map(k=>k.pilar).filter(Boolean))).sort(); }
+  function getKpi(id){ const list = adminAllKpis(); return (typeof getKPI==='function' ? getKPI(id) : null) || list.find(k=>String(k.id)===String(id)) || null; }
+  function allAreas(){ return Array.from(new Set(adminAllKpis().map(k=>k.area).filter(Boolean))).sort(); }
+  function allPilares(){ return Array.from(new Set(adminAllKpis().map(k=>k.pilar).filter(Boolean))).sort(); }
 
   function kpiPayloadFromForm(){
     const id = (document.getElementById('adm-kpi-id')?.value || '').trim();
     if(!id){ alert('Informe o ID do KPI.'); return null; }
     const indicador = (document.getElementById('adm-kpi-indicador')?.value || '').trim();
     if(!indicador){ alert('Informe o nome/indicador do KPI.'); return null; }
+    const cargosPermitidos = Array.from(document.querySelectorAll('.adm-kpi-cargo:checked')).map(x=>x.value).join('; ');
     return {
       id,
       area: (document.getElementById('adm-kpi-area')?.value || '').trim() || 'Sem área',
@@ -6833,12 +6925,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       acumulado: (document.getElementById('adm-kpi-acumulado')?.value || 'média').trim(),
       status_impl: (document.getElementById('adm-kpi-status')?.value || 'Ativo').trim(),
       ativo: document.getElementById('adm-kpi-ativo')?.checked ? 'SIM' : 'NAO',
-      selecao_semanal: document.getElementById('adm-kpi-semanal')?.checked ? 'SIM' : ''
+      selecao_semanal: document.getElementById('adm-kpi-semanal')?.checked ? 'SIM' : 'NAO',
+      cargos_permitidos: cargosPermitidos,
+      allowedRoles: cargosPermitidos,
+      acesso_cargos: cargosPermitidos
     };
   }
 
   function applyKpiLocal(payload){
-    const arr = Array.isArray(window.kpis) ? window.kpis : [];
+    const arr = adminAllKpis();
     const idx = arr.findIndex(k=>String(k.id)===String(payload.id));
     const obj = Object.assign({}, idx>=0 ? arr[idx] : {}, payload, {
       meta: payload.meta_padrao, minimo: payload.minimo_padrao, maximo: payload.maximo_padrao
@@ -6850,7 +6945,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   window.dmxAdminNovoKPI = function(){
-    const next = 'KPI' + String(((window.kpis||[]).length || 0) + 1).padStart(3,'0');
+    const next = 'KPI' + String((adminAllKpis().length || 0) + 1).padStart(3,'0');
     dmxAdminEditarKPI('', {id:next, area:allAreas()[0]||'Cadastro', pilar:'Gestão de Performance', indicador:'', unidade:'%', sentido:'Maior Melhor', vertente:'Meta', frequencia:'Mensal', controle:'Mensal', ativo:'SIM'});
   };
 
@@ -6899,6 +6994,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <div class="filter-row" style="margin-top:12px;align-items:center">
           <label style="font-size:12px"><input id="adm-kpi-ativo" type="checkbox" ${(String(k.ativo||'SIM').toUpperCase()!=='NAO'&&String(k.ativo||'SIM').toUpperCase()!=='FALSE')?'checked':''}> KPI ativo</label>
           <label style="font-size:12px"><input id="adm-kpi-semanal" type="checkbox" ${String(k.selecao_semanal||'').toUpperCase()==='SIM'?'checked':''}> Levar para semanal</label>
+        </div>
+        <div style="margin-top:10px;background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+          <div class="card-label">Cargos com acesso a este KPI fora da própria área</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${cargoChecks(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')}</div>
+          <div class="text-muted text-sm mt-2">Administrador sempre possui acesso total. Usuários também acessam todos os KPIs da própria área.</div>
+        </div>
+        <div class="filter-row" style="margin-top:12px;align-items:center">
           <input id="adm-kpi-status" type="hidden" value="${esc(k.status_impl||'Ativo')}">
           <input id="adm-kpi-abrangencia" type="hidden" value="${esc(k.abrangencia||'')}">
           <button class="btn btn-primary" onclick="dmxAdminSalvarKPI()">Salvar KPI no Admin / Sheets</button>
@@ -6934,18 +7036,18 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   };
 
   function adminKpiPanelHtml(){
-    const rows = (window.kpis||[]).slice().sort((a,b)=>String(a.area||'').localeCompare(String(b.area||''))||String(a.id||'').localeCompare(String(b.id||'')));
+    const rows = adminAllKpis().slice().sort((a,b)=>String(a.area||'').localeCompare(String(b.area||''))||String(a.id||'').localeCompare(String(b.id||'')));
     return `<div class="block-card" style="margin-top:16px">
       <div class="section-header">
-        <div><div class="section-title">Painel de Administração de KPIs</div><div class="text-muted text-sm mt-1">Centro único para cadastro, nome, meta, mínimo, máximo, peso e regras críticas. A tela Atualizar Dados fica apenas operacional.</div></div>
+        <div><div class="section-title">Painel de Administração de KPIs</div><div class="dmx-admin-compact-note">Painel leve: logs de alterações retirados desta tela.</div><div class="text-muted text-sm mt-1">Centro único para cadastro, nome, meta, mínimo, máximo, peso e regras críticas. Logs de alterações não são carregados no Admin para manter a tela rápida.</div><div class="text-muted text-sm mt-1"><b>KPIs carregados para edição:</b> ${rows.length}</div></div>
         <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button></div>
       </div>
       <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(window.dmxGetApiUrl ? window.dmxGetApiUrl() : '') || 'não configurada'}</span><br>
         <b>Origem:</b> ${manualApiUrl() ? 'manual salva neste navegador' : (defaultApiUrl() ? 'padrão gravada no código' : 'nenhuma')}
       </div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Mín.</th><th>Máx.</th><th>Sentido</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
-        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td>${esc(k.minimo ?? k.minimo_padrao ?? '')}</td><td>${esc(k.maximo ?? k.maximo_padrao ?? '')}</td><td>${esc(k.sentido||'')}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="9" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Mín.</th><th>Máx.</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td>${esc(k.minimo ?? k.minimo_padrao ?? '')}</td><td>${esc(k.maximo ?? k.maximo_padrao ?? '')}</td><td>${esc(k.sentido||'')}</td><td style="max-width:180px;font-size:11px;color:var(--muted)">${esc(cargosToText(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
       </tbody></table></div>
     </div>`;
   }
@@ -6967,6 +7069,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       return ret;
     };
     if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true);
+    // Re-render defensivo: alguns carregamentos da API atualizam window.kpis depois da primeira renderização.
+    setTimeout(()=>{ if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true); }, 800);
+    setTimeout(()=>{ if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true); }, 1800);
   }
 
   // Atualizar Dados: meta/mínimo/máximo ficam travados; salvamento operacional usa cadastro como referência.
@@ -7032,8 +7137,844 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     }
   }
 
+
+
+  // v36: filtro de acesso centralizado para uso progressivo nas telas.
+  window.dmxGetCurrentUserAccess = function(){
+    const email = (localStorage.getItem('dmx_usuario_email') || localStorage.getItem('dmx_current_user_email') || '').trim();
+    let perms = [];
+    try{ perms = JSON.parse(localStorage.getItem(PERM_CACHE_KEY)||'[]'); }catch(e){}
+    const p = perms.find(x => String(x.email||x.usuario||'').toLowerCase() === email.toLowerCase()) || {};
+    return {
+      email: email || p.email || p.usuario || '',
+      perfil: p.perfil || (email ? 'leitura' : 'admin'),
+      cargo: normalizeCargo(p.cargo || (String(p.perfil||'').toLowerCase()==='admin' ? 'Administrador' : 'Assistente')),
+      area: p.area || ''
+    };
+  };
+  // v37: controle de acesso cadastrado, mas filtro visual mantido passivo para não ocultar KPIs até validação multiusuário.
+  window.dmxVisibleKpisForCurrentUser = function(list){ return list || []; };
+
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); }, 1200); });
   setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); }, 1800);
+})();
+</script>
+
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v42 — Login, Logout e Administração de Usuários
+     Observação: autenticação frontend/local para controle operacional. Para segurança real,
+     validar também no Apps Script/backend.
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v41-login-css">
+  body.dmx-auth-locked .app { filter: blur(2px); pointer-events: none; user-select: none; }
+  .dmx-login-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg,#070707 0%,#141414 45%,#0e9e82 150%); display: none; align-items: center; justify-content: center; padding: 24px; }
+  .dmx-login-overlay.open { display:flex; }
+  .dmx-login-card { width: 100%; max-width: 420px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.24); border-radius: 18px; padding: 28px; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
+  .dmx-login-brand { font-family: Syne, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.4px; color: #0d0d0d; }
+  .dmx-login-sub { margin-top: 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .dmx-login-title { margin-top: 24px; font-family: Syne, sans-serif; font-size: 18px; font-weight: 800; }
+  .dmx-login-help { margin: 6px 0 18px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .dmx-login-field { width:100%; margin-bottom: 10px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; font-family: inherit; font-size: 13px; outline: none; background: #fff; }
+  .dmx-login-field:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,158,130,.10); }
+  .dmx-login-btn { width:100%; margin-top: 6px; padding: 11px 14px; border: none; border-radius: 9px; background: var(--teal); color: white; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .dmx-login-btn:hover { background: var(--teal2); }
+  .dmx-login-msg { min-height: 18px; margin-top: 12px; font-size: 12px; color: var(--red); line-height: 1.4; }
+  .dmx-infinity { display:none; font-size: 22px; line-height: 1; font-family: Syne, sans-serif; animation: dmxSpinPulse 1s infinite ease-in-out; }
+  .dmx-login-btn.loading .dmx-infinity { display:inline-block; }
+  .dmx-login-btn.loading { opacity: .9; cursor: wait; }
+  @keyframes dmxSpinPulse { 0%{transform:scale(.85);opacity:.45} 50%{transform:scale(1.18);opacity:1} 100%{transform:scale(.85);opacity:.45} }
+  .dmx-user-chip { display:flex; align-items:center; gap:6px; padding:5px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:999px; font-size:11px; color:var(--muted); max-width:230px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dmx-user-admin-grid { display:grid; grid-template-columns: 1.2fr .8fr .8fr .8fr .8fr auto; gap:8px; align-items:center; margin-bottom:10px; }
+  @media(max-width:1000px){ .dmx-user-admin-grid{ grid-template-columns:1fr 1fr; } }
+</style>
+
+<div id="dmx-login-overlay" class="dmx-login-overlay" aria-hidden="true">
+  <div class="dmx-login-card">
+    <div class="dmx-login-brand">DMX Capital</div>
+    <div class="dmx-login-sub">Sistema de Gestão de KPIs</div>
+    <div class="dmx-login-title">Entrar no sistema</div>
+    <div class="dmx-login-help">Use seu e-mail e senha cadastrados pelo administrador.</div>
+    <input id="dmx-login-email" class="dmx-login-field" type="email" placeholder="e-mail" autocomplete="username">
+    <input id="dmx-login-password" class="dmx-login-field" type="password" placeholder="senha" autocomplete="current-password">
+    <button id="dmx-login-button" class="dmx-login-btn" onclick="dmxLoginSubmit()"><span class="dmx-infinity">∞</span><span id="dmx-login-button-text">Entrar</span></button>
+    <div id="dmx-login-msg" class="dmx-login-msg"></div>
+    <div style="margin-top:12px;font-size:10.5px;color:var(--muted);line-height:1.45">Primeiro acesso: admin@dmxcapital.com / admin123. Altere a senha no menu do usuário após entrar.</div>
+  </div>
+</div>
+
+<script id="dmx-v41-login-js">
+(function(){
+  if(window.__dmxLoginV41Installed) return;
+  window.__dmxLoginV41Installed = true;
+  const USERS_KEY = 'dmx_users_v41';
+  const SESSION_KEY = 'dmx_session_v41';
+
+  const esc = v => String(v ?? '').replace(/[&<>'"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  const norm = v => String(v||'').trim().toLowerCase();
+  function toast(msg){ if(typeof showToast==='function') showToast(msg); else alert(msg); }
+  async function sha256(text){
+    const data = new TextEncoder().encode(String(text||''));
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  async function defaultAdmin(){
+    return {email:'admin@dmxcapital.com', nome:'Administrador DMX', perfil:'admin', cargo:'Administrador', area:'', ativo:'SIM', senhaHash:await sha256('admin123'), trocaSenha:'SIM', criadoEm:new Date().toISOString()};
+  }
+  async function getUsers(){
+    let arr=[]; try{ arr=JSON.parse(localStorage.getItem(USERS_KEY)||'[]'); }catch(e){ arr=[]; }
+    if(!Array.isArray(arr) || !arr.length){ arr=[await defaultAdmin()]; localStorage.setItem(USERS_KEY, JSON.stringify(arr)); }
+    return arr;
+  }
+  function saveUsers(arr){ localStorage.setItem(USERS_KEY, JSON.stringify(arr||[])); }
+  function getSession(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;} }
+  function setSession(u){ localStorage.setItem(SESSION_KEY, JSON.stringify({email:u.email,nome:u.nome||u.email,perfil:u.perfil,cargo:u.cargo,area:u.area,loginEm:new Date().toISOString()})); localStorage.setItem('dmx_usuario_email', u.email); localStorage.setItem('dmx_current_user_email', u.email); }
+  function clearSession(){ localStorage.removeItem(SESSION_KEY); localStorage.removeItem('dmx_usuario_email'); localStorage.removeItem('dmx_current_user_email'); }
+  window.dmxGetLoggedUser = function(){ return getSession(); };
+
+  function showLogin(){ document.body.classList.add('dmx-auth-locked'); const o=document.getElementById('dmx-login-overlay'); if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); } setTimeout(()=>document.getElementById('dmx-login-email')?.focus(),80); }
+  function hideLogin(){ document.body.classList.remove('dmx-auth-locked'); const o=document.getElementById('dmx-login-overlay'); if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); } }
+  function refreshUserChrome(){
+    const bar=document.querySelector('.topbar'); if(!bar) return;
+    let chip=document.getElementById('dmx-user-chip');
+    if(!chip){ chip=document.createElement('div'); chip.id='dmx-user-chip'; chip.className='dmx-user-chip'; bar.appendChild(chip); }
+    let pwd=document.getElementById('dmx-change-password-btn');
+    if(!pwd){ pwd=document.createElement('button'); pwd.id='dmx-change-password-btn'; pwd.className='topbar-btn btn-outline'; pwd.innerHTML='🔑 Senha'; pwd.onclick=()=>dmxOpenChangePassword(); bar.appendChild(pwd); }
+    let out=document.getElementById('dmx-logout-btn');
+    if(!out){ out=document.createElement('button'); out.id='dmx-logout-btn'; out.className='topbar-btn btn-outline'; out.innerHTML='⎋ Sair'; out.onclick=()=>dmxLogout(); bar.appendChild(out); }
+    const u=getSession(); chip.textContent = u ? `👤 ${u.nome||u.email} · ${u.perfil||''}` : '';
+  }
+
+  window.dmxLoginSubmit = async function(){
+    const btn=document.getElementById('dmx-login-button'), txt=document.getElementById('dmx-login-button-text'), msg=document.getElementById('dmx-login-msg');
+    const email=norm(document.getElementById('dmx-login-email')?.value), pass=document.getElementById('dmx-login-password')?.value||'';
+    if(msg) msg.textContent='';
+    if(!email || !pass){ if(msg) msg.textContent='Informe e-mail e senha.'; return; }
+    btn?.classList.add('loading'); if(txt) txt.textContent='Validando acesso...';
+    try{
+      await new Promise(r=>setTimeout(r,350)); // feedback visual: comando aceito
+      const users=await getUsers(); const u=users.find(x=>norm(x.email)===email && String(x.ativo||'SIM').toUpperCase()!=='NAO');
+      if(!u || u.senhaHash !== await sha256(pass)){ if(msg) msg.textContent='E-mail ou senha inválidos.'; return; }
+      setSession(u); hideLogin(); refreshUserChrome(); toast('✓ Login realizado');
+      if(String(u.trocaSenha||'').toUpperCase()==='SIM') setTimeout(()=>dmxOpenChangePassword(true),250);
+    }catch(e){ if(msg) msg.textContent='Falha no login: '+e.message; }
+    finally{ btn?.classList.remove('loading'); if(txt) txt.textContent='Entrar'; }
+  };
+  window.dmxLogout = function(){ clearSession(); showLogin(); toast('Sessão encerrada'); };
+
+  window.dmxOpenChangePassword = async function(force=false){
+    const u=getSession(); if(!u){ showLogin(); return; }
+    const users=await getUsers(); const idx=users.findIndex(x=>norm(x.email)===norm(u.email));
+    if(idx<0){ alert('Usuário não encontrado. Faça login novamente.'); clearSession(); showLogin(); return; }
+
+    // Fluxo corrigido v42:
+    // 1) Primeiro acesso / senha resetada pelo Admin: NÃO pede senha atual, pois o usuário acabou de validar a senha provisória no login.
+    // 2) Alteração espontânea pelo botão Senha: pede senha atual como validação adicional.
+    if(!force){
+      const atual = prompt('Digite sua senha atual:'); if(atual===null) return;
+      if(users[idx].senhaHash !== await sha256(atual)){ alert('Senha atual inválida.'); return; }
+    }
+
+    const nova = prompt((force?'Primeiro acesso: crie sua nova senha.\n\n':'')+'Digite a nova senha, mínimo 6 caracteres:'); if(nova===null) return;
+    if(String(nova).length < 6){ alert('A nova senha precisa ter no mínimo 6 caracteres.'); return; }
+    const conf = prompt('Confirme a nova senha:'); if(conf===null) return;
+    if(nova !== conf){ alert('As senhas não conferem.'); return; }
+
+    users[idx].senhaHash = await sha256(nova); users[idx].trocaSenha='NAO'; users[idx].alteradoEm=new Date().toISOString(); saveUsers(users);
+    toast('✓ Senha alterada');
+  };
+
+  window.dmxRenderUserAdminPanel = async function(){
+    const host=document.getElementById('dmx-admin-users-panel'); if(!host) return;
+    const users=await getUsers(); const areas=(window.AREAS||[]).filter(Boolean);
+    const cargoOptions = (sel='Assistente') => (window.DMX_CARGOS_PADRAO||['Administrador','CEO','Diretoria','Gerência','Liderança','Analista','Assistente']).map(c=>`<option value="${esc(c)}"${c===sel?' selected':''}>${esc(c)}</option>`).join('');
+    const areaOptions = (sel='') => `<option value="">Todas</option>`+areas.map(a=>`<option value="${esc(a)}"${a===sel?' selected':''}>${esc(a)}</option>`).join('');
+    host.innerHTML = `<div class="block-card mb-4">
+      <div class="section-header"><div><div class="section-title">Usuários e Login</div><div class="text-muted text-sm mt-1">Crie usuários, defina perfil, área e senha provisória. O usuário pode alterar a própria senha pelo botão “Senha”.</div></div></div>
+      <div class="dmx-user-admin-grid">
+        <input id="adm-user-email" class="filter-input" placeholder="email@empresa.com">
+        <input id="adm-user-nome" class="filter-input" placeholder="Nome">
+        <select id="adm-user-perfil" class="filter-input"><option value="admin">Admin</option><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="area">Somente área</option></select>
+        <select id="adm-user-cargo" class="filter-input">${cargoOptions()}</select>
+        <select id="adm-user-area" class="filter-input">${areaOptions()}</select>
+        <input id="adm-user-senha" class="filter-input" placeholder="Senha provisória" value="dmx123">
+      </div>
+      <div class="filter-row"><button class="btn btn-primary" onclick="dmxAdminCreateUser()">+ Criar usuário</button><button class="btn btn-ghost" onclick="dmxRenderUserAdminPanel()">↻ Atualizar lista</button></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Usuário</th><th>Perfil</th><th>Cargo</th><th>Área</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+        ${users.map(x=>`<tr><td><b>${esc(x.nome||'')}</b><br><span class="text-muted">${esc(x.email)}</span></td><td>${esc(x.perfil)}</td><td>${esc(x.cargo||'')}</td><td>${esc(x.area||'Todas')}</td><td>${esc(x.ativo||'SIM')}</td><td><button class="btn btn-ghost btn-sm" onclick="dmxAdminResetPassword('${esc(x.email)}')">Resetar senha</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminToggleUser('${esc(x.email)}')">Ativar/Inativar</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="text-muted text-sm mt-3">Nota: este controle fica salvo no navegador. Para segurança corporativa real, a validação de senha precisa ser levada também para o Apps Script/Google Sheets ou para login Google Workspace.</div>
+    </div>`;
+  };
+  window.dmxAdminCreateUser = async function(){
+    const email=norm(document.getElementById('adm-user-email')?.value); const nome=(document.getElementById('adm-user-nome')?.value||'').trim(); const senha=document.getElementById('adm-user-senha')?.value||'';
+    if(!email || !/.+@.+\..+/.test(email)){ alert('Informe um e-mail válido.'); return; }
+    if(senha.length<6){ alert('Senha provisória precisa ter no mínimo 6 caracteres.'); return; }
+    const users=await getUsers();
+    const obj={email,nome:nome||email,perfil:document.getElementById('adm-user-perfil')?.value||'leitura',cargo:document.getElementById('adm-user-cargo')?.value||'Assistente',area:document.getElementById('adm-user-area')?.value||'',ativo:'SIM',senhaHash:await sha256(senha),trocaSenha:'SIM',criadoEm:new Date().toISOString()};
+    const i=users.findIndex(x=>norm(x.email)===email); if(i>=0) users[i]={...users[i],...obj}; else users.push(obj); saveUsers(users);
+    // também replica na tabela de permissões, quando a API estiver configurada
+    try{ if(typeof dmxAddPermissao==='function'){ localStorage.setItem('dmx_permissoes_cache_v20', JSON.stringify(users.map(u=>({email:u.email,perfil:u.perfil,cargo:u.cargo,area:u.area,ativo:u.ativo})))); } }catch(e){}
+    toast('✓ Usuário criado/atualizado'); dmxRenderUserAdminPanel();
+  };
+  window.dmxAdminResetPassword = async function(email){
+    const nova=prompt('Nova senha provisória para '+email+':','dmx123'); if(nova===null) return; if(nova.length<6){ alert('Senha mínima: 6 caracteres.'); return; }
+    const users=await getUsers(); const i=users.findIndex(x=>norm(x.email)===norm(email)); if(i<0) return;
+    users[i].senhaHash=await sha256(nova); users[i].trocaSenha='SIM'; saveUsers(users); toast('✓ Senha resetada'); dmxRenderUserAdminPanel();
+  };
+  window.dmxAdminToggleUser = async function(email){
+    const users=await getUsers(); const i=users.findIndex(x=>norm(x.email)===norm(email)); if(i<0) return;
+    users[i].ativo = String(users[i].ativo||'SIM').toUpperCase()==='NAO' ? 'SIM' : 'NAO'; saveUsers(users); toast('✓ Status atualizado'); dmxRenderUserAdminPanel();
+  };
+  function injectAdminUsers(){
+    const root=document.getElementById('admin-root'); if(!root || document.getElementById('dmx-admin-users-panel')) return;
+    const div=document.createElement('div'); div.id='dmx-admin-users-panel'; root.insertBefore(div, root.firstChild); dmxRenderUserAdminPanel();
+  }
+  const oldRender=window.renderAdminDMX;
+  if(typeof oldRender==='function'){
+    window.renderAdminDMX = async function(){ const r=await oldRender.apply(this, arguments); setTimeout(injectAdminUsers,80); return r; };
+  }
+  const oldNav=window.nav;
+  if(typeof oldNav==='function'){
+    window.nav = nav = function(el){ const r=oldNav.apply(this, arguments); if(el?.dataset?.page==='admin') setTimeout(injectAdminUsers,250); return r; };
+  }
+  document.addEventListener('keydown', e=>{ if(e.key==='Enter' && document.getElementById('dmx-login-overlay')?.classList.contains('open')) dmxLoginSubmit(); });
+  document.addEventListener('DOMContentLoaded', async function(){ await getUsers(); setTimeout(()=>{ refreshUserChrome(); if(getSession()) hideLogin(); else showLogin(); },900); });
+  setTimeout(()=>{ refreshUserChrome(); if(getSession()) hideLogin(); else showLogin(); },1500);
+})();
+</script>
+
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v43 — Governança sem custo: permissões, sessão, auditoria local, fechamento mensal
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v43-governance-css">
+  .dmx-hidden-by-role{display:none!important;}
+  .dmx-gov-banner{background:#FFFBEB;border:1px solid #FEF3C7;color:#92400E;border-radius:8px;padding:9px 12px;font-size:11.5px;line-height:1.45;margin:8px 0 12px;}
+  .dmx-gov-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:#F1F5F9;border:1px solid var(--border);font-size:10.5px;font-weight:700;color:var(--muted);}
+</style>
+<script id="dmx-v43-governance-js">
+(function(){
+  if(window.__dmxGovernanceV43Installed) return;
+  window.__dmxGovernanceV43Installed = true;
+  const SESSION_KEY='dmx_session_v41';
+  const AUDIT_KEY='dmx_audit_log_governance_v43';
+  const CLOSED_KEY='dmx_closed_periods_v43';
+  const ROLE_ADMIN=['admin','administrador'];
+  const ROLE_EXEC=['ceo','diretoria','diretor','diretora'];
+  const norm=v=>String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const esc=v=>String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  function toast(msg){ if(typeof showToast==='function') showToast(msg); else alert(msg); }
+  function session(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;} }
+  function isAdmin(u=session()){ return !!u && (ROLE_ADMIN.includes(norm(u.perfil)) || ROLE_ADMIN.includes(norm(u.cargo))); }
+  function isExec(u=session()){ return !!u && (isAdmin(u) || ROLE_EXEC.includes(norm(u.cargo)) || ROLE_EXEC.includes(norm(u.perfil))); }
+  function splitCargos(v){ return String(v||'').split(/[;,|/]/).map(x=>x.trim()).filter(Boolean); }
+  function getKpiSafe(id){ try{ if(typeof getKPI==='function') return getKPI(id); }catch(e){} try{ return (window.kpis||[]).find(k=>String(k.id)===String(id)); }catch(e){} return null; }
+  function cargoPermitido(u,k){
+    const cargo=norm(u?.cargo||u?.perfil||'');
+    const raw=k?.cargos_permitidos||k?.allowedRoles||k?.acesso_cargos||k?.cargos||'';
+    return splitCargos(raw).some(c=>norm(c)===cargo || norm(c)==='todos');
+  }
+  function areaPermitida(u,k){
+    const ua=norm(u?.area||''); const ka=norm(k?.area||'');
+    if(!ua || ua==='todas' || ua==='todos') return false;
+    return ua===ka;
+  }
+  function compartilharPermitido(u,k){
+    const ua=norm(u?.area||''), cargo=norm(u?.cargo||u?.perfil||'');
+    const raw=String(k?.compartilhar||k?.abrangencia||'');
+    return raw.split(/[;,|/]/).some(x=>{ const n=norm(x); return n && (n===ua || n===cargo || n==='companhia' || n==='todos'); });
+  }
+  window.dmxGovCanAccessKPI=function(kpiOrId,u=session()){
+    if(!u) return false;
+    const k=typeof kpiOrId==='string'?getKpiSafe(kpiOrId):kpiOrId;
+    if(!k) return false;
+    if(isExec(u)) return true;
+    return areaPermitida(u,k) || cargoPermitido(u,k) || compartilharPermitido(u,k);
+  };
+  window.dmxGovCan=function(action,u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const cargo=norm(u.cargo||u.perfil||'');
+    const perfil=norm(u.perfil||'');
+    if(['admin','usuarios','editar_usuarios','editar_kpi','meta','formula','permissao','fechamento'].includes(norm(action))) return false;
+    if(['visualizar','ver_kpi','atualizar_realizado','comentario','plano_acao'].includes(norm(action))) return true;
+    if(perfil==='editor' && ['atualizar','salvar_lancamento'].includes(norm(action))) return true;
+    return false;
+  };
+  window.dmxGovernanceLog=function(action,details){
+    const u=session()||{};
+    const item={quando:new Date().toISOString(), usuario:u.email||'', nome:u.nome||'', perfil:u.perfil||'', cargo:u.cargo||'', area:u.area||'', acao:action, detalhes:details||{}};
+    let arr=[]; try{arr=JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]');}catch(e){arr=[];}
+    arr.push(item); if(arr.length>1000) arr=arr.slice(arr.length-1000);
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(arr));
+    try{ if(typeof dmxApiPost==='function') dmxApiPost('logAuditoria', item); }catch(e){}
+    return item;
+  };
+  window.dmxToggleTodosCargos=function(el){ document.querySelectorAll('.adm-kpi-cargo').forEach(c=>{c.checked=!!el.checked;}); };
+  window.dmxSyncTodosCargos=function(){ const all=[...document.querySelectorAll('.adm-kpi-cargo')]; const t=document.getElementById('adm-kpi-cargo-todos'); if(t) t.checked=all.length>0 && all.every(x=>x.checked); };
+
+  function periodKey(m,a){ return String(a||window.currentAno)+'-'+String(m||window.currentMes).padStart(2,'0'); }
+  function closedPeriods(){ try{return JSON.parse(localStorage.getItem(CLOSED_KEY)||'{}');}catch(e){return{};} }
+  window.dmxIsPeriodClosed=function(m=window.currentMes,a=window.currentAno){ const map=closedPeriods(); return !!map[periodKey(m,a)]; };
+  window.dmxToggleClosePeriod=function(){
+    if(!isAdmin()){ alert('Somente Administrador pode fechar ou reabrir período.'); return; }
+    const k=periodKey(window.currentMes,window.currentAno), map=closedPeriods();
+    if(map[k]){ if(!confirm('Reabrir o período '+k+'?')) return; delete map[k]; dmxGovernanceLog('REABRIR_PERIODO',{periodo:k}); }
+    else { if(!confirm('Fechar o período '+k+'? Lançamentos ficarão bloqueados para usuários comuns.')) return; map[k]={fechadoEm:new Date().toISOString(),por:(session()||{}).email||''}; dmxGovernanceLog('FECHAR_PERIODO',{periodo:k}); }
+    localStorage.setItem(CLOSED_KEY, JSON.stringify(map)); toast(map[k]?'✓ Período fechado':'✓ Período reaberto'); dmxRenderGovernanceStatus();
+  };
+  window.dmxExportAuditLog=function(){
+    let arr=[]; try{arr=JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]');}catch(e){}
+    const rows=[['quando','usuario','nome','perfil','cargo','area','acao','detalhes']].concat(arr.map(x=>[x.quando,x.usuario,x.nome,x.perfil,x.cargo,x.area,x.acao,JSON.stringify(x.detalhes||{})]));
+    const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='dmx_auditoria_governanca.csv'; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  function applyVisibility(){
+    const u=session();
+    document.querySelectorAll('[data-page="admin"], #page-admin, #dmx-open-sheets-btn, #dmx-sync-sheets-btn').forEach(el=>{ el.classList.toggle('dmx-hidden-by-role', !isAdmin(u)); });
+    document.querySelectorAll('.nav-item[data-area]').forEach(el=>{ const area=el.dataset.area||''; el.classList.toggle('dmx-hidden-by-role', !!u && !isExec(u) && norm(u.area)!==norm(area)); });
+    const btn=document.getElementById('dmx-change-password-btn'); if(btn) btn.style.display=u?'':'none';
+    const chip=document.getElementById('dmx-user-chip'); if(chip && u) chip.textContent=`👤 ${u.nome||u.email} · ${u.cargo||u.perfil||''}${u.area?' · '+u.area:''}`;
+  }
+  window.dmxApplyGovernanceVisibility=applyVisibility;
+  window.dmxRenderGovernanceStatus=function(){
+    const root=document.getElementById('admin-root'); if(!root || !isAdmin()) return;
+    let panel=document.getElementById('dmx-governance-panel');
+    if(!panel){ panel=document.createElement('div'); panel.id='dmx-governance-panel'; root.insertBefore(panel, root.firstChild); }
+    const key=periodKey(window.currentMes,window.currentAno); const closed=dmxIsPeriodClosed(window.currentMes,window.currentAno);
+    panel.innerHTML=`<div class="block-card mb-4"><div class="section-header"><div><div class="section-title">Governança e Segurança</div><div class="text-muted text-sm mt-1">Controles sem custo: fechamento mensal, trilha de auditoria local, permissões por cargo/área e bloqueio visual/função por perfil.</div></div></div><div class="filter-row"><span class="dmx-gov-chip">Período: ${esc(key)}</span><span class="dmx-gov-chip">Status: ${closed?'Fechado':'Aberto'}</span><button class="btn btn-primary" onclick="dmxToggleClosePeriod()">${closed?'Reabrir período':'Fechar período'}</button><button class="btn btn-ghost" onclick="dmxExportAuditLog()">Exportar auditoria</button></div><div class="dmx-gov-banner"><b>Nota de governança:</b> esta versão aplica uma segunda camada no HTML e registra logs. Para segurança inviolável, a mesma regra precisa ser replicada no Apps Script antes de devolver dados ao navegador.</div></div>`;
+  };
+
+  function patchFunctions(){
+    if(typeof window.nav==='function' && !window.__dmxGovNavWrapped){
+      window.__dmxGovNavWrapped=true; const old=window.nav;
+      window.nav=nav=function(el,areaName){
+        if(el?.dataset?.page==='admin' && !isAdmin()){ alert('Acesso restrito ao Administrador.'); dmxGovernanceLog('ACESSO_NEGADO_ADMIN',{pagina:'admin'}); return; }
+        if(el?.dataset?.area && !isExec() && norm((session()||{}).area)!==norm(el.dataset.area)){ alert('Você não possui acesso a esta área.'); dmxGovernanceLog('ACESSO_NEGADO_AREA',{area:el.dataset.area}); return; }
+        const r=old.apply(this,arguments); setTimeout(applyVisibility,120); setTimeout(dmxRenderGovernanceStatus,180); return r;
+      };
+    }
+    if(typeof window.buildSidebar==='function' && !window.__dmxGovSidebarWrapped){
+      window.__dmxGovSidebarWrapped=true; const old=window.buildSidebar;
+      window.buildSidebar=function(){ const r=old.apply(this,arguments); setTimeout(applyVisibility,40); return r; };
+    }
+    if(typeof window.byPeriod==='function' && !window.__dmxGovByPeriodWrapped){
+      window.__dmxGovByPeriodWrapped=true; const old=window.byPeriod;
+      window.byPeriod=function(){ const data=old.apply(this,arguments)||[]; if(isExec()) return data; return data.filter(l=>dmxGovCanAccessKPI(l.id_kpi||l.id||l)); };
+    }
+    if(typeof window.openKPIModal==='function' && !window.__dmxGovKpiModalWrapped){
+      window.__dmxGovKpiModalWrapped=true; const old=window.openKPIModal;
+      window.openKPIModal=function(id){ if(!dmxGovCanAccessKPI(id)){ alert('Você não possui acesso a este KPI.'); dmxGovernanceLog('ACESSO_NEGADO_KPI',{id}); return; } return old.apply(this,arguments); };
+    }
+    if(typeof window.openEditLancamento==='function' && !window.__dmxGovOpenLancWrapped){
+      window.__dmxGovOpenLancWrapped=true; const old=window.openEditLancamento;
+      window.openEditLancamento=openEditLancamento=function(id,mes,ano){
+        if(!dmxGovCanAccessKPI(id)){ alert('Você não possui acesso para atualizar este KPI.'); dmxGovernanceLog('ACESSO_NEGADO_ATUALIZAR',{id}); return; }
+        if(dmxIsPeriodClosed(mes||window.currentMes,ano||window.currentAno) && !isAdmin()){ alert('Período fechado. Solicite reabertura ao Administrador.'); return; }
+        return old.apply(this,arguments);
+      };
+    }
+    if(typeof window.saveLancamento==='function' && !window.__dmxGovSaveLancWrapped){
+      window.__dmxGovSaveLancWrapped=true; const old=window.saveLancamento;
+      window.saveLancamento=saveLancamento=function(){
+        const id=document.getElementById('lf-kpi')?.value || (typeof editingLancId!=='undefined'&&editingLancId?editingLancId.id_kpi:'');
+        const mes=parseInt(document.getElementById('lf-mes')?.value || window.currentMes); const ano=parseInt(document.getElementById('lf-ano')?.value || window.currentAno);
+        if(!dmxGovCanAccessKPI(id)){ alert('Você não possui permissão para salvar este KPI.'); return; }
+        if(dmxIsPeriodClosed(mes,ano) && !isAdmin()){ alert('Período fechado. Salvamento bloqueado.'); return; }
+        const r=old.apply(this,arguments); dmxGovernanceLog('SALVAR_LANCAMENTO',{id,mes,ano}); return r;
+      };
+    }
+    ['dmxAdminCreateUser','dmxAdminResetPassword','dmxAdminToggleUser','dmxAdminSalvarKPI','dmxAdminInativarKPI','dmxAdminNovoKPI'].forEach(fn=>{
+      if(typeof window[fn]==='function' && !window['__gov_'+fn]){ window['__gov_'+fn]=true; const old=window[fn]; window[fn]=async function(){ if(!isAdmin()){ alert('Ação restrita ao Administrador.'); dmxGovernanceLog('ACAO_ADMIN_NEGADA',{funcao:fn}); return; } const r=await old.apply(this,arguments); dmxGovernanceLog(fn,{args:[...arguments].map(String)}); return r; }; }
+    });
+    if(typeof window.renderAdminDMX==='function' && !window.__dmxGovRenderAdminWrapped){
+      window.__dmxGovRenderAdminWrapped=true; const old=window.renderAdminDMX;
+      window.renderAdminDMX=async function(){ if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; } const r=await old.apply(this,arguments); setTimeout(dmxRenderGovernanceStatus,80); return r; };
+    }
+  }
+  function tick(){ patchFunctions(); applyVisibility(); }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(tick,800); setTimeout(tick,1600); setInterval(tick,2500); });
+  setTimeout(tick,1000);
+})();
+</script>
+
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v44 — Governança etapa 2: sessão, política de senha, tentativas de login e guia backend
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v44-security-css">
+  .dmx-security-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
+  .dmx-security-card{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+  .dmx-security-card b{display:block;font-family:Syne,sans-serif;font-size:16px;margin-bottom:2px;color:var(--text);}
+  .dmx-security-card span{font-size:10.5px;color:var(--muted);line-height:1.35;}
+  .dmx-policy-list{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:8px;}
+  .dmx-policy-ok{color:var(--green);font-weight:700;}
+  .dmx-policy-warn{color:var(--amber);font-weight:700;}
+  @media(max-width:1000px){.dmx-security-grid{grid-template-columns:1fr 1fr;}}
+</style>
+<script id="dmx-v44-security-js">
+(function(){
+  if(window.__dmxGovernanceV44Installed) return;
+  window.__dmxGovernanceV44Installed = true;
+
+  const USERS_KEY='dmx_users_v41';
+  const SESSION_KEY='dmx_session_v41';
+  const LOGIN_ATTEMPTS_KEY='dmx_login_attempts_v44';
+  const SESSION_MINUTES=60;
+  const LOCK_AFTER=5;
+  const LOCK_MINUTES=15;
+  const norm=v=>String(v||'').trim().toLowerCase();
+  const esc=v=>String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  function toast(msg){ if(typeof showToast==='function') showToast(msg); else alert(msg); }
+  async function sha256(text){ const data=new TextEncoder().encode(String(text||'')); const hash=await crypto.subtle.digest('SHA-256',data); return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+  function readJSON(k,fallback){ try{return JSON.parse(localStorage.getItem(k)||'null') ?? fallback;}catch(e){return fallback;} }
+  function saveJSON(k,v){ localStorage.setItem(k,JSON.stringify(v)); }
+  async function getUsers(){ let arr=readJSON(USERS_KEY,[]); return Array.isArray(arr)?arr:[]; }
+  function saveUsers(arr){ saveJSON(USERS_KEY,arr||[]); }
+  function session(){ return readJSON(SESSION_KEY,null); }
+  function clearSession(){ localStorage.removeItem(SESSION_KEY); localStorage.removeItem('dmx_usuario_email'); localStorage.removeItem('dmx_current_user_email'); }
+  function sessionExpired(s){ return !!(s && s.expiresAt && Date.now()>new Date(s.expiresAt).getTime()); }
+  function renewSession(){ const s=session(); if(!s) return null; if(sessionExpired(s)){ clearSession(); return null; } s.expiresAt=new Date(Date.now()+SESSION_MINUTES*60000).toISOString(); saveJSON(SESSION_KEY,s); return s; }
+  function policyErrors(pwd){
+    const p=String(pwd||''); const e=[];
+    if(p.length<8) e.push('mínimo 8 caracteres');
+    if(!/[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(p)) e.push('1 letra maiúscula');
+    if(!/[a-záéíóúâêôãõç]/.test(p)) e.push('1 letra minúscula');
+    if(!/[0-9]/.test(p)) e.push('1 número');
+    if(!/[^A-Za-z0-9ÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç]/.test(p)) e.push('1 símbolo');
+    return e;
+  }
+  function validatePolicy(pwd, label='senha'){
+    const e=policyErrors(pwd);
+    if(e.length){ alert('A '+label+' precisa conter: '+e.join(', ')+'.'); return false; }
+    return true;
+  }
+  function attempts(){ return readJSON(LOGIN_ATTEMPTS_KEY,{}); }
+  function getLock(email){ const a=attempts()[norm(email)]; if(!a) return null; if(a.lockUntil && Date.now()<new Date(a.lockUntil).getTime()) return a; return null; }
+  function registerFail(email){ const all=attempts(); const k=norm(email); const now=Date.now(); let a=all[k]||{count:0,lastFail:null,lockUntil:null}; if(a.lockUntil && now>new Date(a.lockUntil).getTime()) a={count:0,lastFail:null,lockUntil:null}; a.count=(a.count||0)+1; a.lastFail=new Date().toISOString(); if(a.count>=LOCK_AFTER) a.lockUntil=new Date(now+LOCK_MINUTES*60000).toISOString(); all[k]=a; saveJSON(LOGIN_ATTEMPTS_KEY,all); return a; }
+  function clearFail(email){ const all=attempts(); delete all[norm(email)]; saveJSON(LOGIN_ATTEMPTS_KEY,all); }
+  function showLogin(){ document.body.classList.add('dmx-auth-locked'); const o=document.getElementById('dmx-login-overlay'); if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); } }
+
+  const oldGet=window.dmxGetLoggedUser;
+  window.dmxGetLoggedUser=function(){ const s=renewSession(); return s || (typeof oldGet==='function'?oldGet():null); };
+
+  if(typeof window.dmxLoginSubmit==='function' && !window.__dmxV44LoginWrapped){
+    window.__dmxV44LoginWrapped=true;
+    const oldLogin=window.dmxLoginSubmit;
+    window.dmxLoginSubmit=async function(){
+      const email=norm(document.getElementById('dmx-login-email')?.value);
+      const msg=document.getElementById('dmx-login-msg');
+      const lock=getLock(email);
+      if(lock){ const min=Math.ceil((new Date(lock.lockUntil).getTime()-Date.now())/60000); if(msg) msg.textContent='Usuário temporariamente bloqueado por tentativas inválidas. Tente novamente em '+min+' min.'; return; }
+      const before=session();
+      await oldLogin.apply(this,arguments);
+      const after=session();
+      if(after && after.email){ after.expiresAt=new Date(Date.now()+SESSION_MINUTES*60000).toISOString(); after.lastActivity=new Date().toISOString(); saveJSON(SESSION_KEY,after); clearFail(after.email); if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('LOGIN_OK',{email:after.email}); }
+      else if(email){ const a=registerFail(email); if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('LOGIN_FALHA',{email,tentativas:a.count,bloqueadoAte:a.lockUntil||''}); if(msg && a.lockUntil) msg.textContent='Muitas tentativas inválidas. Usuário bloqueado por '+LOCK_MINUTES+' minutos.'; }
+    };
+  }
+
+  if(typeof window.dmxLogout==='function' && !window.__dmxV44LogoutWrapped){
+    window.__dmxV44LogoutWrapped=true; const old=window.dmxLogout;
+    window.dmxLogout=function(){ if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('LOGOUT',{}); clearSession(); return old.apply(this,arguments); };
+  }
+
+  // Substitui a troca de senha por política forte e histórico mínimo.
+  window.dmxOpenChangePassword=async function(force=false){
+    const u=session(); if(!u){ showLogin(); return; }
+    const users=await getUsers(); const idx=users.findIndex(x=>norm(x.email)===norm(u.email));
+    if(idx<0){ alert('Usuário não encontrado. Faça login novamente.'); clearSession(); showLogin(); return; }
+    if(!force){ const atual=prompt('Digite sua senha atual:'); if(atual===null) return; if(users[idx].senhaHash!==await sha256(atual)){ alert('Senha atual inválida.'); if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('SENHA_ATUAL_INVALIDA',{email:u.email}); return; } }
+    const nova=prompt((force?'Primeiro acesso: crie sua nova senha.\n\n':'')+'Digite a nova senha:\n• mínimo 8 caracteres\n• maiúscula, minúscula, número e símbolo'); if(nova===null) return;
+    if(!validatePolicy(nova,'nova senha')) return;
+    if(users[idx].senhaHash===await sha256(nova)){ alert('A nova senha não pode ser igual à senha atual/provisória.'); return; }
+    const conf=prompt('Confirme a nova senha:'); if(conf===null) return; if(nova!==conf){ alert('As senhas não conferem.'); return; }
+    users[idx].senhaHash=await sha256(nova); users[idx].trocaSenha='NAO'; users[idx].alteradoEm=new Date().toISOString(); users[idx].ultimoResetSenha='NAO'; saveUsers(users);
+    if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('SENHA_ALTERADA',{email:u.email,forcado:!!force});
+    toast('✓ Senha alterada com política forte');
+  };
+
+  if(typeof window.dmxAdminCreateUser==='function' && !window.__dmxV44CreateUserWrapped){
+    window.__dmxV44CreateUserWrapped=true; const old=window.dmxAdminCreateUser;
+    window.dmxAdminCreateUser=async function(){ const senha=document.getElementById('adm-user-senha')?.value||''; if(!validatePolicy(senha,'senha provisória')) return; const r=await old.apply(this,arguments); if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('USUARIO_CRIADO_POLITICA_FORTE',{email:document.getElementById('adm-user-email')?.value||''}); return r; };
+  }
+  if(typeof window.dmxAdminResetPassword==='function' && !window.__dmxV44ResetUserWrapped){
+    window.__dmxV44ResetUserWrapped=true;
+    window.dmxAdminResetPassword=async function(email){
+      const nova=prompt('Nova senha provisória para '+email+'\n\nRegra: mínimo 8 caracteres, maiúscula, minúscula, número e símbolo.','Dmx@1234');
+      if(nova===null) return; if(!validatePolicy(nova,'senha provisória')) return;
+      const users=await getUsers(); const i=users.findIndex(x=>norm(x.email)===norm(email)); if(i<0) return;
+      users[i].senhaHash=await sha256(nova); users[i].trocaSenha='SIM'; users[i].ultimoResetSenha=new Date().toISOString(); saveUsers(users);
+      if(typeof dmxGovernanceLog==='function') dmxGovernanceLog('RESET_SENHA',{email});
+      toast('✓ Senha resetada com troca obrigatória'); if(typeof dmxRenderUserAdminPanel==='function') dmxRenderUserAdminPanel();
+    };
+  }
+
+  function hardenAdminButtons(){
+    const s=session(); const admin=!!s && ['admin','administrador'].includes(norm(s.perfil||s.cargo));
+    document.querySelectorAll('[onclick*="dmxAdmin"],[onclick*="renderAdminDMX"],[data-page="admin"]').forEach(el=>{ if(!admin) el.classList.add('dmx-hidden-by-role'); });
+  }
+  function injectSecurityPanel(){
+    const root=document.getElementById('admin-root'); if(!root) return;
+    const s=session(); const admin=!!s && ['admin','administrador'].includes(norm(s.perfil||s.cargo)); if(!admin) return;
+    let p=document.getElementById('dmx-v44-security-panel'); if(!p){ p=document.createElement('div'); p.id='dmx-v44-security-panel'; root.insertBefore(p, root.firstChild); }
+    const users=readJSON(USERS_KEY,[]); const active=users.filter(u=>String(u.ativo||'SIM').toUpperCase()!=='NAO').length; const blocked=Object.values(attempts()).filter(a=>a.lockUntil && Date.now()<new Date(a.lockUntil).getTime()).length;
+    p.innerHTML=`<div class="block-card mb-4"><div class="section-header"><div><div class="section-title">Governança de Acesso — Etapa 2</div><div class="text-muted text-sm mt-1">Controles sem custo adicionados: expiração de sessão, senha forte, bloqueio por tentativa e trilha de auditoria de login.</div></div></div><div class="dmx-security-grid"><div class="dmx-security-card"><b>${SESSION_MINUTES} min</b><span>Expiração automática da sessão por segurança.</span></div><div class="dmx-security-card"><b>${LOCK_AFTER} erros</b><span>Bloqueio temporário de login por ${LOCK_MINUTES} minutos.</span></div><div class="dmx-security-card"><b>${active}</b><span>Usuários ativos cadastrados localmente.</span></div><div class="dmx-security-card"><b>${blocked}</b><span>Logins temporariamente bloqueados.</span></div></div><div class="dmx-policy-list"><span class="dmx-policy-ok">Política ativa:</span> senha com mínimo 8 caracteres, maiúscula, minúscula, número e símbolo. Troca obrigatória no primeiro acesso/reset. Logs: login ok, falha, logout, alteração/reset de senha.</div></div>`;
+  }
+  function tick(){ const s=renewSession(); if(!s){ if(session()) clearSession(); } hardenAdminButtons(); injectSecurityPanel(); }
+  ['click','keydown','mousemove','scroll'].forEach(ev=>document.addEventListener(ev,()=>renewSession(),{passive:true}));
+  setInterval(()=>{ const s=session(); if(s && sessionExpired(s)){ clearSession(); showLogin(); toast('Sessão expirada por segurança. Faça login novamente.'); } tick(); },30000);
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(tick,1200)); setTimeout(tick,1800); setInterval(tick,4000);
+})();
+</script>
+
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v45 — Admin completo: KPIs por ID + subabas + logs separados
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v45-admin-governance-tabs-css">
+  .dmx-admin-tabs{display:flex;gap:6px;margin:0 0 14px;border-bottom:1px solid var(--border);padding-bottom:8px;flex-wrap:wrap}
+  .dmx-admin-tab-btn{border:1px solid var(--border);background:var(--bg2);color:var(--muted);padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .dmx-admin-tab-btn.active{background:var(--teal);border-color:var(--teal);color:#fff}
+  .dmx-admin-subtab{display:none}
+  .dmx-admin-subtab.active{display:block}
+  .dmx-kpi-gov-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+  .dmx-kpi-gov-badge{font-size:9px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;border-radius:4px;padding:2px 5px;background:#F1F5F9;color:var(--muted);border:1px solid var(--border)}
+  .dmx-kpi-gov-badge.warn{background:#FEF3C7;color:#92400E;border-color:#FDE68A}
+  .dmx-audit-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
+  .dmx-audit-table-wrap{max-height:460px;overflow:auto}
+  .dmx-audit-json{font-family:'Courier New',monospace;font-size:10px;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+</style>
+<script id="dmx-v45-admin-governance-tabs-js">
+(function(){
+  const AUDIT_KEY_V45='dmx_audit_log_governance_v43';
+  function esc(v){return String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));}
+  function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
+  function parseRoles(v){
+    if(Array.isArray(v)) return v.map(String).map(x=>x.trim()).filter(Boolean);
+    return String(v||'').split(/[;,/|]/).map(x=>x.trim()).filter(Boolean);
+  }
+  function cargosText(k){return parseRoles(k.cargos_permitidos||k.allowedRoles||k.acesso_cargos||k.cargos||'').join('; ');}
+  function allKpis(){
+    try{ if(Array.isArray(window.kpis) && window.kpis.length) return window.kpis; }catch(e){}
+    try{ if(typeof kpis!=='undefined' && Array.isArray(kpis) && kpis.length){ window.kpis=kpis; return kpis; } }catch(e){}
+    try{ if(typeof KPI_CATALOG!=='undefined' && Array.isArray(KPI_CATALOG) && KPI_CATALOG.length){ window.kpis=KPI_CATALOG; return KPI_CATALOG; } }catch(e){}
+    try{
+      for(const key of ['dmx_kpi_catalog_v1','DMX_KPI_CATALOG']){
+        const raw=localStorage.getItem(key)||''; if(!raw) continue;
+        const arr=JSON.parse(raw); if(Array.isArray(arr)&&arr.length){ window.kpis=arr; return arr; }
+      }
+    }catch(e){}
+    return [];
+  }
+  function idNum(id){ const m=String(id||'').match(/(\d+)/); return m?parseInt(m[1],10):999999; }
+  function kpiBadges(k){
+    const roles=cargosText(k), area=String(k.area||'').trim(), ativo=String(k.ativo||'SIM').toUpperCase();
+    const b=[];
+    if(!area) b.push('<span class="dmx-kpi-gov-badge warn">Sem área</span>');
+    if(!roles) b.push('<span class="dmx-kpi-gov-badge warn">Sem cargos</span>');
+    if(ativo==='NAO'||ativo==='NÃO'||ativo==='INATIVO') b.push('<span class="dmx-kpi-gov-badge">Inativo</span>');
+    return b.length?'<div class="dmx-kpi-gov-badges">'+b.join('')+'</div>':'';
+  }
+  function apiUrl(){ try{return (window.dmxGetApiUrl?window.dmxGetApiUrl():'')||'';}catch(e){return '';} }
+  function kpiTabHtml(){
+    const rows=allKpis().slice().sort((a,b)=> idNum(a.id)-idNum(b.id) || String(a.id||'').localeCompare(String(b.id||'')));
+    const semGov=rows.filter(k=>!String(k.area||'').trim() || !cargosText(k)).length;
+    return `<div class="block-card" style="margin-top:16px">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Painel de Administração de KPIs</div>
+          <div class="dmx-admin-compact-note">Ordenado por ID para facilitar conferência. O Admin vê 100% dos KPIs, inclusive os ainda sem governança configurada.</div>
+          <div class="text-muted text-sm mt-1"><b>KPIs carregados:</b> ${rows.length} ${semGov?` · <b style="color:var(--amber)">${semGov} com governança incompleta</b>`:''}</div>
+        </div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button></div>
+      </div>
+      <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
+        <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(apiUrl()) || 'não configurada'}</span><br>
+        <b>Regra aplicada:</b> administradores visualizam todos os KPIs; filtros de área/cargo valem apenas fora do Admin.
+      </div>
+      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Mín.</th><th>Máx.</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area||'—')}</span></td><td style="max-width:320px">${esc(k.indicador||'')}${kpiBadges(k)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td>${esc(k.minimo ?? k.minimo_padrao ?? '')}</td><td>${esc(k.maximo ?? k.maximo_padrao ?? '')}</td><td>${esc(k.sentido||'')}</td><td style="max-width:190px;font-size:11px;color:var(--muted)">${esc(cargosText(k)) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+      </tbody></table></div>
+    </div>`;
+  }
+  function auditArr(){ try{return JSON.parse(localStorage.getItem(AUDIT_KEY_V45)||'[]');}catch(e){return [];} }
+  function auditTabHtml(){
+    const arr=auditArr().slice().reverse();
+    return `<div class="block-card" style="margin-top:16px">
+      <div class="section-header"><div><div class="section-title">Logs de Auditoria</div><div class="dmx-admin-compact-note">Os logs ficam separados da configuração de usuários/KPIs para não poluir nem pesar a tela principal.</div></div></div>
+      <div class="dmx-audit-toolbar"><div class="text-muted text-sm"><b>Registros locais:</b> ${arr.length} · limite atual: últimos 1.000 eventos</div><div class="filter-row" style="margin:0"><button class="btn btn-ghost" onclick="dmxV45RenderAdminTabs('logs')">Atualizar logs</button><button class="btn btn-primary" onclick="dmxExportAuditLog()">Exportar CSV</button><button class="btn btn-danger" onclick="dmxV45ClearAuditLog()">Limpar logs locais</button></div></div>
+      <div class="table-wrap dmx-audit-table-wrap"><table class="data-table"><thead><tr><th>Data/Hora</th><th>Usuário</th><th>Cargo</th><th>Área</th><th>Ação</th><th>Detalhes</th></tr></thead><tbody>
+        ${arr.length ? arr.map(x=>`<tr><td>${esc((x.quando||'').replace('T',' ').slice(0,19))}</td><td>${esc(x.nome||x.usuario||'')}</td><td>${esc(x.cargo||x.perfil||'')}</td><td>${esc(x.area||'')}</td><td><b>${esc(x.acao||'')}</b></td><td><div class="dmx-audit-json" title="${esc(JSON.stringify(x.detalhes||{}))}">${esc(JSON.stringify(x.detalhes||{}))}</div></td></tr>`).join('') : '<tr><td colspan="6" class="text-muted">Nenhum log registrado ainda.</td></tr>'}
+      </tbody></table></div>
+    </div>`;
+  }
+  function ensureTabs(active='kpis'){
+    const root=document.getElementById('admin-root'); if(!root) return;
+    let old=document.getElementById('dmx-admin-kpi-panel'); if(old) old.remove();
+    let wrap=document.getElementById('dmx-v45-admin-tabs-wrap');
+    if(!wrap){ wrap=document.createElement('div'); wrap.id='dmx-v45-admin-tabs-wrap'; root.appendChild(wrap); }
+    wrap.innerHTML=`<div class="dmx-admin-tabs">
+      <button class="dmx-admin-tab-btn ${active==='kpis'?'active':''}" onclick="dmxV45RenderAdminTabs('kpis')">KPIs</button>
+      <button class="dmx-admin-tab-btn ${active==='logs'?'active':''}" onclick="dmxV45RenderAdminTabs('logs')">Logs de Auditoria</button>
+    </div>
+    <div id="dmx-v45-admin-tab-content">${active==='logs'?auditTabHtml():kpiTabHtml()}</div>`;
+  }
+  window.dmxV45RenderAdminTabs=function(tab){ ensureTabs(tab||'kpis'); };
+  window.dmxV45ClearAuditLog=function(){ if(!confirm('Limpar logs locais deste navegador? A exportação deve ser feita antes, se necessário.')) return; localStorage.setItem(AUDIT_KEY_V45,'[]'); ensureTabs('logs'); };
+  function patchRender(){
+    if(typeof window.renderAdminDMX!=='function' || window.__dmxV45AdminTabsWrapped) return;
+    window.__dmxV45AdminTabsWrapped=true;
+    const old=window.renderAdminDMX;
+    window.renderAdminDMX=async function(){ const r=await old.apply(this,arguments); setTimeout(()=>ensureTabs('kpis'),140); return r; };
+  }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(patchRender,500); setTimeout(()=>{patchRender(); if(document.getElementById('page-admin')?.classList.contains('active')) ensureTabs('kpis');},1500); });
+  setTimeout(patchRender,800);
+  setTimeout(()=>{patchRender(); if(document.getElementById('page-admin')?.classList.contains('active')) ensureTabs('kpis');},2200);
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v46 — Segurança centralizada via Apps Script / Google Account
+     Integração: sessão, permissões, bloqueio visual e compatibilidade com governança local
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v46-api-security-css">
+  .dmx-hidden-by-security{display:none!important;}
+  .dmx-disabled-by-security{opacity:.45!important;pointer-events:none!important;filter:grayscale(.15);}
+  .dmx-security-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--muted);max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dmx-security-chip strong{color:var(--teal);font-weight:800;}
+  .dmx-security-block{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:Arial,sans-serif;padding:32px;text-align:center;}
+  .dmx-security-block-card{max-width:560px;background:#111827;border:1px solid #334155;border-radius:18px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+  .dmx-security-block-card h1{margin:0 0 12px;font-size:24px;}
+  .dmx-security-block-card p{margin:0 0 12px;color:#cbd5e1;font-size:14px;line-height:1.5;}
+  .dmx-security-block-card code{background:#020617;border:1px solid #334155;border-radius:6px;padding:3px 6px;color:#e2e8f0;}
+</style>
+<script id="dmx-v46-api-security-js">
+(function(){
+  if(window.__dmxApiSecurityV46Installed) return;
+  window.__dmxApiSecurityV46Installed = true;
+
+  const DMX_API_URL = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
+  const SESSION_KEY = 'dmx_session_v41';
+  const AUDIT_KEY = 'dmx_audit_log_governance_v43';
+
+  window.DMX_API_URL = DMX_API_URL;
+  window.DMX_CURRENT_USER = null;
+  window.DMX_PERMISSIONS = {};
+  window.DMX_SECURITY_READY = false;
+  window.dmxGetApiUrl = function(){ return DMX_API_URL; };
+
+  const norm = v => String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const perfilLocal = p => {
+    const x = norm(p);
+    if(x === 'admin' || x === 'administrador') return 'admin';
+    if(x === 'diretoria' || x === 'diretor' || x === 'ceo') return 'diretoria';
+    if(x === 'gestor' || x === 'gerente' || x === 'gerencia') return 'editor';
+    if(x === 'operador') return 'editor';
+    return 'leitura';
+  };
+  const cargoLocal = p => {
+    const x = norm(p);
+    if(x === 'admin' || x === 'administrador') return 'Administrador';
+    if(x === 'diretoria' || x === 'diretor' || x === 'ceo') return 'Diretoria';
+    if(x === 'gestor' || x === 'gerente' || x === 'gerencia') return 'Gerência';
+    if(x === 'operador') return 'Analista';
+    return 'Leitura';
+  };
+
+  function toast(msg){ if(typeof showToast === 'function') showToast(msg); else console.log(msg); }
+
+  function apiUserToLocalSession(user){
+    const areas = Array.isArray(user.areas) ? user.areas : [];
+    const area = areas[0] || 'Todas';
+    return {
+      email: user.email || '',
+      nome: user.nome || user.email || 'Usuário DMX',
+      perfil: perfilLocal(user.perfil),
+      perfilApi: user.perfil || '',
+      cargo: cargoLocal(user.perfil),
+      area: area === '*' ? 'Todas' : area,
+      areas: areas,
+      permissions: user.permissions || {},
+      loginEm: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 8*60*60*1000).toISOString(),
+      authSource: 'GOOGLE_APPS_SCRIPT'
+    };
+  }
+
+  function saveLocalSession(user){
+    const s = apiUserToLocalSession(user);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    localStorage.setItem('dmx_usuario_email', s.email);
+    localStorage.setItem('dmx_current_user_email', s.email);
+    return s;
+  }
+
+  function localSession(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;} }
+
+  function hideLegacyLogin(){
+    document.body.classList.remove('dmx-auth-locked');
+    const o = document.getElementById('dmx-login-overlay');
+    if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); o.style.display='none'; }
+    const pwd = document.getElementById('dmx-change-password-btn');
+    if(pwd) pwd.style.display = 'none';
+  }
+
+  function blockSystem(message, email){
+    document.body.innerHTML = `<div class="dmx-security-block"><div class="dmx-security-block-card"><h1>Acesso restrito</h1><p>${message}</p>${email?`<p>Usuário identificado: <code>${email}</code></p>`:''}<p>Inclua este e-mail na aba <code>Usuarios</code> da planilha com perfil e status ativo.</p></div></div>`;
+  }
+
+  function can(permission){ return !!(window.DMX_PERMISSIONS && window.DMX_PERMISSIONS[permission]); }
+  window.dmxCan = can;
+
+  function pushAudit(action, details){
+    try{
+      const s = localSession() || {};
+      const item = {quando:new Date().toISOString(), usuario:s.email||'', nome:s.nome||'', perfil:s.perfilApi||s.perfil||'', cargo:s.cargo||'', area:s.area||'', acao:action, detalhes:details||{}};
+      let arr=[]; try{arr=JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]');}catch(e){arr=[];}
+      arr.push(item); if(arr.length>1000) arr=arr.slice(arr.length-1000);
+      localStorage.setItem(AUDIT_KEY, JSON.stringify(arr));
+    }catch(e){}
+  }
+
+  async function apiPost(action, payload){
+    const res = await fetch(DMX_API_URL, { method:'POST', body: JSON.stringify(Object.assign({}, payload||{}, {action})) });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Operação não autorizada.');
+    return data;
+  }
+  window.dmxApiSecurityPost = apiPost;
+
+  function refreshUserChip(){
+    const bar = document.querySelector('.topbar'); if(!bar || !window.DMX_CURRENT_USER) return;
+    let chip = document.getElementById('dmx-user-chip') || document.getElementById('dmx-security-chip');
+    if(!chip){ chip = document.createElement('div'); chip.id='dmx-security-chip'; chip.className='dmx-security-chip'; bar.appendChild(chip); }
+    chip.className = 'dmx-security-chip';
+    chip.innerHTML = `👤 ${window.DMX_CURRENT_USER.nome || window.DMX_CURRENT_USER.email} · <strong>${window.DMX_CURRENT_USER.perfil}</strong>`;
+    const logout = document.getElementById('dmx-logout-btn');
+    if(logout){ logout.innerHTML='⎋ Sair'; logout.onclick=()=>{ toast('Para trocar de usuário, saia da conta Google no navegador ou abra em janela anônima.'); }; }
+    const pwd = document.getElementById('dmx-change-password-btn'); if(pwd) pwd.style.display='none';
+  }
+
+  function applySecurityRules(){
+    const isAdmin = can('canViewAdmin') || can('canEditUsers');
+    const canEditKpi = can('canEditKpi');
+    const canEditMeta = can('canEditMeta');
+    const canEditRealizado = can('canEditRealizado');
+    const canImport = can('canImportCsv');
+
+    document.querySelectorAll('[data-page="admin"], #page-admin, .admin-only, [data-security="admin"]').forEach(el=>{
+      el.classList.toggle('dmx-hidden-by-security', !isAdmin);
+    });
+
+    document.querySelectorAll('#dmx-open-sheets-btn, #dmx-sync-sheets-btn').forEach(el=>{
+      el.classList.toggle('dmx-hidden-by-security', !isAdmin);
+    });
+
+    document.querySelectorAll('[data-security="edit-kpi"], .edit-kpi-only, [onclick*="dmxAdminEditarKPI"], [onclick*="dmxAdminNovoKPI"], [onclick*="dmxAdminInativarKPI"]').forEach(el=>{
+      el.classList.toggle('dmx-hidden-by-security', !canEditKpi);
+    });
+
+    document.querySelectorAll('[data-security="edit-meta"], .edit-meta-only, input[data-field="meta"], input[data-key="meta"]').forEach(el=>{
+      el.disabled = !canEditMeta;
+      el.classList.toggle('dmx-disabled-by-security', !canEditMeta);
+    });
+
+    document.querySelectorAll('[data-security="edit-realizado"], .edit-realizado-only, .edit-cell').forEach(el=>{
+      el.disabled = !canEditRealizado;
+      el.classList.toggle('dmx-disabled-by-security', !canEditRealizado);
+    });
+
+    document.querySelectorAll('[data-security="import-csv"], .import-csv-only, #import-modal, [onclick*="import"], [onclick*="Import"], [onclick*="CSV"], [onclick*="csv"]').forEach(el=>{
+      el.classList.toggle('dmx-hidden-by-security', !canImport);
+    });
+
+    refreshUserChip();
+  }
+  window.dmxApplyApiSecurityRules = applySecurityRules;
+
+  function patchNavigation(){
+    if(typeof window.nav === 'function' && !window.__dmxV46NavWrapped){
+      window.__dmxV46NavWrapped = true;
+      const old = window.nav;
+      window.nav = nav = function(el, areaName){
+        if(el && el.dataset && el.dataset.page === 'admin' && !(can('canViewAdmin') || can('canEditUsers'))){
+          alert('Acesso restrito ao Administrador.');
+          pushAudit('ACESSO_NEGADO_ADMIN_API', {pagina:'admin'});
+          return;
+        }
+        const r = old.apply(this, arguments);
+        setTimeout(applySecurityRules, 80);
+        return r;
+      };
+    }
+  }
+
+  function patchLegacyAuth(){
+    window.dmxGetLoggedUser = function(){ return localSession(); };
+    window.dmxLogout = function(){ toast('Sessão controlada pelo Google. Para trocar de usuário, use outra conta Google ou janela anônima.'); };
+    window.dmxLoginSubmit = function(){ toast('Login validado automaticamente pela conta Google autorizada na planilha.'); hideLegacyLogin(); };
+  }
+
+  function patchGovernance(){
+    const adminByApi = () => can('canViewAdmin') || can('canEditUsers');
+    window.dmxGovCan = function(action){
+      if(adminByApi()) return true;
+      const a = norm(action);
+      if(['admin','usuarios','editar_usuarios','editar_kpi','meta','formula','permissao','fechamento'].includes(a)) return false;
+      if(['atualizar_realizado','salvar_lancamento','atualizar','comentario','plano_acao'].includes(a)) return can('canEditRealizado');
+      return can('canView');
+    };
+  }
+
+  async function loadSecuritySession(){
+    try{
+      const res = await fetch(DMX_API_URL + '?action=session&ts=' + Date.now(), {cache:'no-store'});
+      const data = await res.json();
+      if(!data.ok || !data.user){ blockSystem('Não foi possível validar sua sessão de acesso.'); return false; }
+      window.DMX_CURRENT_USER = data.user;
+      window.DMX_PERMISSIONS = data.user.permissions || {};
+      window.DMX_SECURITY_READY = true;
+
+      if(!data.user.ativo){
+        blockSystem('Usuário sem acesso ativo ao sistema.', data.user.email || '');
+        return false;
+      }
+
+      saveLocalSession(data.user);
+      hideLegacyLogin();
+      patchLegacyAuth();
+      patchGovernance();
+      patchNavigation();
+      applySecurityRules();
+      pushAudit('LOGIN_API_OK', {perfil:data.user.perfil, areas:data.user.areas||[]});
+      console.log('DMX Segurança API carregada:', data.user);
+      return true;
+    }catch(err){
+      console.error('Erro ao carregar segurança DMX:', err);
+      blockSystem('Falha ao validar permissões de acesso. Verifique se a implantação do Apps Script está publicada e acessível.');
+      return false;
+    }
+  }
+  window.dmxLoadSecuritySession = loadSecuritySession;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    hideLegacyLogin();
+    loadSecuritySession().then(()=>{
+      setTimeout(applySecurityRules, 300);
+      setTimeout(applySecurityRules, 1200);
+      setTimeout(applySecurityRules, 2500);
+    });
+  });
+  setTimeout(()=>{ if(window.DMX_SECURITY_READY){ hideLegacyLogin(); patchNavigation(); applySecurityRules(); } }, 1800);
+  setInterval(()=>{ if(window.DMX_SECURITY_READY){ hideLegacyLogin(); patchNavigation(); applySecurityRules(); } }, 3500);
 })();
 </script>
 
