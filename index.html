@@ -463,9 +463,50 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 
 /* v5: CSV desativado — Google Sheets é a fonte única de dados */
 #import-modal, #catalog-modal { display: none !important; }
+
+/* ─── LOGIN ─── */
+.login-overlay {
+  position: fixed; inset: 0; background: rgba(13,13,13,0.85); z-index: 500;
+  display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px);
+}
+.login-box {
+  background: #fff; border-radius: 16px; padding: 36px 40px; width: 380px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.25); text-align: center;
+}
+.login-logo { font-family: Syne,sans-serif; font-size: 22px; font-weight: 800; color: var(--navy); margin-bottom: 4px; }
+.login-sub { font-size: 11px; color: var(--muted); margin-bottom: 28px; text-transform: uppercase; letter-spacing: 1.5px; }
+.login-field { width: 100%; margin-bottom: 12px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--text); outline: none; transition: border-color .15s; }
+.login-field:focus { border-color: var(--teal); }
+.login-btn { width: 100%; padding: 11px; background: var(--teal); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 4px; transition: background .13s; }
+.login-btn:hover { background: var(--teal2); }
+.login-error { font-size: 11.5px; color: var(--red); margin-top: 10px; min-height: 16px; }
+
+/* ─── ADMIN KPI TABLE ─── */
+.admin-kpi-row td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #F0F2F8; }
+.admin-kpi-row:hover td { background: #F8FAFF; }
+.admin-edit-input { background: var(--bg3); border: 1.5px solid var(--border); border-radius: 5px; padding: 3px 7px; font-size: 12px; font-family: inherit; color: var(--text); outline: none; width: 100%; }
+.admin-edit-input:focus { border-color: var(--teal); background: #fff; }
+.admin-tab { padding: 8px 16px; font-size: 11px; font-weight: 700; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; color: var(--muted); letter-spacing: .5px; text-transform: uppercase; transition: all .15s; }
+.admin-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
 </style>
 </head>
 <body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">DMX Capital</div>
+    <div class="login-sub">Sistema de Gestão de KPIs</div>
+    <input class="login-field" id="login-user" type="text" placeholder="Usuário" autocomplete="username"
+      onkeydown="if(event.key==='Enter') document.getElementById('login-pass').focus()">
+    <input class="login-field" id="login-pass" type="password" placeholder="Senha"
+      onkeydown="if(event.key==='Enter') dmxDoLogin()">
+    <button class="login-btn" onclick="dmxDoLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:18px">Acesso controlado · DMX Capital</div>
+  </div>
+</div>
+
 <div class="app">
 
 <!-- SIDEBAR -->
@@ -507,8 +548,11 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <span style="font-size:10px;color:var(--muted);font-weight:600">ANO</span>
       <select id="ano-sel" onchange="onPeriodChange()"><option value="2026" selected>2026</option></select>
     </div>
-    <button class="topbar-btn btn-outline" onclick="configurarApiDMX()">☁ Conectar API</button>
     <div class="period-selector" title="Base oficial de dados"><span style="font-size:10px;color:var(--muted);font-weight:600">BASE</span><span style="font-size:12px;font-weight:700;color:var(--teal)">Google Sheets</span></div>
+    <div id="session-badge" style="display:none;align-items:center;gap:6px;background:rgba(14,158,130,0.12);border:1px solid rgba(14,158,130,0.3);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;color:var(--teal)">
+      <span id="session-user-label">👤</span>
+      <button onclick="dmxLogout()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:11px;padding:0 0 0 4px" title="Sair">✕</button>
+    </div>
   </div>
 
   <div class="content">
@@ -604,7 +648,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       </div>
       <div class="table-wrap">
         <table class="data-table" id="upd-table">
-          <thead><tr><th>ID</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th style="color:#2563EB">Meta ✎</th><th style="color:#DC2626">Mín ✎</th><th style="color:#DC2626">Máx ✎</th><th style="color:var(--teal)">Realizado ✎</th><th>Ating.</th><th>Status</th><th style="color:var(--teal)">Peso Índice ✎</th><th>Comentário</th><th>Editar</th></tr></thead>
+          <thead><tr><th>ID</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Meta</th><th>Mín</th><th>Máx</th><th style="color:var(--teal)">Realizado ✎</th><th>Ating.</th><th>Status</th><th style="color:var(--teal)">Justificativa ✎</th></tr></thead>
           <tbody id="upd-tbody"></tbody>
         </table>
       </div>
@@ -2213,11 +2257,9 @@ function renderAtualizar() {
   document.getElementById('upd-period-label').textContent = MES[currentMes] + '/' + currentAno;
   pendingUpdates = {};
   const af   = document.getElementById('upd-area-filter').value;
-  const vf   = document.getElementById('upd-vertente-filter').value;
   const srch = document.getElementById('upd-search').value.toLowerCase();
   const filtered = kpis.filter(k => {
     if (af && k.area !== af) return false;
-    if (vf && k.vertente !== vf) return false;
     if (srch && !k.indicador.toLowerCase().includes(srch) && !k.id.toLowerCase().includes(srch)) return false;
     return true;
   });
@@ -2225,101 +2267,53 @@ function renderAtualizar() {
   tbody.dataset.kpiIds = filtered.map(k => k.id).join(',');
   tbody.innerHTML = filtered.map((kpi, idx) => {
     const l   = getLaunch(kpi.id, currentMes, currentAno);
-    const st  = l ? l.status : 'N/A';
-    const at  = l ? calcAting(kpi.sentido, l.realizado, kpi.meta) : null;
+    const st  = l ? calcStatus(kpi.sentido, l.realizado, resolveRef(kpi, currentMes, currentAno).meta) : 'N/A';
+    const ref = resolveRef(kpi, currentMes, currentAno);
+    const at  = l ? calcAting(kpi.sentido, l.realizado, ref.meta) : null;
     const stC = st === 'VERDE' ? 'var(--green)' : st === 'AMARELO' ? 'var(--amber)' : st === 'VERMELHO' ? 'var(--red)' : 'var(--muted)';
     const rv  = (l && l.realizado !== null && l.realizado !== undefined) ? l.realizado : '';
-    const mv  = l ? l.meta   : kpi.meta;
-    const nv  = l ? l.minimo : kpi.minimo;
-    const xv  = l ? l.maximo : kpi.maximo;
-    const com = l ? (l.comentario || '') : '';
-    function inp(pfx, val, w, color) {
-      return '<input class="edit-cell" id="' + pfx + '-' + kpi.id + '" type="number" step="any" value="' + val + '"' +
-        ' style="width:' + w + 'px;border-color:' + color + '40;background:' + color + '08"' +
-        ' oninput="onCellEdit(\'' + kpi.id + '\')" onkeydown="cellKey(event,\'' + kpi.id + '\',' + idx + ',' + filtered.length + ')">';
-    }
+    const obsText = getObs(kpi.id, currentMes, currentAno) || (l ? l.comentario || '' : '');
+    const displayVal = (v, color) => '<span style="display:inline-block;padding:4px 8px;border:1px solid '+color+'33;background:'+color+'08;border-radius:5px;font-size:12px;min-width:60px;text-align:center">'+(v !== null && v !== undefined && v !== '' ? v : '—')+'</span>';
     return '<tr id="upd-row-' + kpi.id + '">' +
       '<td><span class="font-mono text-muted" style="font-size:10px">' + kpi.id + '</span></td>' +
       '<td><span class="tag tag-area" style="font-size:9px">' + kpi.area + '</span></td>' +
-      '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="' + kpi.indicador + '">' + kpi.indicador + '</td>' +
+      '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="' + kpi.indicador + '">' + kpi.indicador + '</td>' +
       '<td class="text-muted text-sm">' + kpi.unidade + '</td>' +
-      '<td><span class="tag tag-sentido" style="font-size:9px">' + (kpi.sentido === 'Maior Melhor' ? '\u25B2' : '\u25BC') + '</span></td>' +
-      '<td>' + inp('meta', mv, 72, '#2563EB') + '</td>' +
-      '<td>' + inp('min',  nv, 64, '#DC2626') + '</td>' +
-      '<td>' + inp('max',  xv, 64, '#DC2626') + '</td>' +
+      '<td><span class="tag tag-sentido" style="font-size:9px">' + (kpi.sentido === 'Maior Melhor' ? '▲' : '▼') + '</span></td>' +
+      '<td>' + displayVal(ref.meta, '#2563EB') + '</td>' +
+      '<td>' + displayVal(ref.minimo, '#DC2626') + '</td>' +
+      '<td>' + displayVal(ref.maximo, '#DC2626') + '</td>' +
       '<td><div style="display:flex;align-items:center;gap:3px">' +
-        inp('inp', rv, 78, '#0E9E82') +
-        '<button onclick="clearRealizado(\'' + kpi.id + '\')" title="Apagar valor" style="background:none;border:none;cursor:pointer;color:#CBD5E1;font-size:13px;padding:0 2px;line-height:1" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'#CBD5E1\'">\u2715</button>' +
+        '<input class="edit-cell" id="inp-' + kpi.id + '" type="number" step="any" value="' + rv + '"' +
+        ' style="width:90px;border-color:#0E9E8240;background:#0E9E8208"' +
+        ' oninput="onCellEditSimple('' + kpi.id + '')" onkeydown="cellKey(event,'' + kpi.id + '',' + idx + ',' + filtered.length + ')">' +
+        '<button onclick="clearRealizado('' + kpi.id + '')" title="Apagar" style="background:none;border:none;cursor:pointer;color:#CBD5E1;font-size:13px;padding:0 2px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='#CBD5E1'">✕</button>' +
       '</div></td>' +
-      '<td id="upd-at-' + kpi.id + '" style="font-size:12px;font-weight:600;color:' + stC + '">' + (at !== null ? Math.round(at * 100) + '%' : '\u2014') + '</td>' +
+      '<td id="upd-at-' + kpi.id + '" style="font-size:12px;font-weight:600;color:' + stC + '">' + (at !== null ? Math.round(at * 100) + '%' : '—') + '</td>' +
       '<td id="upd-st-' + kpi.id + '">' + pill(st) + '</td>' +
-      (function(){
-        var _p=0; try{var _s=JSON.parse(localStorage.getItem('dmx_indice_pesos_v12')||'{}');_p=Number(_s[kpi.id]!==undefined?_s[kpi.id]:(kpi.peso_indice||0));}catch(e){}
-        var _pesoCell = kpi.vertente==='Meta'
-          ? '<input class="edit-cell" type="number" min="0" max="100" step="0.01" value="'+_p.toFixed(2)+'" style="width:72px" onchange="dmxUpdSetPeso(\''+kpi.id+'\',this.value)"> %'
-          : '<span style="color:var(--muted);font-size:11px">—</span>';
-        return '<td>'+_pesoCell+'</td>';
-      }()) +
-      '<td><input type="hidden" id="com-' + kpi.id + '" value="' + com.replace(/"/g, '&quot;') + '"><span title="' + com.replace(/"/g, '&quot;') + '" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (com ? com : '—') + '</span></td>' +
-      '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\'' + kpi.id + '\',' + currentMes + ',' + currentAno + ')">✎ Editar</button></td>' +
+      '<td><textarea id="obs-upd-' + kpi.id + '" style="width:100%;min-width:160px;height:48px;font-size:11px;border:1.5px solid #0E9E8240;border-radius:5px;padding:4px 7px;font-family:inherit;resize:vertical;background:#0E9E8208" placeholder="Justificativa...">' + obsText.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea></td>' +
       '</tr>';
   }).join('');
-
-  // Append shared KPI rows (KPIs shared to this area)
-  (function(){
-    var shares = (typeof dmxLoadShares==='function') ? dmxLoadShares() : {};
-    var af2   = document.getElementById('upd-area-filter') ? document.getElementById('upd-area-filter').value : '';
-    var tbody2 = document.getElementById('upd-tbody');
-    if(!tbody2) return;
-    (window.kpis||kpis||[]).forEach(function(kpi){
-      var sh = shares[kpi.id]||{};
-      var allTargets = [];
-      (sh.meta_areas||[]).forEach(function(a){ if(!af2||a===af2) allTargets.push({area:a,vertente:'Meta',peso:Number((sh.pesos||{})[a]||0)}); });
-      Object.keys(sh.controle_areas||{}).forEach(function(a){ if(!af2||a===af2) allTargets.push({area:a,vertente:'Controle',peso:0}); });
-      // Garante a regra correta: o mesmo KPI pode aparecer em áreas diferentes,
-      // mas nunca duplicado dentro da mesma área.
-      var seenTargets = {};
-      allTargets = allTargets.filter(function(t){
-        var key = String(kpi.id||'') + '__' + String(t.area||'');
-        if (seenTargets[key]) return false;
-        seenTargets[key] = true;
-        return true;
-      });
-      allTargets.forEach(function(t){
-        var vf2 = document.getElementById('upd-vertente-filter') ? document.getElementById('upd-vertente-filter').value : '';
-        if(vf2 && t.vertente!==vf2) return;
-        var l2   = (typeof getLaunch==='function') ? getLaunch(kpi.id,currentMes,currentAno) : null;
-        var ref2 = (typeof resolveRef==='function') ? resolveRef(kpi,currentMes,currentAno) : {meta:kpi.meta};
-        var at2  = (l2&&typeof calcAting==='function') ? calcAting(kpi.sentido,l2.realizado,ref2.meta) : null;
-        var st2  = (l2&&typeof calcStatus==='function') ? calcStatus(kpi.sentido,l2.realizado,ref2.meta) : 'N/A';
-        var stC2 = st2==='VERDE'?'var(--green)':st2==='AMARELO'?'var(--amber)':st2==='VERMELHO'?'var(--red)':'var(--muted)';
-        var mv2  = l2?l2.meta   :(ref2.meta??kpi.meta??''); var nv2=l2?l2.minimo:(kpi.minimo??''); var xv2=l2?l2.maximo:(kpi.maximo??''); var rv2=(l2&&l2.realizado!=null)?l2.realizado:'';
-        var com2 = l2?(l2.comentario||''):'';
-        var pesoCell2 = t.vertente==='Meta'
-          ? '<input class="edit-cell" type="number" min="0" max="100" step="0.01" value="'+t.peso.toFixed(2)+'" style="width:72px" onchange="dmxShareSetPeso(\''+kpi.id+'\',\''+t.area+'\',this.value)"> %'
-          : '<span style="color:var(--muted);font-size:11px">—</span>';
-        var tr = document.createElement('tr');
-        tr.style.background='#F0F7FF';
-        tr.innerHTML =
-          '<td><span class="font-mono text-muted" style="font-size:10px">'+kpi.id+'</span></td>'+
-          '<td><span class="tag tag-area" style="font-size:9px">'+t.area+'</span><span style="font-size:9px;background:#DBEAFE;color:#1D4ED8;border-radius:3px;padding:1px 5px;font-weight:700;margin-left:4px">de '+kpi.area+'</span></td>'+
-          '<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+kpi.indicador+'</td>'+
-          '<td class="text-muted text-sm">'+kpi.unidade+'</td>'+
-          '<td><span class="tag tag-sentido" style="font-size:9px">'+(kpi.sentido==='Maior Melhor'?'▲':'▼')+'</span></td>'+
-          '<td><input class="edit-cell" type="number" value="'+mv2+'" style="width:72px;border-color:#2563EB40;background:#2563EB08" readonly></td>'+
-          '<td><input class="edit-cell" type="number" value="'+nv2+'" style="width:64px;border-color:#DC262640;background:#DC262608" readonly></td>'+
-          '<td><input class="edit-cell" type="number" value="'+xv2+'" style="width:64px;border-color:#DC262640;background:#DC262608" readonly></td>'+
-          '<td><input class="edit-cell" type="number" value="'+rv2+'" style="width:78px;border-color:#0E9E8240;background:#0E9E8208" readonly></td>'+
-          '<td style="font-size:12px;font-weight:600;color:'+stC2+'">'+(at2!==null?Math.round(at2*100)+'%':'—')+'</td>'+
-          '<td>'+(typeof pill==='function'?pill(st2):st2)+'</td>'+
-          '<td>'+pesoCell2+'</td>'+
-          '<td><span title="'+String(com2).replace(/"/g,'&quot;')+'" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(com2||'—')+'</span></td>'+
-          '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\''+kpi.id+'\','+currentMes+','+currentAno+')">✎ Editar</button></td>';
-        tbody2.appendChild(tr);
-      });
-    });
-  })();
 }
+
+function onCellEditSimple(id) {
+  const inp = document.getElementById('inp-' + id);
+  const kpi = getKPI(id);
+  if (!kpi || !inp) return;
+  if (!pendingUpdates[id]) pendingUpdates[id] = {};
+  const raw = inp.value.trim();
+  pendingUpdates[id].realizado = raw === '' ? null : parseFloat(raw);
+  inp.classList.add('changed');
+  const ref = resolveRef(kpi, currentMes, currentAno);
+  const at = calcAting(kpi.sentido, pendingUpdates[id].realizado, ref.meta);
+  const st = calcStatus(kpi.sentido, pendingUpdates[id].realizado, ref.meta);
+  const col = st === 'VERDE' ? 'var(--green)' : st === 'AMARELO' ? 'var(--amber)' : st === 'VERMELHO' ? 'var(--red)' : 'var(--muted)';
+  const atEl = document.getElementById('upd-at-' + id);
+  const stEl = document.getElementById('upd-st-' + id);
+  if (atEl) { atEl.style.color = col; atEl.textContent = raw !== '' && at !== null ? Math.round(at * 100) + '%' : '—'; }
+  if (stEl) stEl.innerHTML = pill(raw !== '' ? st : 'N/A');
+}
+
 
 function clearRealizado(kpiId) {
   const inp = document.getElementById('inp-' + kpiId);
@@ -2372,17 +2366,33 @@ function onCellEdit(id) {
 }
 
 function saveAllUpdates() {
+  const tbody = document.getElementById('upd-tbody');
+  const allIds = tbody ? (tbody.dataset.kpiIds || '').split(',').filter(Boolean) : [];
+  allIds.forEach(id => {
+    const inp = document.getElementById('inp-' + id);
+    if (inp) {
+      if (!pendingUpdates[id]) pendingUpdates[id] = {};
+      const raw = inp.value.trim();
+      pendingUpdates[id].realizado = raw === '' ? null : parseFloat(raw);
+    }
+    const obsEl = document.getElementById('obs-upd-' + id);
+    if (obsEl) {
+      if (!pendingUpdates[id]) pendingUpdates[id] = {};
+      pendingUpdates[id].comentario = obsEl.value.trim();
+    }
+  });
   const ids = Object.keys(pendingUpdates);
-  if (!ids.length) { showToast('Nenhuma altera\u00E7\u00E3o'); return; }
+  if (!ids.length) { showToast('Nenhuma alteração'); return; }
   let saved = 0;
   ids.forEach(id => {
     const upd = pendingUpdates[id];
     const kpi = getKPI(id);
     if (!kpi) return;
-    const ex      = getLaunch(id, currentMes, currentAno);
-    const newMeta = upd.meta   !== undefined ? upd.meta   : (ex ? ex.meta   : kpi.meta);
-    const newMin  = upd.minimo !== undefined ? upd.minimo : (ex ? ex.minimo : kpi.minimo);
-    const newMax  = upd.maximo !== undefined ? upd.maximo : (ex ? ex.maximo : kpi.maximo);
+    const ex  = getLaunch(id, currentMes, currentAno);
+    const ref = resolveRef(kpi, currentMes, currentAno);
+    const newMeta = ref.meta !== null ? ref.meta : kpi.meta;
+    const newMin  = ref.minimo !== null ? ref.minimo : kpi.minimo;
+    const newMax  = ref.maximo !== null ? ref.maximo : kpi.maximo;
     const newReal = upd.clearValue ? null : (upd.realizado !== undefined ? upd.realizado : (ex ? ex.realizado : null));
     const newCom  = upd.comentario !== undefined ? upd.comentario : (ex ? ex.comentario : '');
     const newSt   = calcStatus(kpi.sentido, newReal, newMeta);
@@ -2396,14 +2406,14 @@ function saveAllUpdates() {
         unidade: kpi.unidade, sentido: kpi.sentido, meta: newMeta, minimo: newMin, maximo: newMax,
         peso_ebitda: kpi.peso_ebitda, realizado: newReal, comentario: newCom, status: newSt, impacto: newImp });
     }
+    if (newCom) { try { localStorage.setItem(obsKey(id, currentMes, currentAno), newCom); } catch(e) {} }
     saved++;
   });
   pendingUpdates = {};
   persist();
   renderAtualizar();
-  showToast('\u2713 ' + saved + ' KPIs salvos \u2014 ' + MES[currentMes] + '/' + currentAno);
+  showToast('✓ ' + saved + ' KPIs salvos — ' + MES[currentMes] + '/' + currentAno);
 }
-
 
 function renderLancamentos() {
   const af = document.getElementById('lanc-area-filter').value;
@@ -3918,7 +3928,9 @@ const dmx_originalOnPeriodChange = onPeriodChange;
 onPeriodChange = function(){ dmx_originalOnPeriodChange(); if(currentPage==='diretoria') renderDiretoria(); dmx_updateDiretoriaBadge(); };
 
 // \u2500\u2500\u2500 BOOT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-window.addEventListener('DOMContentLoaded', init);
+// Boot controlado pelo sistema de login — dmxAfterLogin() chama init()
+// window.addEventListener('DOMContentLoaded', init); // BLOQUEADO: login controla o boot
+window._dmxInitialized = false;
 
 </script>
 <script>
@@ -6769,6 +6781,468 @@ function sharedEntriesFor(area){
 
 window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPIs.compartilhar é a fonte oficial', exemplos:'Comercial/Cobrança ou Controle:Jurídico'}; };
 })();
+
+// ══════════════════════════════════════════════════════════════
+//  SISTEMA DE LOGIN + ADMIN DMX — v1.0
+// ══════════════════════════════════════════════════════════════
+
+const DMX_SESSION_KEY = 'dmx_session_v1';
+
+// ── Sessão ────────────────────────────────────────────────────
+let dmxSession = null;
+
+function dmxLoadSession() {
+  try { dmxSession = JSON.parse(sessionStorage.getItem(DMX_SESSION_KEY) || 'null'); } catch(e) { dmxSession = null; }
+  return dmxSession;
+}
+function dmxSaveSession(user) {
+  dmxSession = user;
+  try { sessionStorage.setItem(DMX_SESSION_KEY, JSON.stringify(user)); } catch(e) {}
+}
+function dmxClearSession() {
+  dmxSession = null;
+  try { sessionStorage.removeItem(DMX_SESSION_KEY); } catch(e) {}
+}
+function dmxIsAdmin() { return dmxSession && dmxSession.perfil === 'admin'; }
+function dmxIsLoggedIn() { return !!dmxSession; }
+
+// ── Login ─────────────────────────────────────────────────────
+async function dmxDoLogin() {
+  const user = (document.getElementById('login-user')?.value || '').trim().toLowerCase();
+  const pass = (document.getElementById('login-pass')?.value || '').trim();
+  const errEl = document.getElementById('login-error');
+  if (!user || !pass) { if(errEl) errEl.textContent = 'Preencha usuário e senha.'; return; }
+
+  // ── Credencial de emergência: sempre funciona, sem depender do Sheets ──
+  const ADMIN_FALLBACK = { usuario: 'admin', nome: 'Administrador', perfil: 'admin', area: '' };
+  if (user === 'admin' && pass === 'dmx2026') {
+    dmxSaveSession(ADMIN_FALLBACK);
+    dmxAfterLogin();
+    return;
+  }
+
+  if(errEl) errEl.textContent = 'Verificando...';
+
+  // ── Tenta validar contra o Google Sheets ──
+  const url = dmxGetApiUrl();
+  if (!url) {
+    if(errEl) errEl.textContent = 'API não configurada. Use admin / dmx2026.';
+    return;
+  }
+
+  try {
+    const resp = await fetch(
+      dmxApiUrlWithTipo(url, 'usuario') + '&user=' + encodeURIComponent(user) + '&pass=' + encodeURIComponent(pass),
+      { method: 'GET', cache: 'no-store' }
+    );
+    const data = await resp.json();
+
+    // Sheets pode retornar objeto único (usuário encontrado) ou array
+    let found = null;
+    if (data && data.ok === true && data.usuario) {
+      // Apps Script retornou o usuário diretamente
+      found = data;
+    } else if (data && data.ok === false) {
+      if(errEl) errEl.textContent = 'Usuário ou senha incorretos.';
+      return;
+    } else {
+      // Retornou array — procura na lista
+      const lista = Array.isArray(data) ? data : (data.data || []);
+      found = lista.find(u => {
+        const uLogin = String(u.usuario || u.email || u.login || '').toLowerCase().trim();
+        const uSenha = String(u.senha || u.password || u.pass || '').trim();
+        return uLogin === user && uSenha === pass;
+      });
+    }
+
+    if (found) {
+      dmxSaveSession({
+        usuario: found.usuario || found.email || user,
+        nome: found.nome || found.name || user,
+        perfil: String(found.perfil || found.role || 'editor').toLowerCase(),
+        area: found.area || ''
+      });
+      dmxAfterLogin();
+    } else {
+      if(errEl) errEl.textContent = 'Usuário ou senha incorretos.';
+    }
+  } catch(e) {
+    // CORS ou rede: fallback já foi tentado acima (admin/dmx2026)
+    if(errEl) errEl.textContent = 'Sem conexão com o Sheets. Use admin / dmx2026 para acesso de emergência.';
+  }
+}
+
+function dmxAfterLogin() {
+  document.getElementById('login-overlay').style.display = 'none';
+  const badge = document.getElementById('session-badge');
+  if (badge) {
+    badge.style.display = 'flex';
+    const lbl = document.getElementById('session-user-label');
+    if (lbl) lbl.textContent = '👤 ' + (dmxSession.nome || dmxSession.usuario) + (dmxIsAdmin() ? ' · Admin' : '');
+  }
+  // Esconde aba Admin se não for admin
+  dmxApplyNavPermissions();
+  // Inicia o sistema
+  if (!window._dmxInitialized) { window._dmxInitialized = true; init(); }
+}
+
+function dmxLogout() {
+  dmxClearSession();
+  location.reload();
+}
+
+function dmxApplyNavPermissions() {
+  const adminNav = document.querySelector('[data-page="admin"]');
+  if (adminNav) adminNav.style.display = dmxIsAdmin() ? '' : 'none';
+}
+
+// ── Boot: verifica sessão antes de mostrar o sistema ─────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Aguarda init() que normalmente roda no DOMContentLoaded — bloqueamos ele
+  // A sessão controla se o sistema abre ou mostra login
+  const sessao = dmxLoadSession();
+  if (sessao) {
+    dmxAfterLogin();
+  } else {
+    // Mostra login, bloqueia o sistema
+    document.getElementById('login-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('login-user')?.focus(), 100);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  PAINEL ADMIN — Edição de KPIs, configurações de API/Sheets
+// ══════════════════════════════════════════════════════════════
+
+let _adminActiveTab = 'kpis';
+let _adminEditingKpi = null;
+
+window.renderAdminDMX = async function(force = false) {
+  if (!dmxIsAdmin()) {
+    const host = document.getElementById('admin-root');
+    if (host) host.innerHTML = '<div class="block-card" style="text-align:center;padding:48px"><div style="font-size:36px;margin-bottom:12px">🔒</div><div class="section-title">Acesso restrito</div><div class="text-muted text-sm mt-2">Esta área é exclusiva para administradores do sistema.</div></div>';
+    return;
+  }
+
+  const host = document.getElementById('admin-root');
+  if (!host) return;
+
+  const tabs = [
+    { id: 'kpis',    label: '📋 KPIs', },
+    { id: 'addkpi',  label: '➕ Novo KPI' },
+    { id: 'api',     label: '⚙ API / Sheets' },
+    { id: 'users',   label: '👥 Usuários' },
+  ];
+
+  const tabsHtml = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);background:var(--bg2);margin-bottom:16px">' +
+    tabs.map(t => '<div class="admin-tab '+(t.id===_adminActiveTab?'active':'')+'" onclick="dmxAdminTab(''+t.id+'')">'+t.label+'</div>').join('') +
+    '</div>';
+
+  let bodyHtml = '';
+
+  if (_adminActiveTab === 'kpis') {
+    bodyHtml = dmxAdminKpisHtml();
+  } else if (_adminActiveTab === 'addkpi') {
+    bodyHtml = dmxAdminNewKpiHtml();
+  } else if (_adminActiveTab === 'api') {
+    bodyHtml = dmxAdminApiHtml();
+  } else if (_adminActiveTab === 'users') {
+    bodyHtml = await dmxAdminUsersHtml();
+  }
+
+  host.innerHTML = tabsHtml + bodyHtml;
+};
+
+window.dmxAdminTab = function(tab) {
+  _adminActiveTab = tab;
+  renderAdminDMX();
+};
+
+// ── Tab: Lista de KPIs editável ───────────────────────────────
+function dmxAdminKpisHtml() {
+  const srch = '';
+  const areas = [...new Set((window.kpis||[]).map(k=>k.area).filter(Boolean))].sort();
+  const areaOpts = areas.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  const kpiList = (window.kpis || []);
+
+  const rows = kpiList.map(k => {
+    const sentidoOpts = ['Maior Melhor','Menor Melhor'].map(s=>'<option value="'+s+'"'+(k.sentido===s?' selected':'')+'>'+s+'</option>').join('');
+    const acumOpts = ['média','soma'].map(s=>'<option value="'+s+'"'+(String(k.acumulado||'média')===s?' selected':'')+'>'+s+'</option>').join('');
+    return '<tr class="admin-kpi-row" id="admin-row-'+k.id+'">' +
+      '<td style="white-space:nowrap"><span class="font-mono" style="font-size:10px;color:var(--muted)">'+k.id+'</span></td>' +
+      '<td><select class="admin-edit-input" onchange="dmxAdminFieldChange(''+k.id+'','area',this.value)" style="min-width:90px">'+areaOpts.replace('value="'+k.area+'"','value="'+k.area+'" selected')+'</select></td>' +
+      '<td><input class="admin-edit-input" value="'+k.indicador.replace(/"/g,'&quot;')+'" onchange="dmxAdminFieldChange(''+k.id+'','indicador',this.value)" style="min-width:180px"></td>' +
+      '<td><input class="admin-edit-input" type="number" step="any" value="'+(k.meta||'')+'" onchange="dmxAdminFieldChange(''+k.id+'','meta',parseFloat(this.value)||0)" style="width:72px"></td>' +
+      '<td><input class="admin-edit-input" type="number" step="any" value="'+(k.minimo||'')+'" onchange="dmxAdminFieldChange(''+k.id+'','minimo',parseFloat(this.value)||0)" style="width:72px"></td>' +
+      '<td><input class="admin-edit-input" type="number" step="any" value="'+(k.maximo||'')+'" onchange="dmxAdminFieldChange(''+k.id+'','maximo',parseFloat(this.value)||0)" style="width:72px"></td>' +
+      '<td><input class="admin-edit-input" value="'+(k.unidade||'').replace(/"/g,'&quot;')+'" onchange="dmxAdminFieldChange(''+k.id+'','unidade',this.value)" style="width:52px"></td>' +
+      '<td><select class="admin-edit-input" onchange="dmxAdminFieldChange(''+k.id+'','sentido',this.value)" style="min-width:110px">'+sentidoOpts+'</select></td>' +
+      '<td><select class="admin-edit-input" onchange="dmxAdminFieldChange(''+k.id+'','acumulado',this.value)" style="min-width:70px">'+acumOpts+'</select></td>' +
+      '<td><input class="admin-edit-input" type="number" step="0.01" value="'+(k.peso_indice||0)+'" onchange="dmxAdminFieldChange(''+k.id+'','peso_indice',parseFloat(this.value)||0)" style="width:56px"> %</td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="btn btn-primary btn-sm" onclick="dmxAdminSaveKpi(''+k.id+'')">Salvar</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div style="margin-bottom:12px;font-size:11.5px;color:var(--muted);background:#F0FDF9;border:1px solid #A7F3D0;border-radius:7px;padding:9px 14px">' +
+    '✏️ Edite qualquer campo e clique em <strong>Salvar</strong>. As alterações são aplicadas em memória imediatamente e sincronizadas com o Google Sheets.' +
+    '</div>' +
+    '<div class="table-wrap"><div style="overflow-x:auto"><table class="data-table" style="min-width:900px">' +
+    '<thead><tr>' +
+    '<th>ID</th><th>Área</th><th>Indicador (nome)</th>' +
+    '<th style="color:#2563EB">Meta</th><th style="color:#DC2626">Mínimo</th><th style="color:#DC2626">Máximo</th>' +
+    '<th>Unid.</th><th>Sentido</th><th>Acum.</th><th>Peso %</th><th>Ação</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody>' +
+    '</table></div></div>';
+}
+
+window.dmxAdminFieldChange = function(kpiId, field, value) {
+  const kpi = (window.kpis||[]).find(k=>k.id===kpiId);
+  if (!kpi) return;
+  kpi[field] = value;
+  // Marca a linha visualmente
+  const row = document.getElementById('admin-row-'+kpiId);
+  if (row) row.style.background = '#FFFBEB';
+};
+
+window.dmxAdminSaveKpi = async function(kpiId) {
+  const kpi = (window.kpis||[]).find(k=>k.id===kpiId);
+  if (!kpi) return;
+  // 1. Aplica em memória imediatamente
+  if (typeof refreshDimensions === 'function') refreshDimensions();
+  if (typeof dmxReconcileLaunchesWithCatalog === 'function') dmxReconcileLaunchesWithCatalog();
+  if (typeof dmxSaveCatalogToStorage === 'function') dmxSaveCatalogToStorage();
+  if (typeof persist === 'function') persist();
+  // Remove destaque da linha
+  const row = document.getElementById('admin-row-'+kpiId);
+  if (row) row.style.background = '#F0FDF9';
+  setTimeout(() => { if (row) row.style.background = ''; }, 1500);
+  showToast('✓ ' + kpi.indicador + ' atualizado em memória');
+  // 2. Sincroniza com Sheets em background
+  if (typeof dmxApiPost === 'function') {
+    try {
+      const r = await dmxApiPost('editarKPI', kpi);
+      if (r && r.ok) showToast('✓ ' + kpi.id + ' salvo no Google Sheets');
+      else showToast('⚠ Salvo localmente, falha no Sheets: ' + (r?.error || ''));
+    } catch(e) {
+      showToast('⚠ Salvo localmente. Sheets indisponível.');
+    }
+  }
+  // 3. Re-render das páginas visíveis
+  if (typeof renderCurrentPage === 'function') renderCurrentPage();
+  else if (typeof renderDashboard === 'function') renderDashboard();
+};
+
+// ── Tab: Novo KPI ─────────────────────────────────────────────
+function dmxAdminNewKpiHtml() {
+  const areas = [...new Set((window.kpis||[]).map(k=>k.area).filter(Boolean))].sort();
+  const areaOpts = areas.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  const pilares = [...new Set((window.kpis||[]).map(k=>k.pilar).filter(Boolean))].sort();
+  const pilarOpts = pilares.map(p=>'<option value="'+p+'">'+p+'</option>').join('');
+  // Próximo ID disponível
+  const usedNums = (window.kpis||[]).map(k=>parseInt(String(k.id||'').replace('KPI',''))||0);
+  const nextNum = Math.max(0, ...usedNums) + 1;
+  const nextId = 'KPI' + String(nextNum).padStart(3,'0');
+
+  function field(label, input, tip='') {
+    return '<div><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);display:block;margin-bottom:4px">'+label+'</label>'+input+(tip?'<div style="font-size:9.5px;color:var(--muted);margin-top:2px">'+tip+'</div>':'')+'</div>';
+  }
+
+  return '<div style="max-width:680px">' +
+    '<div style="margin-bottom:16px;font-size:11.5px;color:var(--muted);background:#F0FDF9;border:1px solid #A7F3D0;border-radius:7px;padding:9px 14px">' +
+    '➕ Preencha os campos e clique em <strong>Criar KPI</strong>. O KPI será adicionado ao sistema imediatamente e enviado ao Google Sheets.' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+    field('ID do KPI', '<input class="filter-input" id="nkpi-id" value="'+nextId+'" style="width:100%;font-weight:700;font-family:monospace">', 'Ex: KPI050 — use um ID que não exista ainda') +
+    field('Área', '<select class="filter-input" id="nkpi-area" style="width:100%">'+areaOpts+'</select>') +
+    '<div style="grid-column:1/-1">'+field('Indicador (nome do KPI)', '<input class="filter-input" id="nkpi-indicador" placeholder="Ex: Taxa de Conversão de Clientes" style="width:100%">')+'</div>' +
+    '<div style="grid-column:1/-1">'+field('Objetivo', '<input class="filter-input" id="nkpi-objetivo" placeholder="O que este KPI mede?" style="width:100%">')+'</div>' +
+    '<div style="grid-column:1/-1">'+field('Fórmula', '<input class="filter-input" id="nkpi-formula" placeholder="Ex: Clientes convertidos / Clientes prospectados" style="width:100%">')+'</div>' +
+    field('Unidade', '<select class="filter-input" id="nkpi-unidade" style="width:100%"><option value="%">%</option><option value="R$">R$</option><option value="Num">Num</option></select>') +
+    field('Sentido', '<select class="filter-input" id="nkpi-sentido" style="width:100%"><option value="Maior Melhor">Maior Melhor</option><option value="Menor Melhor">Menor Melhor</option></select>') +
+    field('Meta padrão', '<input class="filter-input" id="nkpi-meta" type="number" step="any" value="0" style="width:100%">') +
+    field('Mínimo', '<input class="filter-input" id="nkpi-minimo" type="number" step="any" value="0" style="width:100%">') +
+    field('Máximo', '<input class="filter-input" id="nkpi-maximo" type="number" step="any" value="0" style="width:100%">') +
+    field('Acumulado', '<select class="filter-input" id="nkpi-acumulado" style="width:100%"><option value="média">Média dos períodos</option><option value="soma">Soma dos períodos</option></select>') +
+    field('Vertente', '<select class="filter-input" id="nkpi-vertente" style="width:100%"><option value="Meta">Meta</option><option value="Controle">Controle</option></select>') +
+    field('Peso Índice %', '<input class="filter-input" id="nkpi-peso" type="number" step="0.01" value="0" style="width:100%">') +
+    field('Pilar', '<select class="filter-input" id="nkpi-pilar" style="width:100%">'+pilarOpts+'</select>') +
+    '</div>' +
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+    '<button class="btn btn-ghost" onclick="dmxAdminTab('kpis')">Cancelar</button>' +
+    '<button class="btn btn-primary" onclick="dmxAdminCreateKpi()">Criar KPI</button>' +
+    '</div></div>';
+}
+
+window.dmxAdminCreateKpi = async function() {
+  const id = (document.getElementById('nkpi-id')?.value||'').trim().toUpperCase();
+  const indicador = (document.getElementById('nkpi-indicador')?.value||'').trim();
+  if (!id || !indicador) { showToast('ID e Nome do KPI são obrigatórios.'); return; }
+  if ((window.kpis||[]).some(k=>k.id===id)) { showToast('⚠ ID '+id+' já existe. Escolha outro.'); return; }
+  const newKpi = {
+    id,
+    pilar: document.getElementById('nkpi-pilar')?.value || 'Gestão de Performance',
+    area: document.getElementById('nkpi-area')?.value || '',
+    abrangencia: '',
+    vertente: document.getElementById('nkpi-vertente')?.value || 'Meta',
+    indicador,
+    objetivo: document.getElementById('nkpi-objetivo')?.value || '',
+    formula: document.getElementById('nkpi-formula')?.value || '',
+    unidade: document.getElementById('nkpi-unidade')?.value || '%',
+    frequencia: 'Mensal',
+    controle: 'Mensal',
+    responsavel: document.getElementById('nkpi-area')?.value || '',
+    compartilhar: '',
+    fonte: 'Google Sheets',
+    sentido: document.getElementById('nkpi-sentido')?.value || 'Maior Melhor',
+    meta: parseFloat(document.getElementById('nkpi-meta')?.value||0)||0,
+    minimo: parseFloat(document.getElementById('nkpi-minimo')?.value||0)||0,
+    maximo: parseFloat(document.getElementById('nkpi-maximo')?.value||0)||0,
+    peso_ebitda: 0,
+    sensibilidade_vop: 0,
+    tipo_vop: '',
+    peso_indice: parseFloat(document.getElementById('nkpi-peso')?.value||0)||0,
+    acumulado: document.getElementById('nkpi-acumulado')?.value || 'média',
+    status_impl: 'Admin',
+    ativo: 'SIM',
+    obs: ''
+  };
+  // Adiciona em memória
+  (window.kpis||[]).push(newKpi);
+  if (typeof KPI_CATALOG !== 'undefined') KPI_CATALOG.push(newKpi);
+  if (typeof refreshDimensions === 'function') refreshDimensions();
+  if (typeof dmxReconcileLaunchesWithCatalog === 'function') dmxReconcileLaunchesWithCatalog();
+  if (typeof dmxSaveCatalogToStorage === 'function') dmxSaveCatalogToStorage();
+  if (typeof buildSidebar === 'function') buildSidebar();
+  if (typeof buildFilters === 'function') buildFilters();
+  showToast('✓ KPI ' + id + ' criado em memória');
+  // Sincroniza Sheets
+  if (typeof dmxApiPost === 'function') {
+    try {
+      const r = await dmxApiPost('editarKPI', newKpi);
+      if (r && r.ok) showToast('✓ ' + id + ' salvo no Google Sheets');
+    } catch(e) {}
+  }
+  _adminActiveTab = 'kpis';
+  renderAdminDMX();
+};
+
+// ── Tab: API / Sheets ─────────────────────────────────────────
+function dmxAdminApiHtml() {
+  const apiUrl = dmxGetApiUrl() || '';
+  const sheetUrl = localStorage.getItem('dmx_google_sheets_base_url_v20') || '';
+  function field(label, input, tip='') {
+    return '<div style="margin-bottom:14px"><label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);display:block;margin-bottom:5px">'+label+'</label>'+input+(tip?'<div style="font-size:9.5px;color:var(--muted);margin-top:3px">'+tip+'</div>':'')+'</div>';
+  }
+  return '<div style="max-width:620px">' +
+    field('URL do Apps Script (API)',
+      '<input class="filter-input" id="admin-api-url" value="'+apiUrl.replace(/"/g,'&quot;')+'" style="width:100%;font-family:monospace;font-size:11px" placeholder="https://script.google.com/macros/s/.../exec">',
+      'URL do Web App publicado no Google Apps Script. Termina com /exec.'
+    ) +
+    field('URL da Planilha Google Sheets',
+      '<input class="filter-input" id="admin-sheet-url" value="'+sheetUrl.replace(/"/g,'&quot;')+'" style="width:100%;font-family:monospace;font-size:11px" placeholder="https://docs.google.com/spreadsheets/d/...">',
+      'URL completa da planilha base. Usada para abrir o Sheets diretamente.'
+    ) +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button class="btn btn-primary" onclick="dmxAdminSaveApiConfig()">Salvar configurações</button>' +
+    '<button class="btn btn-ghost" onclick="dmxAdminTestApi()">Testar conexão</button>' +
+    '<button class="btn btn-ghost" onclick="dmxOpenSheet()">↗ Abrir Sheets</button>' +
+    '<button class="btn btn-teal" onclick="try{localStorage.removeItem('dmx_kpi_catalog_v13')}catch(e){};dmxCarregarCatalogoDaAPI(true);showToast('Sincronizando...')">↻ Sincronizar dados</button>' +
+    '</div>' +
+    '<div id="admin-api-test-result" style="margin-top:12px;font-size:12px;color:var(--muted)"></div>' +
+    '</div>';
+}
+
+window.dmxAdminSaveApiConfig = function() {
+  const apiUrl = (document.getElementById('admin-api-url')?.value||'').trim();
+  const sheetUrl = (document.getElementById('admin-sheet-url')?.value||'').trim();
+  if (apiUrl && !/\/exec(\?|$)/.test(apiUrl)) { showToast('⚠ URL da API deve terminar com /exec'); return; }
+  if (apiUrl) { try { localStorage.setItem('dmx_google_sheets_api_url_v1', apiUrl); } catch(e) {} }
+  if (sheetUrl) { try { localStorage.setItem('dmx_google_sheets_base_url_v20', sheetUrl); } catch(e) {} }
+  showToast('✓ Configurações salvas');
+};
+
+window.dmxAdminTestApi = async function() {
+  const result = document.getElementById('admin-api-test-result');
+  if (result) result.textContent = 'Testando conexão...';
+  try {
+    const url = dmxGetApiUrl();
+    if (!url) { if(result) result.textContent = '⚠ Nenhuma URL configurada.'; return; }
+    const r = await fetch(dmxApiUrlWithTipo(url, 'debug'), {method:'GET', cache:'no-store'});
+    const data = await r.json();
+    if (result) result.innerHTML = '<span style="color:var(--green);font-weight:700">✓ Conectado!</span> Planilha: <strong>' + (data.spreadsheet_nome||'identificada') + '</strong> · Abas: ' + (Array.isArray(data.sheets)?data.sheets.length:'?');
+  } catch(e) {
+    if (result) result.innerHTML = '<span style="color:var(--red);font-weight:700">✕ Falha:</span> ' + e.message;
+  }
+};
+
+// ── Tab: Usuários ─────────────────────────────────────────────
+async function dmxAdminUsersHtml() {
+  let users = [];
+  try {
+    const url = dmxGetApiUrl();
+    if (url) {
+      const r = await fetch(dmxApiUrlWithTipo(url, 'permissoes'), {method:'GET', cache:'no-store'});
+      const data = await r.json();
+      users = Array.isArray(data) ? data : (data.data||[]);
+    }
+  } catch(e) {}
+
+  const areas = [...new Set((window.kpis||[]).map(k=>k.area).filter(Boolean))].sort();
+  const areaOpts = areas.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+
+  const rows = users.map(u => '<tr style="border-bottom:1px solid #F0F2F8">' +
+    '<td style="padding:7px 10px">'+String(u.usuario||u.email||'')+'</td>' +
+    '<td style="padding:7px 10px">'+String(u.nome||'')+'</td>' +
+    '<td style="padding:7px 10px"><span class="tag '+(u.perfil==='admin'?'tag-pilar':'tag-sentido')+'">'+String(u.perfil||'editor')+'</span></td>' +
+    '<td style="padding:7px 10px">'+String(u.area||'Todas')+'</td>' +
+    '<td style="padding:7px 10px"><span style="color:'+(String(u.ativo||'SIM').toUpperCase()==='SIM'?'var(--green)':'var(--red)')+'">'+String(u.ativo||'SIM')+'</span></td>' +
+    '<td style="padding:7px 10px">' +
+      '<button class="btn btn-danger btn-sm" onclick="dmxAdminDeactivateUser(''+String(u.usuario||u.email||'')+'')">Desativar</button>' +
+    '</td>' +
+  '</tr>').join('');
+
+  return '<div style="margin-bottom:16px">' +
+    '<div class="section-title" style="margin-bottom:12px">Adicionar usuário</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 120px 120px auto;gap:8px;align-items:end;margin-bottom:16px">' +
+    '<input class="filter-input" id="adm-email" placeholder="usuario ou email">' +
+    '<input class="filter-input" id="adm-nome" placeholder="Nome completo">' +
+    '<input class="filter-input" id="adm-senha" type="password" placeholder="Senha">' +
+    '<select class="filter-input" id="adm-perfil"><option value="editor">Editor</option><option value="admin">Admin</option><option value="leitura">Leitura</option></select>' +
+    '<select class="filter-input" id="adm-area"><option value="">Todas</option>'+areaOpts+'</select>' +
+    '<button class="btn btn-primary" onclick="dmxAdminAddUser()">Adicionar</button>' +
+    '</div>' +
+    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Usuário</th><th>Nome</th><th>Perfil</th><th>Área</th><th>Ativo</th><th></th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="6" class="text-muted">Nenhum usuário cadastrado no Sheets.</td></tr>') +
+    '</tbody></table></div>' +
+    '</div>';
+}
+
+window.dmxAdminAddUser = async function() {
+  const email = (document.getElementById('adm-email')?.value||'').trim();
+  const nome  = (document.getElementById('adm-nome')?.value||'').trim();
+  const senha = (document.getElementById('adm-senha')?.value||'').trim();
+  const perfil = (document.getElementById('adm-perfil')?.value||'editor');
+  const area  = (document.getElementById('adm-area')?.value||'');
+  if (!email || !senha) { showToast('⚠ Usuário e senha são obrigatórios.'); return; }
+  const payload = { usuario: email, nome, senha, perfil, area, ativo: 'SIM' };
+  if (typeof dmxApiPost === 'function') {
+    const r = await dmxApiPost('salvarPermissao', payload);
+    if (r && r.ok) { showToast('✓ Usuário adicionado no Sheets'); renderAdminDMX(true); }
+    else showToast('⚠ Falha ao salvar: ' + (r?.error||''));
+  } else {
+    showToast('⚠ API não configurada.');
+  }
+};
+
+window.dmxAdminDeactivateUser = async function(email) {
+  if (!confirm('Desativar o usuário "'+email+'"?')) return;
+  if (typeof dmxApiPost === 'function') {
+    const r = await dmxApiPost('salvarPermissao', { usuario: email, ativo: 'NAO' });
+    if (r && r.ok) { showToast('✓ Usuário desativado'); renderAdminDMX(true); }
+  }
+};
 </script>
 
 </body>
