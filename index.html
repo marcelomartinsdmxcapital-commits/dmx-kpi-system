@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de Performance v47.2</title>
+<title>DMX Capital · Sistema de Gestão de Performance v48 Governança Completa</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -8255,6 +8255,632 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(boot472,1800));
   setTimeout(boot472,2500);
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v48 — Governança por Usuário: Cargo, Permissão, Abas e Áreas
+     Estrutura esperada na aba Usuarios:
+     E-mail | Nome | Cargo | Permissão | Abas de Acesso | Área | Status | Senha
+     ═══════════════════════════════════════════════════════════════ -->
+<style id="dmx-v48-governanca-css">
+  .dmx-hidden-by-v48{display:none!important;}
+  .dmx-disabled-by-v48{opacity:.48!important;pointer-events:none!important;filter:grayscale(.2);}
+  .dmx-v48-admin-grid{display:grid;grid-template-columns:1.1fr 1fr .8fr .8fr 1.3fr 1.2fr .65fr .9fr auto;gap:8px;align-items:center;margin-bottom:10px}
+  .dmx-v48-list-tags{display:flex;gap:4px;flex-wrap:wrap}
+  .dmx-v48-tag{display:inline-flex;align-items:center;padding:2px 6px;border-radius:999px;background:#eef2ff;color:#1e3a8a;border:1px solid #dbeafe;font-size:10px;font-weight:700}
+  .dmx-v48-help{font-size:11px;color:var(--muted);line-height:1.45;margin:6px 0 12px}
+  .dmx-v48-small{font-size:10.5px;color:var(--muted)}
+  .dmx-v48-multiselect{min-height:88px}
+  @media(max-width:1200px){.dmx-v48-admin-grid{grid-template-columns:1fr 1fr}}
+</style>
+
+<script id="dmx-v48-governanca-js">
+(function(){
+  if(window.__dmxGovernancaV48Installed) return;
+  window.__dmxGovernancaV48Installed = true;
+
+  const DMX_API_URL = (window.DMX_API_URL || 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec').trim();
+  const SESSION_KEY = 'dmx_session_v41';
+  const SESSION_HOURS = 8;
+
+  window.DMX_API_URL = DMX_API_URL;
+  window.dmxGetApiUrl = function(){ return DMX_API_URL; };
+
+  const ABAS_OPCOES = [
+    'TODAS','PAINEL EXECUTIVO','MODO DIRETORIA','PAINEL FINANCEIRO',
+    'CATÁLOGO DE KPIs','ATUALIZAR DADOS','PLANOS DE AÇÃO','IMPACTO VOP',
+    'PLANO PPR','ÍNDICE EFICIÊNCIA','SEMANAL','ADMIN / SHEETS','ÁREA'
+  ];
+  const CARGOS_OPCOES = ['CEO','DIRETOR','GERENTE','COORDENADOR','LÍDER','ANALISTA','ASSISTENTE'];
+  const PERMISSOES_OPCOES = ['ADMIN','EDIÇÃO','LEITURA'];
+  const STATUS_OPCOES = ['SIM','NÃO'];
+
+  const PAGE_TO_ABA = {
+    dashboard:'PAINEL EXECUTIVO',
+    diretoria:'MODO DIRETORIA',
+    financeiro:'PAINEL FINANCEIRO',
+    kpis:'CATÁLOGO DE KPIs',
+    atualizar:'ATUALIZAR DADOS',
+    planos:'PLANOS DE AÇÃO',
+    impacto:'IMPACTO VOP',
+    ppr:'PLANO PPR',
+    indice:'ÍNDICE EFICIÊNCIA',
+    'semanal-operacional':'SEMANAL',
+    admin:'ADMIN / SHEETS',
+    areas:'ÁREA',
+    'area-detail':'ÁREA',
+    'kpi-slide':'ÁREA',
+    'weekly-slide':'SEMANAL'
+  };
+
+  const norm = v => String(v||'').trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/\s+/g,' ');
+
+  const nkey = v => norm(v).replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+  const esc = v => String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+
+  const toast = m => { try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(e){} };
+
+  function splitList(v){
+    if(Array.isArray(v)) return v.map(x=>String(x||'').trim()).filter(Boolean);
+    return String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean);
+  }
+
+  function hasAll(list){
+    const arr = splitList(list).map(nkey);
+    return !arr.length || arr.some(x=>['TODAS','TODOS','ALL','*'].includes(x));
+  }
+
+  function session(){
+    try{
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s) return null;
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()){
+        localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+      window.DMX_CURRENT_USER = s;
+      window.DMX_PERMISSIONS = s.permissions || {};
+      window.DMX_SECURITY_READY = true;
+      return s;
+    }catch(e){ return null; }
+  }
+
+  function saveSession(user){
+    const u = Object.assign({}, user || {});
+    u.expiresAt = new Date(Date.now()+SESSION_HOURS*60*60*1000).toISOString();
+    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+    localStorage.setItem('dmx_usuario_email', u.email || '');
+    localStorage.setItem('dmx_current_user_email', u.email || '');
+    window.DMX_CURRENT_USER = u;
+    window.DMX_PERMISSIONS = u.permissions || {};
+    window.DMX_SECURITY_READY = true;
+    return u;
+  }
+
+  function clearSession(){
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('dmx_usuario_email');
+    localStorage.removeItem('dmx_current_user_email');
+    window.DMX_CURRENT_USER = null;
+    window.DMX_PERMISSIONS = {};
+    window.DMX_SECURITY_READY = false;
+  }
+
+  async function apiPost(action, payload){
+    const res = await fetch(DMX_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(Object.assign({}, payload||{}, {action}))
+    });
+    const text = await res.text();
+    let data = null;
+    try{ data = text ? JSON.parse(text) : {}; }catch(e){ throw new Error('Resposta inválida da API: '+text.slice(0,120)); }
+    if(!data.ok) throw new Error(data.error || 'Operação não autorizada.');
+    return data;
+  }
+  window.dmxApiSecurityPost = apiPost;
+
+  function isAdmin(u=session()){
+    return !!u && nkey(u.permissao || u.perfilApi || u.perfil) === 'ADMIN';
+  }
+
+  function isEditor(u=session()){
+    const p = nkey(u?.permissao || u?.perfilApi || u?.perfil);
+    return isAdmin(u) || p === 'EDICAO' || p === 'EDITOR';
+  }
+
+  function isReadOnly(u=session()){
+    return !isEditor(u);
+  }
+
+  function isDiretoriaCargo(u=session()){
+    const c = nkey(u?.cargo || '');
+    return ['CEO','DIRETOR','DIRETORIA'].includes(c);
+  }
+
+  function userAbas(u=session()){
+    return splitList(u?.abas || u?.abasAcesso || u?.pages || u?.['Abas de Acesso']);
+  }
+
+  function userAreas(u=session()){
+    return splitList(u?.areas || u?.area || u?.['Área']);
+  }
+
+  function canPage(page, u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+
+    const label = PAGE_TO_ABA[page] || page;
+    if(page === 'admin') return false;
+
+    if(page === 'diretoria' && !isDiretoriaCargo(u)) return false;
+
+    const abas = userAbas(u);
+    if(hasAll(abas)) return true;
+
+    const keys = abas.map(nkey);
+    return keys.includes(nkey(label));
+  }
+
+  function canArea(area, u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const areas = userAreas(u);
+    if(hasAll(areas)) return true;
+    return areas.map(nkey).includes(nkey(area));
+  }
+
+  function canEditOnCurrentPage(){
+    const u = session();
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    if(!isEditor(u)) return false;
+
+    const active = document.querySelector('.page.active');
+    let page = active ? String(active.id||'').replace(/^page-/,'') : '';
+    if(!page && document.querySelector('.nav-item.active')) page = document.querySelector('.nav-item.active').dataset.page || '';
+    return canPage(page, u);
+  }
+
+  window.dmxGovCan = function(action){
+    const a = nkey(action);
+    if(isAdmin()) return true;
+    if(['ADMIN','USUARIOS','EDITAR_USUARIOS','EDITAR_KPI','PERMISSAO','FECHAMENTO'].includes(a)) return false;
+    if(['ATUALIZAR_REALIZADO','SALVAR_LANCAMENTO','ATUALIZAR','COMENTARIO','PLANO_ACAO','PLANOS'].includes(a)) return canEditOnCurrentPage();
+    return !!session();
+  };
+
+  window.dmxCan = function(permission){
+    const p = String(permission||'');
+    const perms = session()?.permissions || {};
+    if(p in perms) return !!perms[p];
+    if(isAdmin()) return true;
+    if(p === 'canView') return !!session();
+    if(p === 'canViewAdmin' || p === 'canEditUsers') return false;
+    if(p === 'canEditKpi' || p === 'canEditMeta' || p === 'canEditRealizado' || p === 'canEditPlano' || p === 'canImportCsv') return isEditor();
+    return false;
+  };
+
+  function ensureLoginCopy(){
+    const card = document.querySelector('.dmx-login-card');
+    if(card && !card.querySelector('.dmx-login-logo')){
+      const img = document.createElement('img');
+      img.className = 'dmx-login-logo';
+      img.src = 'logo-dmx.png';
+      img.alt = 'DMX Capital';
+      card.insertBefore(img, card.firstChild);
+    }
+    const brand = document.querySelector('.dmx-login-brand');
+    if(brand) brand.textContent = 'Sistema de Gestão de Performance';
+    const sub = document.querySelector('.dmx-login-sub');
+    if(sub) sub.textContent = 'DMX Capital';
+    const title = document.querySelector('.dmx-login-title');
+    if(title) title.textContent = 'Acesso ao sistema';
+    const help = document.querySelector('.dmx-login-help');
+    if(help) help.textContent = 'Entre com suas credenciais.';
+    document.querySelectorAll('.dmx-login-api-note').forEach(el=>el.remove());
+  }
+
+  function showLogin(){
+    ensureLoginCopy();
+    document.body.classList.add('dmx-auth-locked');
+    const o=document.getElementById('dmx-login-overlay');
+    if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); o.style.display='flex'; }
+    setTimeout(()=>document.getElementById('dmx-login-email')?.focus(),80);
+  }
+
+  function hideLogin(){
+    document.body.classList.remove('dmx-auth-locked');
+    const o=document.getElementById('dmx-login-overlay');
+    if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); o.style.display='none'; }
+  }
+
+  function firstAllowedPage(u=session()){
+    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','areas','admin'];
+    return order.find(p=>canPage(p,u)) || 'dashboard';
+  }
+
+  function goFirstAllowed(){
+    const page = firstAllowedPage();
+    const item = document.querySelector(`.nav-item[data-page="${page}"]`) || document.querySelector('.nav-item:not(.dmx-hidden-by-v48)');
+    if(item && typeof window.nav === 'function'){
+      try{ window.nav(item); }catch(e){}
+    }else{
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      const pg = document.getElementById('page-'+page) || document.getElementById('page-dashboard');
+      if(pg) pg.classList.add('active');
+    }
+    try{ if(typeof window.onPeriodChange === 'function') window.onPeriodChange(); }catch(e){}
+    try{ if(typeof window.renderCurrentPage === 'function') window.renderCurrentPage(); }catch(e){}
+    try{ if(typeof window.renderDashboard === 'function' && page==='dashboard') window.renderDashboard(); }catch(e){}
+  }
+
+  function refreshUserChip(){
+    const u = session();
+    const bar=document.querySelector('.topbar'); if(!bar || !u) return;
+
+    let chip=document.getElementById('dmx-security-chip') || document.getElementById('dmx-user-chip');
+    if(!chip){ chip=document.createElement('div'); chip.id='dmx-security-chip'; chip.className='dmx-security-chip'; bar.appendChild(chip); }
+    chip.className='dmx-security-chip';
+    chip.innerHTML = `👤 ${esc(u.nome || u.email)} · <strong>${esc(u.cargo || '')}</strong> · ${esc(u.permissao || '')}`;
+
+    let pwd=document.getElementById('dmx-change-password-btn');
+    if(!pwd){ pwd=document.createElement('button'); pwd.id='dmx-change-password-btn'; pwd.className='topbar-btn btn-outline'; bar.appendChild(pwd); }
+    pwd.innerHTML='🔑 Senha';
+    pwd.style.display='inline-flex';
+    pwd.onclick=()=>window.dmxOpenChangePassword(false);
+
+    let logout=document.getElementById('dmx-logout-btn');
+    if(!logout){ logout=document.createElement('button'); logout.id='dmx-logout-btn'; logout.className='topbar-btn btn-outline'; bar.appendChild(logout); }
+    logout.innerHTML='⎋ Sair';
+    logout.onclick=()=>window.dmxLogout();
+  }
+
+  function applyMenuSecurity(){
+    const u = session();
+    document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+      const page = el.dataset.page;
+      el.classList.toggle('dmx-hidden-by-v48', !canPage(page,u));
+    });
+    document.querySelectorAll('.nav-section-label').forEach(label=>{
+      let n = label.nextElementSibling, any=false;
+      while(n && !n.classList.contains('nav-section-label')){
+        if(n.matches?.('.nav-item') && !n.classList.contains('dmx-hidden-by-v48')) any=true;
+        if(n.id === 'area-nav-items' && n.querySelector('.nav-item:not(.dmx-hidden-by-v48)')) any=true;
+        n = n.nextElementSibling;
+      }
+      label.classList.toggle('dmx-hidden-by-v48', !any && label.textContent.trim() !== 'Área');
+    });
+  }
+
+  function applyAreaSecurity(){
+    const u = session();
+    if(!u) return;
+    if(hasAll(userAreas(u)) || isAdmin(u)) return;
+
+    document.querySelectorAll('#area-nav-items .nav-item').forEach(el=>{
+      const name = (el.dataset.area || el.textContent || '').replace(/^▸|^▶/,'').trim();
+      el.classList.toggle('dmx-hidden-by-v48', !canArea(name,u));
+    });
+
+    document.querySelectorAll('.area-card').forEach(el=>{
+      const nameEl = el.querySelector('.area-card-name');
+      const name = (nameEl ? nameEl.textContent : el.textContent).replace(/\d+|%|Índice|meta|real|verde|alerta|crítico/gi,'').trim();
+      let ok = false;
+      userAreas(u).forEach(a=>{ if(nkey(name).includes(nkey(a)) || nkey(a).includes(nkey(name))) ok = true; });
+      el.classList.toggle('dmx-hidden-by-v48', !ok);
+    });
+  }
+
+  function applyEditSecurity(){
+    const canEdit = canEditOnCurrentPage();
+
+    if(isReadOnly()){
+      document.querySelectorAll('.edit-cell, textarea, input[data-field], input[data-key], select[data-field], [contenteditable="true"]').forEach(el=>{
+        el.disabled = true;
+        el.setAttribute('readonly','readonly');
+        el.classList.add('dmx-disabled-by-v48');
+      });
+      document.querySelectorAll('button, .btn').forEach(btn=>{
+        const t = nkey((btn.textContent||'')+' '+(btn.getAttribute('onclick')||''));
+        const allowed = ['SAIR','SENHA','ENTRAR','VOLTAR','FECHAR','CANCELAR'].some(x=>t.includes(x));
+        const isNavBtn = btn.closest('.topbar') || btn.closest('.slide-nav');
+        if(!allowed && !isNavBtn && /(SALVAR|EDITAR|EXCLUIR|RESETAR|INATIVAR|ATIVAR|CRIAR|NOVO|IMPORTAR|PLANO|ACAO|LANÇAR|LANCAR|ATUALIZAR_DADOS)/.test(t)){
+          btn.disabled = true;
+          btn.classList.add('dmx-disabled-by-v48');
+        }
+      });
+    } else {
+      document.querySelectorAll('.edit-cell, textarea, input[data-field], input[data-key], select[data-field], [contenteditable="true"], button, .btn').forEach(el=>{
+        if(canEdit || isAdmin()){
+          el.classList.remove('dmx-disabled-by-v48');
+          if(el.tagName === 'BUTTON') el.disabled = false;
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-page="admin"], #page-admin, .admin-only, [data-security="admin"]').forEach(el=>{
+      el.classList.toggle('dmx-hidden-by-v48', !isAdmin());
+    });
+  }
+
+  function applySecurity(){
+    session();
+    applyMenuSecurity();
+    applyAreaSecurity();
+    applyEditSecurity();
+    refreshUserChip();
+  }
+  window.dmxApplyApiSecurityRules = applySecurity;
+  window.dmxApplyV48Governanca = applySecurity;
+
+  function wrapNavigation(){
+    if(window.__dmxV48NavWrapped || typeof window.nav !== 'function') return;
+    window.__dmxV48NavWrapped = true;
+    const old = window.nav;
+    window.nav = nav = function(el, areaName){
+      const page = el?.dataset?.page;
+      if(page && !canPage(page)){
+        alert('Acesso não liberado para esta aba.');
+        return;
+      }
+      if(areaName && !canArea(areaName)){
+        alert('Acesso não liberado para esta área.');
+        return;
+      }
+      const r = old.apply(this, arguments);
+      setTimeout(applySecurity, 80);
+      setTimeout(applySecurity, 400);
+      return r;
+    };
+  }
+
+  window.dmxLoginSubmit = async function(){
+    const btn=document.getElementById('dmx-login-button'), txt=document.getElementById('dmx-login-button-text'), msg=document.getElementById('dmx-login-msg');
+    const email=String(document.getElementById('dmx-login-email')?.value||'').trim().toLowerCase();
+    const senha=document.getElementById('dmx-login-password')?.value||'';
+    if(msg) msg.textContent='';
+    if(!email || !senha){ if(msg) msg.textContent='Informe e-mail e senha.'; return; }
+    btn?.classList.add('loading'); if(txt) txt.textContent='Validando acesso...';
+    try{
+      const data = await apiPost('login', {email, senha});
+      const u = saveSession(data.user || {});
+      hideLogin();
+      wrapNavigation();
+      applySecurity();
+      setTimeout(()=>{ applySecurity(); goFirstAllowed(); }, 100);
+      setTimeout(()=>{ applySecurity(); }, 1000);
+      toast('✓ Login realizado');
+      if(u.trocaSenha === 'SIM' || u.primeiroAcesso === true) setTimeout(()=>window.dmxOpenChangePassword(true), 450);
+    }catch(e){
+      if(msg) msg.textContent = e.message || 'Falha ao validar login.';
+    }finally{
+      btn?.classList.remove('loading'); if(txt) txt.textContent='Entrar';
+    }
+  };
+
+  window.dmxLogout = function(){
+    clearSession();
+    document.body.style.opacity='1';
+    document.body.style.pointerEvents='auto';
+    const email = document.getElementById('dmx-login-email');
+    const pass = document.getElementById('dmx-login-password');
+    if(email) email.value='';
+    if(pass) pass.value='';
+    showLogin();
+    toast('Sessão encerrada');
+  };
+
+  window.dmxOpenChangePassword = async function(force=false){
+    const u = session();
+    if(!u){ showLogin(); return; }
+    const atual = force ? '' : prompt('Digite sua senha atual:');
+    if(!force && atual === null) return;
+    const nova = prompt((force?'Primeiro acesso: crie sua nova senha.\n\n':'')+'Digite a nova senha, mínimo 6 caracteres:');
+    if(nova === null) return;
+    if(String(nova).length < 6){ alert('A nova senha precisa ter no mínimo 6 caracteres.'); return; }
+    const conf = prompt('Confirme a nova senha:');
+    if(conf === null) return;
+    if(nova !== conf){ alert('As senhas não conferem.'); return; }
+    try{
+      const data = await apiPost('change_password', {email:u.email, senhaAtual:atual, novaSenha:nova, force:!!force});
+      const nu = Object.assign({}, u, {trocaSenha:'NÃO', primeiroAcesso:false});
+      saveSession(nu);
+      toast('✓ Senha alterada');
+    }catch(e){ alert(e.message || 'Falha ao alterar senha.'); }
+  };
+
+  function optionTags(values){
+    return splitList(values).map(v=>`<span class="dmx-v48-tag">${esc(v)}</span>`).join('') || '<span class="text-muted">—</span>';
+  }
+
+  function multiOptions(options, selected){
+    const selectedKeys = splitList(selected).map(nkey);
+    return options.map(o=>`<option value="${esc(o)}"${selectedKeys.includes(nkey(o))?' selected':''}>${esc(o)}</option>`).join('');
+  }
+
+  function getSelected(id){
+    const el=document.getElementById(id);
+    if(!el) return '';
+    if(el.multiple) return Array.from(el.selectedOptions).map(o=>o.value).join(', ');
+    return el.value || '';
+  }
+
+  function availableAreas(){
+    const base = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
+    const extras = ['TODAS','CADASTRO','CHECAGEM','COBRANÇA','COMERCIAL','JURÍDICO','MRO','OPERAÇÕES','PP','PAINEL FINANCEIRO','RH','TRUSTEE'];
+    return Array.from(new Set(extras.concat(base).filter(Boolean)));
+  }
+
+  window.dmxRenderUserAdminPanel = async function(){
+    const host=document.getElementById('dmx-admin-users-panel'); if(!host) return;
+    if(!isAdmin()){
+      host.innerHTML = '<div class="block-card"><div class="section-title">Usuários</div><div class="text-muted text-sm mt-2">Acesso restrito ao administrador.</div></div>';
+      return;
+    }
+    let users=[];
+    try{ users = (await apiPost('list_users', {})).users || []; }catch(e){ host.innerHTML = '<div class="block-card">Falha ao carregar usuários: '+esc(e.message)+'</div>'; return; }
+
+    const areas = availableAreas();
+    host.innerHTML = `<div class="block-card mb-4">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Usuários e Governança de Acesso</div>
+          <div class="dmx-v48-help">Modelo v48: E-mail, Nome, Cargo, Permissão, Abas de Acesso, Área, Status e Senha. Use Ctrl/Cmd para selecionar múltiplas abas ou áreas.</div>
+        </div>
+      </div>
+
+      <input type="hidden" id="adm-user-editing" value="">
+      <div class="dmx-v48-admin-grid">
+        <input id="adm-user-email" class="filter-input" placeholder="E-mail">
+        <input id="adm-user-nome" class="filter-input" placeholder="Nome">
+        <select id="adm-user-cargo" class="filter-input">${multiOptions(CARGOS_OPCOES,'ANALISTA')}</select>
+        <select id="adm-user-permissao" class="filter-input">${multiOptions(PERMISSOES_OPCOES,'LEITURA')}</select>
+        <select id="adm-user-abas" class="filter-input dmx-v48-multiselect" multiple>${multiOptions(ABAS_OPCOES,'PAINEL EXECUTIVO')}</select>
+        <select id="adm-user-areas" class="filter-input dmx-v48-multiselect" multiple>${multiOptions(areas,'TODAS')}</select>
+        <select id="adm-user-status" class="filter-input">${multiOptions(STATUS_OPCOES,'SIM')}</select>
+        <input id="adm-user-senha" class="filter-input" placeholder="Senha nova/provisória">
+        <button class="btn btn-primary" onclick="dmxAdminSaveUserV48()">Salvar</button>
+      </div>
+      <div class="filter-row">
+        <button class="btn btn-ghost" onclick="dmxAdminClearUserFormV48()">Limpar</button>
+        <button class="btn btn-ghost" onclick="dmxRenderUserAdminPanel()">↻ Atualizar lista</button>
+      </div>
+
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Usuário</th><th>Cargo</th><th>Permissão</th><th>Abas</th><th>Áreas</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${users.map(u=>`<tr>
+            <td><b>${esc(u.nome||'')}</b><br><span class="text-muted">${esc(u.email||'')}</span></td>
+            <td>${esc(u.cargo||'')}</td>
+            <td><span class="tag tag-sentido">${esc(u.permissao||'')}</span></td>
+            <td><div class="dmx-v48-list-tags">${optionTags(u.abas||u.abasAcesso)}</div></td>
+            <td><div class="dmx-v48-list-tags">${optionTags(u.areas||u.area)}</div></td>
+            <td>${esc(u.status||u.ativo||'')}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" onclick='dmxAdminEditUserV48(${JSON.stringify(u).replace(/'/g,"&#39;")})'>Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="dmxAdminToggleUserV48('${esc(u.email)}')">${nkey(u.status||u.ativo)==='SIM'?'Inativar':'Ativar'}</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+  };
+
+  window.dmxAdminClearUserFormV48 = function(){
+    ['adm-user-editing','adm-user-email','adm-user-nome','adm-user-senha'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    const cargo=document.getElementById('adm-user-cargo'); if(cargo) cargo.value='ANALISTA';
+    const perm=document.getElementById('adm-user-permissao'); if(perm) perm.value='LEITURA';
+    const status=document.getElementById('adm-user-status'); if(status) status.value='SIM';
+    const abas=document.getElementById('adm-user-abas'); if(abas) Array.from(abas.options).forEach(o=>o.selected = nkey(o.value)==='PAINEL_EXECUTIVO');
+    const areas=document.getElementById('adm-user-areas'); if(areas) Array.from(areas.options).forEach(o=>o.selected = nkey(o.value)==='TODAS');
+  };
+
+  window.dmxAdminEditUserV48 = function(u){
+    document.getElementById('adm-user-editing').value = u.email || '';
+    document.getElementById('adm-user-email').value = u.email || '';
+    document.getElementById('adm-user-nome').value = u.nome || '';
+    document.getElementById('adm-user-cargo').value = u.cargo || 'ANALISTA';
+    document.getElementById('adm-user-permissao').value = u.permissao || 'LEITURA';
+    document.getElementById('adm-user-status').value = u.status || u.ativo || 'SIM';
+    document.getElementById('adm-user-senha').value = '';
+    const abasSel = splitList(u.abas||u.abasAcesso).map(nkey);
+    const areasSel = splitList(u.areas||u.area).map(nkey);
+    Array.from(document.getElementById('adm-user-abas').options).forEach(o=>o.selected = abasSel.includes(nkey(o.value)));
+    Array.from(document.getElementById('adm-user-areas').options).forEach(o=>o.selected = areasSel.includes(nkey(o.value)));
+    window.scrollTo?.(0,0);
+  };
+
+  window.dmxAdminSaveUserV48 = async function(){
+    if(!isAdmin()){ alert('Acesso restrito ao administrador.'); return; }
+    const payload = {
+      email: String(document.getElementById('adm-user-email')?.value||'').trim().toLowerCase(),
+      nome: String(document.getElementById('adm-user-nome')?.value||'').trim(),
+      cargo: getSelected('adm-user-cargo'),
+      permissao: getSelected('adm-user-permissao'),
+      abas: getSelected('adm-user-abas'),
+      areas: getSelected('adm-user-areas'),
+      status: getSelected('adm-user-status'),
+      senha: String(document.getElementById('adm-user-senha')?.value||'')
+    };
+    if(!payload.email || !/.+@.+\..+/.test(payload.email)){ alert('Informe um e-mail válido.'); return; }
+    if(!payload.nome) payload.nome = payload.email;
+    if(!payload.cargo) payload.cargo = 'ANALISTA';
+    if(!payload.permissao) payload.permissao = 'LEITURA';
+    if(!payload.abas) payload.abas = 'PAINEL EXECUTIVO';
+    if(!payload.areas) payload.areas = 'TODAS';
+    if(!payload.status) payload.status = 'SIM';
+    try{
+      await apiPost('upsert_user', payload);
+      toast('✓ Usuário salvo no Google Sheets');
+      dmxAdminClearUserFormV48();
+      await dmxRenderUserAdminPanel();
+    }catch(e){ alert(e.message || 'Falha ao salvar usuário.'); }
+  };
+
+  window.dmxAdminToggleUserV48 = async function(email){
+    if(!isAdmin()) return;
+    try{ await apiPost('toggle_user', {email}); toast('✓ Status atualizado'); await dmxRenderUserAdminPanel(); }
+    catch(e){ alert(e.message || 'Falha ao alterar status.'); }
+  };
+
+  function injectAdminUsers(){
+    const root=document.getElementById('admin-root') || document.getElementById('page-admin');
+    if(!root) return;
+    let host=document.getElementById('dmx-admin-users-panel');
+    if(!host){ host=document.createElement('div'); host.id='dmx-admin-users-panel'; root.insertBefore(host, root.firstChild); }
+    dmxRenderUserAdminPanel();
+  }
+
+  function wrapAdminRender(){
+    if(window.__dmxV48AdminWrapped) return;
+    window.__dmxV48AdminWrapped = true;
+    const old = window.renderAdminDMX;
+    if(typeof old === 'function'){
+      window.renderAdminDMX = async function(){ const r = await old.apply(this, arguments); setTimeout(injectAdminUsers,100); return r; };
+    }
+  }
+
+  function wrapRenderers(){
+    ['renderDashboard','renderCurrentPage','buildSidebar','renderAreaGrid','renderAreas','renderAtualizar','renderPlanos'].forEach(fn=>{
+      if(typeof window[fn] === 'function' && !window['__v48_'+fn]){
+        window['__v48_'+fn]=true;
+        const old = window[fn];
+        window[fn] = function(){
+          const r = old.apply(this, arguments);
+          setTimeout(applySecurity, 80);
+          return r;
+        };
+      }
+    });
+  }
+
+  function boot(){
+    ensureLoginCopy();
+    wrapNavigation();
+    wrapAdminRender();
+    wrapRenderers();
+    const s = session();
+    if(s){ hideLogin(); applySecurity(); setTimeout(()=>{ applySecurity(); },700); }
+    else { clearSession(); showLogin(); }
+  }
+
+  document.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && document.getElementById('dmx-login-overlay')?.classList.contains('open')) window.dmxLoginSubmit();
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(boot, 50);
+    setTimeout(boot, 700);
+    setTimeout(()=>{ applySecurity(); }, 1600);
+  });
+
+  setInterval(()=>{ if(session()){ applySecurity(); } }, 3000);
 })();
 </script>
 
