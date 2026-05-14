@@ -8754,7 +8754,14 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function availableAreas(){
     const base = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
     const extras = ['TODAS','CADASTRO','CHECAGEM','COBRANÇA','COMERCIAL','JURÍDICO','MRO','OPERAÇÕES','PP','PAINEL FINANCEIRO','RH','TRUSTEE'];
-    return Array.from(new Set(extras.concat(base).filter(Boolean)));
+    const map = new Map();
+    extras.concat(base).filter(Boolean).forEach(a=>{
+      const label = String(a||'').trim();
+      if(!label) return;
+      const key = label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+      if(!map.has(key)) map.set(key, label);
+    });
+    return Array.from(map.values());
   }
 
   window.dmxRenderUserAdminPanel = async function(){
@@ -8921,6 +8928,103 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   });
 
   setInterval(()=>{ if(session()){ applySecurity(); } }, 3000);
+})();
+</script>
+
+
+
+<!-- PATCH v48.2 — Ajustes finais: áreas no menu, deduplicação visual e chip fixo só com nome -->
+<style id="dmx-v48-2-final-css">
+  #dmx-security-chip, #dmx-user-chip{
+    display:inline-flex!important;align-items:center;gap:6px;
+    max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+</style>
+<script id="dmx-v48-2-final-js">
+(function(){
+  if(window.__dmxV482FinalInstalled) return;
+  window.__dmxV482FinalInstalled = true;
+  const SESSION_KEY = 'dmx_session_v41';
+  const norm = v => String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
+  const nkey = v => norm(v).replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const split = v => Array.isArray(v) ? v.map(x=>String(x||'').trim()).filter(Boolean) : String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean);
+  const hasAll = v => {
+    const arr = split(v).map(nkey);
+    return !arr.length || arr.some(x=>['TODAS','TODOS','ALL','*'].includes(x));
+  };
+  function getSession(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;} }
+  function setSession(s){ try{localStorage.setItem(SESSION_KEY, JSON.stringify(s));}catch(e){} }
+  function isAdmin(u){ return nkey(u?.permissao || u?.perfilApi || u?.perfil) === 'ADMIN'; }
+  function userAreas(u){ return split(u?.areas || u?.area || u?.['Área']); }
+  function canArea(area,u){ if(!u) return false; if(isAdmin(u)) return true; const arr=userAreas(u); if(hasAll(arr)) return true; return arr.map(nkey).includes(nkey(area)); }
+
+  function ensureAreaPageInSession(){
+    const u = getSession(); if(!u) return;
+    const arr = userAreas(u);
+    if(!isAdmin(u) && arr.length && !hasAll(arr)){
+      const abas = split(u.abas || u.abasAcesso || u.pages || u['Abas de Acesso']);
+      if(!abas.map(nkey).includes('AREA')){
+        abas.push('ÁREA');
+        u.abas = abas.join(', ');
+        u.abasAcesso = u.abas;
+        setSession(u);
+      }
+    }
+  }
+
+  function dedupChecklist(id){
+    const box=document.getElementById(id); if(!box) return;
+    const seen=new Set();
+    Array.from(box.querySelectorAll('label.dmx-v48-checkitem')).forEach(label=>{
+      const inp=label.querySelector('input'); const key=nkey(inp?.value || label.textContent);
+      if(seen.has(key)) label.remove(); else seen.add(key);
+    });
+  }
+
+  function cleanUserChip(){
+    const u=getSession(); if(!u) return;
+    const chips=Array.from(document.querySelectorAll('#dmx-user-chip, #dmx-security-chip'));
+    if(!chips.length) return;
+    chips.forEach((el,idx)=>{
+      if(idx>0){ el.remove(); return; }
+      el.id='dmx-security-chip';
+      el.className='dmx-security-chip';
+      const nome = u.nome || u.email || 'Usuário';
+      el.textContent = '👤 ' + nome;
+      el.title = nome;
+    });
+  }
+
+  function applyAreaMenu(){
+    ensureAreaPageInSession();
+    const u=getSession(); if(!u) return;
+    document.querySelectorAll('#area-nav-items .nav-item, .nav-item[data-area]').forEach(el=>{
+      const area=(el.dataset.area || el.textContent || '').replace(/^\s*[▸▶]\s*/,'').trim();
+      const ok=canArea(area,u);
+      el.classList.toggle('dmx-hidden-by-v48', !ok);
+      el.style.display = ok ? '' : 'none';
+    });
+    document.querySelectorAll('.nav-section-label').forEach(label=>{
+      if(nkey(label.textContent)==='AREA'){
+        const areaItems=document.querySelectorAll('#area-nav-items .nav-item:not(.dmx-hidden-by-v48), .nav-item[data-area]:not(.dmx-hidden-by-v48)');
+        label.classList.toggle('dmx-hidden-by-v48', areaItems.length===0);
+        label.style.display = areaItems.length ? '' : 'none';
+      }
+    });
+    dedupChecklist('adm-user-areas');
+    cleanUserChip();
+  }
+
+  const previousApply = window.dmxApplyApiSecurityRules;
+  window.dmxApplyApiSecurityRules = function(){
+    try{ if(typeof previousApply==='function') previousApply(); }catch(e){}
+    try{ applyAreaMenu(); }catch(e){}
+  };
+  window.dmxApplyV482Final = applyAreaMenu;
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(applyAreaMenu,800));
+  setTimeout(applyAreaMenu,1200);
+  setTimeout(applyAreaMenu,2500);
+  setInterval(applyAreaMenu,1500);
 })();
 </script>
 
