@@ -9246,5 +9246,288 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<!-- PATCH v48.4 — Anti-pisca definitivo: menu lateral e chip de usuário estáveis -->
+<style id="dmx-v48-4-antiflicker-css">
+  /* Esconde chips antigos criados por patches anteriores. O chip oficial é o v48.4. */
+  #dmx-security-chip:not(#dmx-final-user-chip),
+  #dmx-user-chip:not(#dmx-final-user-chip),
+  .dmx-security-chip:not(#dmx-final-user-chip),
+  .dmx-user-chip:not(#dmx-final-user-chip){
+    display:none!important;
+    visibility:hidden!important;
+    width:0!important;
+    max-width:0!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    overflow:hidden!important;
+  }
+  #dmx-final-user-chip{
+    display:inline-flex!important;
+    align-items:center!important;
+    gap:6px!important;
+    padding:5px 10px!important;
+    background:var(--bg3)!important;
+    border:1px solid var(--border)!important;
+    border-radius:999px!important;
+    font-size:11px!important;
+    color:var(--muted)!important;
+    max-width:240px!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    visibility:visible!important;
+  }
+
+  /* Classes finais têm prioridade sobre classes antigas de hide/show. */
+  .nav-item.dmx-v484-allowed{
+    display:flex!important;
+    visibility:visible!important;
+  }
+  .nav-item.dmx-v484-denied{
+    display:none!important;
+    visibility:hidden!important;
+  }
+  .nav-section-label.dmx-v484-section-allowed{
+    display:block!important;
+    visibility:visible!important;
+  }
+  .nav-section-label.dmx-v484-section-denied{
+    display:none!important;
+    visibility:hidden!important;
+  }
+</style>
+<script id="dmx-v48-4-antiflicker-js">
+(function(){
+  if(window.__dmxV484AntiFlickerInstalled) return;
+  window.__dmxV484AntiFlickerInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  const norm = v => String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
+  const key = v => norm(v).replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const split = v => Array.isArray(v) ? v.map(x=>String(x||'').trim()).filter(Boolean) : String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean);
+  const hasAll = v => {
+    const arr = split(v).map(key);
+    return !arr.length || arr.some(x => ['TODAS','TODOS','ALL','*'].includes(x));
+  };
+  const pageMap = {
+    dashboard:'PAINEL EXECUTIVO',
+    diretoria:'MODO DIRETORIA',
+    financeiro:'PAINEL FINANCEIRO',
+    kpis:'CATÁLOGO DE KPIS',
+    atualizar:'ATUALIZAR DADOS',
+    planos:'PLANOS DE AÇÃO',
+    impacto:'IMPACTO VOP',
+    ppr:'PLANO PPR',
+    indice:'ÍNDICE EFICIÊNCIA',
+    'semanal-operacional':'SEMANAL',
+    semanal:'SEMANAL',
+    areas:'ÁREA',
+    'area-detail':'ÁREA',
+    admin:'ADMIN / SHEETS'
+  };
+
+  function session(){
+    try{
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s) return null;
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) return null;
+      return s;
+    }catch(e){ return null; }
+  }
+  function isAdmin(u=session()){
+    return key(u?.permissao || u?.perfilApi || u?.perfil) === 'ADMIN';
+  }
+  function userAbas(u=session()){
+    return split(u?.abas || u?.abasAcesso || u?.pages || u?.['Abas de Acesso']);
+  }
+  function userAreas(u=session()){
+    return split(u?.areas || u?.area || u?.['Área']);
+  }
+  function canArea(area,u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const arr = userAreas(u);
+    if(hasAll(arr)) return true;
+    const ak = key(area);
+    return arr.map(key).some(x => x === ak);
+  }
+  function canPage(page,u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    if(page === 'admin') return false;
+    if(page === 'area-detail') return true;
+    const abas = userAbas(u);
+    if(hasAll(abas)) return true;
+    const label = pageMap[page] || page;
+    return abas.map(key).includes(key(label));
+  }
+
+  function ensureFinalChip(){
+    const u = session();
+    const bar = document.querySelector('.topbar');
+    if(!bar || !u) return;
+
+    // Remove chips antigos de forma definitiva.
+    document.querySelectorAll('#dmx-security-chip, #dmx-user-chip, .dmx-security-chip, .dmx-user-chip').forEach(el=>{
+      if(el.id !== 'dmx-final-user-chip') el.remove();
+    });
+
+    let chip = document.getElementById('dmx-final-user-chip');
+    if(!chip){
+      chip = document.createElement('div');
+      chip.id = 'dmx-final-user-chip';
+      // Insere antes dos botões de sair/senha quando possível.
+      const logout = document.getElementById('dmx-logout-btn');
+      const pwd = document.getElementById('dmx-change-password-btn');
+      bar.insertBefore(chip, pwd || logout || null);
+    }
+    const nome = u.nome || u.email || 'Usuário';
+    chip.textContent = '👤 ' + nome;
+    chip.title = nome;
+  }
+
+  function ensureAreaItems(){
+    const cont = document.getElementById('area-nav-items');
+    if(!cont) return;
+    if(cont.querySelector('.nav-item[data-area]')) return;
+    const areas = Array.isArray(window.AREAS) ? window.AREAS : [];
+    areas.forEach(area=>{
+      const div = document.createElement('div');
+      div.className = 'nav-item';
+      div.dataset.page = 'area-detail';
+      div.dataset.area = area;
+      div.innerHTML = '<span class="icon">▸</span> ' + area;
+      div.onclick = function(){ if(typeof window.nav === 'function') window.nav(this, area); };
+      cont.appendChild(div);
+    });
+  }
+
+  function applyStableMenu(){
+    const u = session();
+    if(!u) return;
+    ensureAreaItems();
+
+    document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+      const page = el.dataset.page;
+      const area = el.dataset.area;
+      let ok = false;
+      if(area || page === 'area-detail'){
+        const areaName = area || (el.textContent||'').replace(/^\s*[▸▶]\s*/,'').trim();
+        ok = canArea(areaName,u);
+      }else{
+        ok = canPage(page,u);
+      }
+
+      el.classList.toggle('dmx-v484-allowed', !!ok);
+      el.classList.toggle('dmx-v484-denied', !ok);
+      if(ok){
+        el.classList.remove('dmx-hidden-by-v48','dmx-hidden-by-role','dmx-hidden-by-security');
+      }
+    });
+
+    document.querySelectorAll('.nav-section-label').forEach(label=>{
+      let n = label.nextElementSibling, any = false;
+      while(n && !n.classList.contains('nav-section-label')){
+        if(n.matches?.('.nav-item') && n.classList.contains('dmx-v484-allowed')) any = true;
+        if(n.id === 'area-nav-items' && n.querySelector('.nav-item.dmx-v484-allowed')) any = true;
+        n = n.nextElementSibling;
+      }
+      label.classList.toggle('dmx-v484-section-allowed', any);
+      label.classList.toggle('dmx-v484-section-denied', !any);
+    });
+  }
+
+  function activeForbidden(){
+    const u = session(); if(!u) return false;
+    const activeNav = document.querySelector('.nav-item.active');
+    if(activeNav){
+      if(activeNav.classList.contains('dmx-v484-denied')) return true;
+      const page = activeNav.dataset.page;
+      const area = activeNav.dataset.area;
+      if(area || page === 'area-detail') return !canArea(area || activeNav.textContent,u);
+      return !canPage(page,u);
+    }
+    const active = document.querySelector('.page.active');
+    const page = active ? String(active.id||'').replace(/^page-/,'') : '';
+    return page ? !canPage(page,u) : false;
+  }
+
+  function firstAllowedItem(){
+    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    for(const p of order){
+      const el = document.querySelector(`.nav-item[data-page="${p}"].dmx-v484-allowed`);
+      if(el) return el;
+    }
+    return document.querySelector('#area-nav-items .nav-item.dmx-v484-allowed') || document.querySelector('.nav-item.dmx-v484-allowed');
+  }
+
+  function enforceStableLanding(){
+    if(!session()) return;
+    if(activeForbidden()){
+      const item = firstAllowedItem();
+      if(item && typeof window.nav === 'function'){
+        try{ window.nav(item, item.dataset.area || undefined); }catch(e){}
+      }
+    }
+  }
+
+  function stabilize(){
+    try{ applyStableMenu(); }catch(e){}
+    try{ ensureFinalChip(); }catch(e){}
+    try{ enforceStableLanding(); }catch(e){}
+  }
+
+  // Garante que qualquer função antiga, quando chamada por intervalos antigos, termine nas regras finais.
+  const prevApply = window.dmxApplyApiSecurityRules;
+  window.dmxApplyApiSecurityRules = function(){
+    try{ if(typeof prevApply === 'function') prevApply(); }catch(e){}
+    stabilize();
+  };
+  window.dmxApplyV484AntiFlicker = stabilize;
+
+  // Envolve a navegação para estabilizar após qualquer renderização.
+  function wrapNav(){
+    if(window.__dmxV484NavWrapped || typeof window.nav !== 'function') return;
+    window.__dmxV484NavWrapped = true;
+    const old = window.nav;
+    window.nav = nav = function(el, areaName){
+      const u = session();
+      const page = el?.dataset?.page;
+      const area = areaName || el?.dataset?.area;
+      if(u && page && page !== 'area-detail' && !canPage(page,u)){
+        alert('Acesso não liberado para esta aba.');
+        setTimeout(stabilize, 30);
+        return;
+      }
+      if(u && area && !canArea(area,u)){
+        alert('Acesso não liberado para esta área.');
+        setTimeout(stabilize, 30);
+        return;
+      }
+      const r = old.apply(this, arguments);
+      setTimeout(stabilize, 30);
+      setTimeout(stabilize, 250);
+      return r;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    wrapNav();
+    setTimeout(stabilize,50);
+    setTimeout(stabilize,400);
+    setTimeout(stabilize,1200);
+  });
+  setTimeout(()=>{ wrapNav(); stabilize(); },100);
+  setTimeout(stabilize,800);
+  setTimeout(stabilize,2000);
+
+  // Intervalo final mais rápido que os antigos, mas sem recriar elementos; só mantém classes finais.
+  setInterval(stabilize,250);
+})();
+</script>
+
 </body>
 </html>
