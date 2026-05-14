@@ -9028,5 +9028,223 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<!-- PATCH v48.3 — Correção definitiva de navegação por permissões, áreas e chip do usuário -->
+<style id="dmx-v48-3-security-fix-css">
+  .dmx-hidden-by-v48, .dmx-hidden-by-role, .dmx-hidden-by-security { display: none !important; }
+  #dmx-security-chip, #dmx-user-chip{
+    display:inline-flex!important;align-items:center;gap:6px;max-width:260px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+</style>
+<script id="dmx-v48-3-security-fix-js">
+(function(){
+  if(window.__dmxV483SecurityFixInstalled) return;
+  window.__dmxV483SecurityFixInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  const norm = v => String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
+  const key = v => norm(v).replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'');
+  const split = v => Array.isArray(v) ? v.map(x=>String(x||'').trim()).filter(Boolean) : String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean);
+  const hasAll = v => {
+    const arr = split(v).map(key);
+    return !arr.length || arr.some(x => ['TODAS','TODOS','ALL','*'].includes(x));
+  };
+  const pageMap = {
+    dashboard:'PAINEL EXECUTIVO',
+    diretoria:'MODO DIRETORIA',
+    financeiro:'PAINEL FINANCEIRO',
+    kpis:'CATÁLOGO DE KPIS',
+    atualizar:'ATUALIZAR DADOS',
+    planos:'PLANOS DE AÇÃO',
+    impacto:'IMPACTO VOP',
+    ppr:'PLANO PPR',
+    indice:'ÍNDICE EFICIÊNCIA',
+    'semanal-operacional':'SEMANAL',
+    semanal:'SEMANAL',
+    areas:'ÁREA',
+    'area-detail':'ÁREA',
+    admin:'ADMIN / SHEETS'
+  };
+
+  function session(){
+    try{
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s) return null;
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) return null;
+      return s;
+    }catch(e){ return null; }
+  }
+  function isAdmin(u=session()){
+    const p = key(u?.permissao || u?.perfilApi || u?.perfil);
+    return p === 'ADMIN';
+  }
+  function userAbas(u=session()){
+    return split(u?.abas || u?.abasAcesso || u?.pages || u?.['Abas de Acesso']);
+  }
+  function userAreas(u=session()){
+    return split(u?.areas || u?.area || u?.['Área']);
+  }
+  function canArea(area,u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const arr = userAreas(u);
+    if(hasAll(arr)) return true;
+    return arr.map(key).includes(key(area));
+  }
+  function canPage(page,u=session()){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    if(page === 'admin') return false;
+    if(page === 'area-detail') return true; // cada área será validada por canArea
+    const abas = userAbas(u);
+    if(hasAll(abas)) return true;
+    const label = pageMap[page] || page;
+    return abas.map(key).includes(key(label));
+  }
+  window.dmxV483CanPage = canPage;
+  window.dmxV483CanArea = canArea;
+
+  function cleanChip(){
+    const u = session();
+    const bar = document.querySelector('.topbar');
+    if(!bar || !u) return;
+    const nome = u.nome || u.email || 'Usuário';
+    const chips = Array.from(document.querySelectorAll('#dmx-security-chip, #dmx-user-chip, .dmx-security-chip'));
+    chips.forEach((el,idx)=>{ if(idx>0) el.remove(); });
+    let chip = document.getElementById('dmx-security-chip') || document.getElementById('dmx-user-chip') || document.querySelector('.dmx-security-chip');
+    if(!chip){
+      chip = document.createElement('div');
+      bar.appendChild(chip);
+    }
+    chip.id = 'dmx-security-chip';
+    chip.className = 'dmx-security-chip';
+    chip.textContent = '👤 ' + nome;
+    chip.title = nome;
+  }
+
+  function rebuildAreasIfEmpty(){
+    const cont = document.getElementById('area-nav-items');
+    if(!cont) return;
+    if(cont.querySelector('.nav-item')) return;
+    const areas = Array.isArray(window.AREAS) ? window.AREAS : [];
+    areas.forEach(area=>{
+      const div = document.createElement('div');
+      div.className = 'nav-item';
+      div.dataset.page = 'area-detail';
+      div.dataset.area = area;
+      div.innerHTML = '<span class="icon">▸</span> ' + area;
+      div.onclick = function(){ if(typeof window.nav === 'function') window.nav(this, area); };
+      cont.appendChild(div);
+    });
+  }
+
+  function applyMenu(){
+    const u = session();
+    if(!u) return;
+    rebuildAreasIfEmpty();
+
+    document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+      const page = el.dataset.page;
+      const area = el.dataset.area;
+      let ok;
+      if(area || page === 'area-detail') ok = canArea(area || el.textContent, u);
+      else ok = canPage(page, u);
+      el.classList.toggle('dmx-hidden-by-v48', !ok);
+      el.classList.toggle('dmx-hidden-by-role', !ok);
+      el.style.display = ok ? '' : 'none';
+    });
+
+    document.querySelectorAll('.nav-section-label').forEach(label=>{
+      let n = label.nextElementSibling, any = false;
+      while(n && !n.classList.contains('nav-section-label')){
+        if(n.matches?.('.nav-item') && n.style.display !== 'none' && !n.classList.contains('dmx-hidden-by-v48')) any = true;
+        if(n.id === 'area-nav-items' && n.querySelector('.nav-item:not(.dmx-hidden-by-v48)')) any = true;
+        n = n.nextElementSibling;
+      }
+      label.style.display = any ? '' : 'none';
+    });
+    cleanChip();
+  }
+
+  function firstAllowedItem(){
+    applyMenu();
+    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    for(const p of preferred){
+      const el = document.querySelector(`.nav-item[data-page="${p}"]:not(.dmx-hidden-by-v48)`);
+      if(el && el.style.display !== 'none') return el;
+    }
+    const areaEl = document.querySelector('#area-nav-items .nav-item:not(.dmx-hidden-by-v48)');
+    if(areaEl && areaEl.style.display !== 'none') return areaEl;
+    return document.querySelector('.nav-item:not(.dmx-hidden-by-v48)');
+  }
+
+  function activePageForbidden(){
+    const u = session(); if(!u) return false;
+    const active = document.querySelector('.page.active');
+    let page = active ? String(active.id||'').replace(/^page-/,'') : '';
+    if(!page) page = document.querySelector('.nav-item.active')?.dataset?.page || '';
+    if(page === 'area-detail'){
+      const title = document.getElementById('topbar-title')?.textContent || '';
+      return title && !canArea(title,u);
+    }
+    return page && !canPage(page,u);
+  }
+
+  function enforceLanding(){
+    const u = session(); if(!u) return;
+    applyMenu();
+    const activeNav = document.querySelector('.nav-item.active');
+    const activeHidden = activeNav && (activeNav.style.display === 'none' || activeNav.classList.contains('dmx-hidden-by-v48'));
+    if(activeHidden || activePageForbidden()){
+      const item = firstAllowedItem();
+      if(item && typeof window.nav === 'function'){
+        const area = item.dataset.area || undefined;
+        try{ window.nav(item, area); }catch(e){}
+      }
+    }
+    cleanChip();
+  }
+
+  function wrapNav(){
+    if(window.__dmxV483NavWrapped || typeof window.nav !== 'function') return;
+    window.__dmxV483NavWrapped = true;
+    const old = window.nav;
+    window.nav = nav = function(el, areaName){
+      const u = session();
+      const page = el?.dataset?.page;
+      const area = areaName || el?.dataset?.area;
+      if(u && page && page !== 'area-detail' && !canPage(page,u)){
+        alert('Acesso não liberado para esta aba.');
+        enforceLanding();
+        return;
+      }
+      if(u && area && !canArea(area,u)){
+        alert('Acesso não liberado para esta área.');
+        enforceLanding();
+        return;
+      }
+      const r = old.apply(this, arguments);
+      setTimeout(()=>{ applyMenu(); cleanChip(); }, 80);
+      return r;
+    };
+  }
+
+  const previousApply = window.dmxApplyApiSecurityRules;
+  window.dmxApplyApiSecurityRules = function(){
+    try{ if(typeof previousApply === 'function') previousApply(); }catch(e){}
+    try{ applyMenu(); enforceLanding(); cleanChip(); }catch(e){}
+  };
+  window.dmxApplyV483SecurityFix = function(){ applyMenu(); enforceLanding(); cleanChip(); };
+
+  function boot(){ wrapNav(); applyMenu(); enforceLanding(); cleanChip(); }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot,80); setTimeout(boot,700); setTimeout(boot,1800); });
+  setTimeout(boot,300);
+  setTimeout(boot,1500);
+  setInterval(()=>{ try{ applyMenu(); cleanChip(); }catch(e){} }, 800);
+})();
+</script>
+
 </body>
 </html>
