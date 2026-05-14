@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de KPIs v47 Login Sheets</title>
+<title>DMX Capital · Sistema de Gestão de Performance v47.1</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -7172,10 +7172,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   .dmx-login-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg,#070707 0%,#141414 45%,#0e9e82 150%); display: none; align-items: center; justify-content: center; padding: 24px; }
   .dmx-login-overlay.open { display:flex; }
   .dmx-login-card { width: 100%; max-width: 420px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.24); border-radius: 18px; padding: 28px; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
-  .dmx-login-brand { font-family: Syne, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.4px; color: #0d0d0d; }
-  .dmx-login-sub { margin-top: 3px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
-  .dmx-login-title { margin-top: 24px; font-family: Syne, sans-serif; font-size: 18px; font-weight: 800; }
-  .dmx-login-help { margin: 6px 0 18px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .dmx-login-logo { width: 174px; height: auto; display:block; object-fit:contain; margin: 0 auto 14px; }
+  .dmx-login-brand { font-family: Syne, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.4px; color: #0d0d0d; text-align:center; }
+  .dmx-login-sub { margin-top: 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; text-align:center; }
+  .dmx-login-title { margin-top: 24px; font-family: Syne, sans-serif; font-size: 18px; font-weight: 800; text-align:center; }
+  .dmx-login-help { margin: 6px 0 18px; font-size: 12px; color: var(--muted); line-height: 1.45; text-align:center; }
   .dmx-login-field { width:100%; margin-bottom: 10px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; font-family: inherit; font-size: 13px; outline: none; background: #fff; }
   .dmx-login-field:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,158,130,.10); }
   .dmx-login-btn { width:100%; margin-top: 6px; padding: 11px 14px; border: none; border-radius: 9px; background: var(--teal); color: white; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
@@ -7192,15 +7193,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
 <div id="dmx-login-overlay" class="dmx-login-overlay" aria-hidden="true">
   <div class="dmx-login-card">
-    <div class="dmx-login-brand">DMX Capital</div>
-    <div class="dmx-login-sub">Sistema de Gestão de KPIs</div>
+    <img class="dmx-login-logo" src="logo-dmx.png" alt="DMX Capital">
+    <div class="dmx-login-brand">Sistema de Gestão de Performance</div>
+    <div class="dmx-login-sub">DMX Capital</div>
     <div class="dmx-login-title">Entrar no sistema</div>
-    <div class="dmx-login-help">Use seu e-mail e senha cadastrados pelo administrador.</div>
+    <div class="dmx-login-help">Entre com suas credenciais.</div>
     <input id="dmx-login-email" class="dmx-login-field" type="email" placeholder="e-mail" autocomplete="username">
     <input id="dmx-login-password" class="dmx-login-field" type="password" placeholder="senha" autocomplete="current-password">
     <button id="dmx-login-button" class="dmx-login-btn" onclick="dmxLoginSubmit()"><span class="dmx-infinity">∞</span><span id="dmx-login-button-text">Entrar</span></button>
     <div id="dmx-login-msg" class="dmx-login-msg"></div>
-    <div style="margin-top:12px;font-size:10.5px;color:var(--muted);line-height:1.45">Primeiro acesso: admin@dmxcapital.com / admin123. Altere a senha no menu do usuário após entrar.</div>
   </div>
 </div>
 
@@ -7757,7 +7758,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   if(window.__dmxLoginApiV47Installed) return;
   window.__dmxLoginApiV47Installed = true;
 
-  const DMX_API_URL = "https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec";
+  const DMX_API_URL = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
   const SESSION_KEY = 'dmx_session_v41';
   const AUDIT_KEY = 'dmx_audit_log_governance_v43';
   const SESSION_HOURS = 8;
@@ -7788,10 +7789,23 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function toast(msg){ if(typeof showToast === 'function') showToast(msg); else console.log(msg); }
 
   function ensureLoginCopy(){
+    const card = document.querySelector('.dmx-login-card');
+    if(card && !card.querySelector('.dmx-login-logo')){
+      const img = document.createElement('img');
+      img.className = 'dmx-login-logo';
+      img.src = 'logo-dmx.png';
+      img.alt = 'DMX Capital';
+      card.insertBefore(img, card.firstChild);
+    }
+    const brand = document.querySelector('.dmx-login-brand');
+    if(brand) brand.textContent = 'Sistema de Gestão de Performance';
+    const sub = document.querySelector('.dmx-login-sub');
+    if(sub) sub.textContent = 'DMX Capital';
     const help = document.querySelector('.dmx-login-help');
-    if(help) help.textContent = 'Use o e-mail e a senha cadastrados na aba Usuarios da planilha.';
-    const oldNote = document.querySelector('.dmx-login-card > div[style*="Primeiro acesso"]');
-    if(oldNote) oldNote.innerHTML = 'Acesso integrado ao Google Sheets. Não depende da conta Google logada no navegador.';
+    if(help) help.textContent = 'Entre com suas credenciais.';
+    document.querySelectorAll('.dmx-login-card div').forEach(el=>{
+      if(/Primeiro acesso|admin@dmxcapital\.com|admin123/i.test(el.textContent||'')) el.remove();
+    });
   }
 
   function userToLocalSession(user){
@@ -7993,10 +8007,23 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   };
 
   window.dmxLogout = function(){
-    pushAudit('LOGOUT', {});
+    try { pushAudit('LOGOUT', {}); } catch(e) {}
     clearSession();
-    showLogin();
-    toast('Sessão encerrada');
+    document.body.style.opacity = '1';
+    document.body.style.pointerEvents = 'auto';
+    const o = document.getElementById('dmx-login-overlay');
+    if(o){
+      o.style.display = 'flex';
+      o.classList.add('open');
+      o.setAttribute('aria-hidden','false');
+    }
+    document.body.classList.add('dmx-auth-locked');
+    const email = document.getElementById('dmx-login-email');
+    const pass = document.getElementById('dmx-login-password');
+    if(email) email.value = '';
+    if(pass) pass.value = '';
+    try { toast('Sessão encerrada'); } catch(e) {}
+    setTimeout(()=>{ document.getElementById('dmx-login-email')?.focus(); }, 120);
   };
 
   function boot(){
