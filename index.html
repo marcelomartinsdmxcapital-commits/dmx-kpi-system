@@ -8267,13 +8267,20 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 <style id="dmx-v48-governanca-css">
   .dmx-hidden-by-v48{display:none!important;}
   .dmx-disabled-by-v48{opacity:.48!important;pointer-events:none!important;filter:grayscale(.2);}
-  .dmx-v48-admin-grid{display:grid;grid-template-columns:1.1fr 1fr .8fr .8fr 1.3fr 1.2fr .65fr .9fr auto;gap:8px;align-items:center;margin-bottom:10px}
+  .dmx-v48-admin-grid{display:grid;grid-template-columns:1.1fr 1fr .75fr .75fr .9fr auto;gap:10px;align-items:end;margin-bottom:12px}
+  .dmx-v48-access-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0 14px}
+  .dmx-v48-field{display:flex;flex-direction:column;gap:5px}
+  .dmx-v48-field label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
   .dmx-v48-list-tags{display:flex;gap:4px;flex-wrap:wrap}
   .dmx-v48-tag{display:inline-flex;align-items:center;padding:2px 6px;border-radius:999px;background:#eef2ff;color:#1e3a8a;border:1px solid #dbeafe;font-size:10px;font-weight:700}
   .dmx-v48-help{font-size:11px;color:var(--muted);line-height:1.45;margin:6px 0 12px}
   .dmx-v48-small{font-size:10.5px;color:var(--muted)}
-  .dmx-v48-multiselect{min-height:88px}
-  @media(max-width:1200px){.dmx-v48-admin-grid{grid-template-columns:1fr 1fr}}
+  .dmx-v48-checklist{border:1px solid var(--border);border-radius:9px;background:#fff;min-height:116px;max-height:174px;overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:5px}
+  .dmx-v48-checkitem{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text);padding:5px 6px;border-radius:6px;cursor:pointer}
+  .dmx-v48-checkitem:hover{background:var(--bg3)}
+  .dmx-v48-checkitem input{width:14px;height:14px;accent-color:var(--teal)}
+  @media(max-width:1200px){.dmx-v48-admin-grid,.dmx-v48-access-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:760px){.dmx-v48-admin-grid,.dmx-v48-access-grid{grid-template-columns:1fr}}
 </style>
 
 <script id="dmx-v48-governanca-js">
@@ -8524,10 +8531,14 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const u = session();
     const bar=document.querySelector('.topbar'); if(!bar || !u) return;
 
+    // Remove identificações antigas/duplicadas criadas por patches anteriores
+    document.querySelectorAll('#dmx-user-chip, #dmx-security-chip').forEach((el,idx)=>{ if(idx>0) el.remove(); });
     let chip=document.getElementById('dmx-security-chip') || document.getElementById('dmx-user-chip');
     if(!chip){ chip=document.createElement('div'); chip.id='dmx-security-chip'; chip.className='dmx-security-chip'; bar.appendChild(chip); }
+    chip.id='dmx-security-chip';
     chip.className='dmx-security-chip';
-    chip.innerHTML = `👤 ${esc(u.nome || u.email)} · <strong>${esc(u.cargo || '')}</strong> · ${esc(u.permissao || '')}`;
+    chip.innerHTML = `👤 ${esc(u.nome || u.email)}`;
+    chip.title = `${u.nome || u.email}`;
 
     let pwd=document.getElementById('dmx-change-password-btn');
     if(!pwd){ pwd=document.createElement('button'); pwd.id='dmx-change-password-btn'; pwd.className='topbar-btn btn-outline'; bar.appendChild(pwd); }
@@ -8704,9 +8715,38 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return options.map(o=>`<option value="${esc(o)}"${selectedKeys.includes(nkey(o))?' selected':''}>${esc(o)}</option>`).join('');
   }
 
+  function checkboxList(id, options, selected){
+    const selectedKeys = splitList(selected).map(nkey);
+    return `<div id="${esc(id)}" class="dmx-v48-checklist" data-checkbox-group="true">` +
+      options.map(o=>{
+        const checked = selectedKeys.includes(nkey(o)) || (!selectedKeys.length && nkey(o)==='TODAS');
+        return `<label class="dmx-v48-checkitem"><input type="checkbox" value="${esc(o)}" ${checked?'checked':''} onchange="dmxV48CheckboxChange('${esc(id)}', this)"> <span>${esc(o)}</span></label>`;
+      }).join('') + `</div>`;
+  }
+
+  window.dmxV48CheckboxChange = function(id, changed){
+    const box = document.getElementById(id); if(!box) return;
+    const checks = Array.from(box.querySelectorAll('input[type=checkbox]'));
+    const isTodas = nkey(changed.value)==='TODAS';
+    if(isTodas && changed.checked){ checks.forEach(c=>{ if(c!==changed) c.checked=false; }); return; }
+    if(!isTodas && changed.checked){ checks.forEach(c=>{ if(nkey(c.value)==='TODAS') c.checked=false; }); }
+    if(!checks.some(c=>c.checked)){ const todas = checks.find(c=>nkey(c.value)==='TODAS'); if(todas) todas.checked=true; }
+  };
+
+  function setCheckboxValues(id, selected){
+    const box = document.getElementById(id); if(!box) return;
+    const selectedKeys = splitList(selected).map(nkey);
+    Array.from(box.querySelectorAll('input[type=checkbox]')).forEach(c=>{ c.checked = selectedKeys.includes(nkey(c.value)); });
+    if(!box.querySelector('input[type=checkbox]:checked')){
+      const todas = Array.from(box.querySelectorAll('input[type=checkbox]')).find(c=>nkey(c.value)==='TODAS');
+      if(todas) todas.checked=true;
+    }
+  }
+
   function getSelected(id){
     const el=document.getElementById(id);
     if(!el) return '';
+    if(el.dataset && el.dataset.checkboxGroup === 'true') return Array.from(el.querySelectorAll('input[type=checkbox]:checked')).map(o=>o.value).join(', ');
     if(el.multiple) return Array.from(el.selectedOptions).map(o=>o.value).join(', ');
     return el.value || '';
   }
@@ -8731,22 +8771,24 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       <div class="section-header">
         <div>
           <div class="section-title">Usuários e Governança de Acesso</div>
-          <div class="dmx-v48-help">Modelo v48: E-mail, Nome, Cargo, Permissão, Abas de Acesso, Área, Status e Senha. Use Ctrl/Cmd para selecionar múltiplas abas ou áreas.</div>
+          <div class="dmx-v48-help">Modelo v48: preencha os dados do usuário e marque as abas/áreas liberadas. Se marcar TODAS, as demais opções são desmarcadas automaticamente.</div>
         </div>
       </div>
 
       <input type="hidden" id="adm-user-editing" value="">
       <div class="dmx-v48-admin-grid">
-        <input id="adm-user-email" class="filter-input" placeholder="E-mail">
-        <input id="adm-user-nome" class="filter-input" placeholder="Nome">
-        <select id="adm-user-cargo" class="filter-input">${multiOptions(CARGOS_OPCOES,'ANALISTA')}</select>
-        <select id="adm-user-permissao" class="filter-input">${multiOptions(PERMISSOES_OPCOES,'LEITURA')}</select>
-        <select id="adm-user-abas" class="filter-input dmx-v48-multiselect" multiple>${multiOptions(ABAS_OPCOES,'PAINEL EXECUTIVO')}</select>
-        <select id="adm-user-areas" class="filter-input dmx-v48-multiselect" multiple>${multiOptions(areas,'TODAS')}</select>
-        <select id="adm-user-status" class="filter-input">${multiOptions(STATUS_OPCOES,'SIM')}</select>
-        <input id="adm-user-senha" class="filter-input" placeholder="Senha nova/provisória">
-        <button class="btn btn-primary" onclick="dmxAdminSaveUserV48()">Salvar</button>
+        <div class="dmx-v48-field"><label>E-mail</label><input id="adm-user-email" class="filter-input" placeholder="usuario@empresa.com"></div>
+        <div class="dmx-v48-field"><label>Nome</label><input id="adm-user-nome" class="filter-input" placeholder="Nome do usuário"></div>
+        <div class="dmx-v48-field"><label>Cargo</label><select id="adm-user-cargo" class="filter-input">${multiOptions(CARGOS_OPCOES,'ANALISTA')}</select></div>
+        <div class="dmx-v48-field"><label>Permissão</label><select id="adm-user-permissao" class="filter-input">${multiOptions(PERMISSOES_OPCOES,'LEITURA')}</select></div>
+        <div class="dmx-v48-field"><label>Status</label><select id="adm-user-status" class="filter-input">${multiOptions(STATUS_OPCOES,'SIM')}</select></div>
+        <div class="dmx-v48-field"><label>Senha</label><input id="adm-user-senha" class="filter-input" placeholder="Senha nova/provisória"></div>
       </div>
+      <div class="dmx-v48-access-grid">
+        <div class="dmx-v48-field"><label>Abas de acesso</label>${checkboxList('adm-user-abas', ABAS_OPCOES, 'PAINEL EXECUTIVO')}</div>
+        <div class="dmx-v48-field"><label>Áreas liberadas</label>${checkboxList('adm-user-areas', areas, 'TODAS')}</div>
+      </div>
+      <div class="filter-row"><button class="btn btn-primary" onclick="dmxAdminSaveUserV48()">Salvar usuário</button></div>
       <div class="filter-row">
         <button class="btn btn-ghost" onclick="dmxAdminClearUserFormV48()">Limpar</button>
         <button class="btn btn-ghost" onclick="dmxRenderUserAdminPanel()">↻ Atualizar lista</button>
@@ -8777,8 +8819,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const cargo=document.getElementById('adm-user-cargo'); if(cargo) cargo.value='ANALISTA';
     const perm=document.getElementById('adm-user-permissao'); if(perm) perm.value='LEITURA';
     const status=document.getElementById('adm-user-status'); if(status) status.value='SIM';
-    const abas=document.getElementById('adm-user-abas'); if(abas) Array.from(abas.options).forEach(o=>o.selected = nkey(o.value)==='PAINEL_EXECUTIVO');
-    const areas=document.getElementById('adm-user-areas'); if(areas) Array.from(areas.options).forEach(o=>o.selected = nkey(o.value)==='TODAS');
+    setCheckboxValues('adm-user-abas','PAINEL EXECUTIVO');
+    setCheckboxValues('adm-user-areas','TODAS');
   };
 
   window.dmxAdminEditUserV48 = function(u){
@@ -8789,10 +8831,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     document.getElementById('adm-user-permissao').value = u.permissao || 'LEITURA';
     document.getElementById('adm-user-status').value = u.status || u.ativo || 'SIM';
     document.getElementById('adm-user-senha').value = '';
-    const abasSel = splitList(u.abas||u.abasAcesso).map(nkey);
-    const areasSel = splitList(u.areas||u.area).map(nkey);
-    Array.from(document.getElementById('adm-user-abas').options).forEach(o=>o.selected = abasSel.includes(nkey(o.value)));
-    Array.from(document.getElementById('adm-user-areas').options).forEach(o=>o.selected = areasSel.includes(nkey(o.value)));
+    setCheckboxValues('adm-user-abas', u.abas||u.abasAcesso||'PAINEL EXECUTIVO');
+    setCheckboxValues('adm-user-areas', u.areas||u.area||'TODAS');
     window.scrollTo?.(0,0);
   };
 
