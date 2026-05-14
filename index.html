@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de KPIs v45 Governança Admin Completa</title>
+<title>DMX Capital · Sistema de Gestão de KPIs v47 Login Sheets</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -7742,28 +7742,25 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PATCH v46 — Segurança centralizada via Apps Script / Google Account
-     Integração: sessão, permissões, bloqueio visual e compatibilidade com governança local
+     PATCH v47 — Login próprio via Apps Script / aba Usuarios
+     Remove dependência de Session.getActiveUser(), compatível com GitHub Pages
      ═══════════════════════════════════════════════════════════════ -->
-<style id="dmx-v46-api-security-css">
+<style id="dmx-v47-login-api-css">
   .dmx-hidden-by-security{display:none!important;}
   .dmx-disabled-by-security{opacity:.45!important;pointer-events:none!important;filter:grayscale(.15);}
   .dmx-security-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--muted);max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .dmx-security-chip strong{color:var(--teal);font-weight:800;}
-  .dmx-security-block{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#fff;font-family:Arial,sans-serif;padding:32px;text-align:center;}
-  .dmx-security-block-card{max-width:560px;background:#111827;border:1px solid #334155;border-radius:18px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
-  .dmx-security-block-card h1{margin:0 0 12px;font-size:24px;}
-  .dmx-security-block-card p{margin:0 0 12px;color:#cbd5e1;font-size:14px;line-height:1.5;}
-  .dmx-security-block-card code{background:#020617;border:1px solid #334155;border-radius:6px;padding:3px 6px;color:#e2e8f0;}
+  .dmx-login-api-note{margin-top:10px;font-size:10.5px;color:var(--muted);line-height:1.4;}
 </style>
-<script id="dmx-v46-api-security-js">
+<script id="dmx-v47-login-api-js">
 (function(){
-  if(window.__dmxApiSecurityV46Installed) return;
-  window.__dmxApiSecurityV46Installed = true;
+  if(window.__dmxLoginApiV47Installed) return;
+  window.__dmxLoginApiV47Installed = true;
 
-  const DMX_API_URL = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
+  const DMX_API_URL = "https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec";
   const SESSION_KEY = 'dmx_session_v41';
   const AUDIT_KEY = 'dmx_audit_log_governance_v43';
+  const SESSION_HOURS = 8;
 
   window.DMX_API_URL = DMX_API_URL;
   window.DMX_CURRENT_USER = null;
@@ -7776,8 +7773,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const x = norm(p);
     if(x === 'admin' || x === 'administrador') return 'admin';
     if(x === 'diretoria' || x === 'diretor' || x === 'ceo') return 'diretoria';
-    if(x === 'gestor' || x === 'gerente' || x === 'gerencia') return 'editor';
-    if(x === 'operador') return 'editor';
+    if(x === 'gestor' || x === 'gerente' || x === 'gerencia' || x === 'operador') return 'editor';
     return 'leitura';
   };
   const cargoLocal = p => {
@@ -7791,48 +7787,91 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   function toast(msg){ if(typeof showToast === 'function') showToast(msg); else console.log(msg); }
 
-  function apiUserToLocalSession(user){
-    const areas = Array.isArray(user.areas) ? user.areas : [];
+  function ensureLoginCopy(){
+    const help = document.querySelector('.dmx-login-help');
+    if(help) help.textContent = 'Use o e-mail e a senha cadastrados na aba Usuarios da planilha.';
+    const oldNote = document.querySelector('.dmx-login-card > div[style*="Primeiro acesso"]');
+    if(oldNote) oldNote.innerHTML = 'Acesso integrado ao Google Sheets. Não depende da conta Google logada no navegador.';
+  }
+
+  function userToLocalSession(user){
+    const areas = Array.isArray(user.areas) ? user.areas : String(user.areas||'').split(',').map(a=>a.trim()).filter(Boolean);
     const area = areas[0] || 'Todas';
     return {
       email: user.email || '',
       nome: user.nome || user.email || 'Usuário DMX',
       perfil: perfilLocal(user.perfil),
       perfilApi: user.perfil || '',
-      cargo: cargoLocal(user.perfil),
+      cargo: user.cargo || cargoLocal(user.perfil),
       area: area === '*' ? 'Todas' : area,
       areas: areas,
       permissions: user.permissions || {},
       loginEm: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 8*60*60*1000).toISOString(),
-      authSource: 'GOOGLE_APPS_SCRIPT'
+      expiresAt: new Date(Date.now() + SESSION_HOURS*60*60*1000).toISOString(),
+      authSource: 'DMX_LOGIN_SHEETS'
     };
   }
 
   function saveLocalSession(user){
-    const s = apiUserToLocalSession(user);
+    const s = userToLocalSession(user);
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
     localStorage.setItem('dmx_usuario_email', s.email);
     localStorage.setItem('dmx_current_user_email', s.email);
+    window.DMX_CURRENT_USER = user;
+    window.DMX_PERMISSIONS = user.permissions || {};
+    window.DMX_SECURITY_READY = true;
     return s;
   }
 
-  function localSession(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch(e){return null;} }
-
-  function hideLegacyLogin(){
-    document.body.classList.remove('dmx-auth-locked');
-    const o = document.getElementById('dmx-login-overlay');
-    if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); o.style.display='none'; }
-    const pwd = document.getElementById('dmx-change-password-btn');
-    if(pwd) pwd.style.display = 'none';
+  function clearSession(){
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('dmx_usuario_email');
+    localStorage.removeItem('dmx_current_user_email');
+    window.DMX_CURRENT_USER = null;
+    window.DMX_PERMISSIONS = {};
+    window.DMX_SECURITY_READY = false;
   }
 
-  function blockSystem(message, email){
-    document.body.innerHTML = `<div class="dmx-security-block"><div class="dmx-security-block-card"><h1>Acesso restrito</h1><p>${message}</p>${email?`<p>Usuário identificado: <code>${email}</code></p>`:''}<p>Inclua este e-mail na aba <code>Usuarios</code> da planilha com perfil e status ativo.</p></div></div>`;
+  function localSession(){
+    try{
+      const s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s) return null;
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) { clearSession(); return null; }
+      window.DMX_PERMISSIONS = s.permissions || window.DMX_PERMISSIONS || {};
+      window.DMX_CURRENT_USER = window.DMX_CURRENT_USER || {email:s.email,nome:s.nome,perfil:s.perfilApi||s.perfil,areas:s.areas||[],permissions:s.permissions||{}};
+      window.DMX_SECURITY_READY = true;
+      return s;
+    }catch(e){ return null; }
+  }
+
+  function showLogin(){
+    ensureLoginCopy();
+    document.body.classList.add('dmx-auth-locked');
+    const o=document.getElementById('dmx-login-overlay');
+    if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); o.style.display='flex'; }
+    setTimeout(()=>document.getElementById('dmx-login-email')?.focus(),80);
+  }
+
+  function hideLogin(){
+    document.body.classList.remove('dmx-auth-locked');
+    const o=document.getElementById('dmx-login-overlay');
+    if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); o.style.display='none'; }
   }
 
   function can(permission){ return !!(window.DMX_PERMISSIONS && window.DMX_PERMISSIONS[permission]); }
   window.dmxCan = can;
+
+  async function apiPost(action, payload){
+    const res = await fetch(DMX_API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(Object.assign({}, payload||{}, {action}))
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Operação não autorizada.');
+    return data;
+  }
+  window.dmxApiSecurityPost = apiPost;
 
   function pushAudit(action, details){
     try{
@@ -7841,29 +7880,27 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       let arr=[]; try{arr=JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]');}catch(e){arr=[];}
       arr.push(item); if(arr.length>1000) arr=arr.slice(arr.length-1000);
       localStorage.setItem(AUDIT_KEY, JSON.stringify(arr));
+      try{ if(typeof dmxApiPost==='function') dmxApiPost('logAuditoria', item); }catch(e){}
     }catch(e){}
   }
 
-  async function apiPost(action, payload){
-    const res = await fetch(DMX_API_URL, { method:'POST', body: JSON.stringify(Object.assign({}, payload||{}, {action})) });
-    const data = await res.json();
-    if(!data.ok) throw new Error(data.error || 'Operação não autorizada.');
-    return data;
-  }
-  window.dmxApiSecurityPost = apiPost;
-
   function refreshUserChip(){
-    const bar = document.querySelector('.topbar'); if(!bar || !window.DMX_CURRENT_USER) return;
+    const s = localSession();
+    const bar = document.querySelector('.topbar'); if(!bar || !s) return;
     let chip = document.getElementById('dmx-user-chip') || document.getElementById('dmx-security-chip');
     if(!chip){ chip = document.createElement('div'); chip.id='dmx-security-chip'; chip.className='dmx-security-chip'; bar.appendChild(chip); }
     chip.className = 'dmx-security-chip';
-    chip.innerHTML = `👤 ${window.DMX_CURRENT_USER.nome || window.DMX_CURRENT_USER.email} · <strong>${window.DMX_CURRENT_USER.perfil}</strong>`;
-    const logout = document.getElementById('dmx-logout-btn');
-    if(logout){ logout.innerHTML='⎋ Sair'; logout.onclick=()=>{ toast('Para trocar de usuário, saia da conta Google no navegador ou abra em janela anônima.'); }; }
-    const pwd = document.getElementById('dmx-change-password-btn'); if(pwd) pwd.style.display='none';
+    chip.innerHTML = `👤 ${s.nome || s.email} · <strong>${s.perfilApi || s.perfil}</strong>`;
+    const pwd = document.getElementById('dmx-change-password-btn');
+    if(pwd) pwd.style.display = 'none';
+    let logout = document.getElementById('dmx-logout-btn');
+    if(!logout){ logout=document.createElement('button'); logout.id='dmx-logout-btn'; logout.className='topbar-btn btn-outline'; bar.appendChild(logout); }
+    logout.innerHTML='⎋ Sair';
+    logout.onclick=()=>window.dmxLogout();
   }
 
   function applySecurityRules(){
+    localSession();
     const isAdmin = can('canViewAdmin') || can('canEditUsers');
     const canEditKpi = can('canEditKpi');
     const canEditMeta = can('canEditMeta');
@@ -7901,13 +7938,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   window.dmxApplyApiSecurityRules = applySecurityRules;
 
   function patchNavigation(){
-    if(typeof window.nav === 'function' && !window.__dmxV46NavWrapped){
-      window.__dmxV46NavWrapped = true;
+    if(typeof window.nav === 'function' && !window.__dmxV47NavWrapped){
+      window.__dmxV47NavWrapped = true;
       const old = window.nav;
       window.nav = nav = function(el, areaName){
         if(el && el.dataset && el.dataset.page === 'admin' && !(can('canViewAdmin') || can('canEditUsers'))){
           alert('Acesso restrito ao Administrador.');
-          pushAudit('ACESSO_NEGADO_ADMIN_API', {pagina:'admin'});
+          pushAudit('ACESSO_NEGADO_ADMIN_LOGIN', {pagina:'admin'});
           return;
         }
         const r = old.apply(this, arguments);
@@ -7915,12 +7952,6 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         return r;
       };
     }
-  }
-
-  function patchLegacyAuth(){
-    window.dmxGetLoggedUser = function(){ return localSession(); };
-    window.dmxLogout = function(){ toast('Sessão controlada pelo Google. Para trocar de usuário, use outra conta Google ou janela anônima.'); };
-    window.dmxLoginSubmit = function(){ toast('Login validado automaticamente pela conta Google autorizada na planilha.'); hideLegacyLogin(); };
   }
 
   function patchGovernance(){
@@ -7934,49 +7965,56 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     };
   }
 
-  async function loadSecuritySession(){
+  window.dmxGetLoggedUser = function(){ return localSession(); };
+
+  window.dmxLoginSubmit = async function(){
+    const btn=document.getElementById('dmx-login-button'), txt=document.getElementById('dmx-login-button-text'), msg=document.getElementById('dmx-login-msg');
+    const email=String(document.getElementById('dmx-login-email')?.value||'').trim().toLowerCase();
+    const senha=document.getElementById('dmx-login-password')?.value||'';
+    if(msg) msg.textContent='';
+    if(!email || !senha){ if(msg) msg.textContent='Informe e-mail e senha.'; return; }
+    btn?.classList.add('loading'); if(txt) txt.textContent='Validando acesso...';
     try{
-      const res = await fetch(DMX_API_URL + '?action=session&ts=' + Date.now(), {cache:'no-store'});
-      const data = await res.json();
-      if(!data.ok || !data.user){ blockSystem('Não foi possível validar sua sessão de acesso.'); return false; }
-      window.DMX_CURRENT_USER = data.user;
-      window.DMX_PERMISSIONS = data.user.permissions || {};
-      window.DMX_SECURITY_READY = true;
-
-      if(!data.user.ativo){
-        blockSystem('Usuário sem acesso ativo ao sistema.', data.user.email || '');
-        return false;
-      }
-
-      saveLocalSession(data.user);
-      hideLegacyLogin();
-      patchLegacyAuth();
+      const data = await apiPost('login', {email, senha});
+      const user = data.user;
+      saveLocalSession(user);
+      hideLogin();
       patchGovernance();
       patchNavigation();
       applySecurityRules();
-      pushAudit('LOGIN_API_OK', {perfil:data.user.perfil, areas:data.user.areas||[]});
-      console.log('DMX Segurança API carregada:', data.user);
-      return true;
-    }catch(err){
-      console.error('Erro ao carregar segurança DMX:', err);
-      blockSystem('Falha ao validar permissões de acesso. Verifique se a implantação do Apps Script está publicada e acessível.');
-      return false;
+      pushAudit('LOGIN_SHEETS_OK', {email:user.email, perfil:user.perfil});
+      toast('✓ Login realizado');
+    }catch(e){
+      if(msg) msg.textContent = e.message || 'Falha ao validar login.';
+      pushAudit('LOGIN_SHEETS_FALHA', {email, erro:e.message});
+    }finally{
+      btn?.classList.remove('loading'); if(txt) txt.textContent='Entrar';
     }
+  };
+
+  window.dmxLogout = function(){
+    pushAudit('LOGOUT', {});
+    clearSession();
+    showLogin();
+    toast('Sessão encerrada');
+  };
+
+  function boot(){
+    ensureLoginCopy();
+    patchGovernance();
+    patchNavigation();
+    const s = localSession();
+    if(s){ hideLogin(); applySecurityRules(); }
+    else { clearSession(); showLogin(); }
   }
-  window.dmxLoadSecuritySession = loadSecuritySession;
 
   document.addEventListener('DOMContentLoaded', function(){
-    hideLegacyLogin();
-    loadSecuritySession().then(()=>{
-      setTimeout(applySecurityRules, 300);
-      setTimeout(applySecurityRules, 1200);
-      setTimeout(applySecurityRules, 2500);
-    });
+    boot();
+    setTimeout(boot, 600);
+    setTimeout(()=>{ patchNavigation(); applySecurityRules(); }, 1500);
   });
-  setTimeout(()=>{ if(window.DMX_SECURITY_READY){ hideLegacyLogin(); patchNavigation(); applySecurityRules(); } }, 1800);
-  setInterval(()=>{ if(window.DMX_SECURITY_READY){ hideLegacyLogin(); patchNavigation(); applySecurityRules(); } }, 3500);
+  setInterval(()=>{ if(localSession()){ hideLogin(); patchNavigation(); applySecurityRules(); } }, 5000);
 })();
 </script>
-
 </body>
 </html>
