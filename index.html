@@ -9529,5 +9529,191 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<!-- PATCH v48.5 — Restauração estrutural: PPR, Diretoria, Catálogo e Admin/Sheets -->
+<style id="dmx-v48-5-structural-css">
+  .dmx-empty-recovery{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin:16px 0;color:var(--muted);font-size:13px}
+  .dmx-ppr-mini-table td,.dmx-ppr-mini-table th{font-size:11px}
+</style>
+<script id="dmx-v48-5-structural-js">
+(function(){
+  if(window.__dmxV485StructuralInstalled) return;
+  window.__dmxV485StructuralInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  const pct485 = v => (v===null || v===undefined || !isFinite(Number(v))) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%';
+  const n485 = v => { if(v===null||v===undefined||v==='') return null; const x=Number(String(v).replace('.','').replace(',','.')); return Number.isFinite(x)?x:null; };
+  const esc485 = v => String(v??'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  function session485(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(e){return null} }
+  function kpis485(){
+    const candidates = [window.kpis, window.__dmxCatalogoSheetsOficial, (typeof KPI_CATALOG!=='undefined'?KPI_CATALOG:null)];
+    for(const c of candidates){ if(Array.isArray(c) && c.length) return c; }
+    return [];
+  }
+  function areas485(){
+    const a = Array.isArray(window.AREAS) && window.AREAS.length ? window.AREAS : [...new Set(kpis485().map(k=>k.area).filter(Boolean))];
+    return [...new Set(a.map(x=>String(x||'').trim()).filter(Boolean))].filter(a=>!['CEO','Painel Financeiro','Mensal'].includes(a)).sort();
+  }
+  function byPeriod485(mes,ano){
+    try{ if(typeof byPeriod==='function') return byPeriod(mes||currentMes, ano||currentAno) || []; }catch(e){}
+    const arr = Array.isArray(window.launches)?window.launches:(typeof launches!=='undefined'?launches:[]);
+    return arr.filter(l => Number(l.mes_num||l.mes)===Number(mes||window.currentMes||12) && Number(l.ano)===Number(ano||window.currentAno||2026));
+  }
+  function kpiById485(id){ return kpis485().find(k=>String(k.id)===String(id) || String(k.id_kpi)===String(id)); }
+  function getLaunch485(id,mes,ano){ try{ if(typeof getLaunch==='function') return getLaunch(id,mes,ano); }catch(e){} return byPeriod485(mes,ano).find(l=>String(l.id_kpi||l.id)===String(id)); }
+  function ating485(kpi, mes, ano, accum){
+    try{
+      if(accum && typeof calcAccumValue==='function' && typeof calcAting==='function'){
+        const real=calcAccumValue(kpi,null,ano,'realizado'), meta=calcAccumValue(kpi,null,ano,'meta');
+        if(real==null || meta==null || Number(meta)===0) return null;
+        const at=calcAting(kpi.sentido, real, meta); return at==null?null:Number(at)*100;
+      }
+      const l=getLaunch485(kpi.id,mes,ano); const real=n485(l?.realizado); let meta=null;
+      try{ meta = typeof resolveRef==='function' ? n485(resolveRef(kpi,mes,ano)?.meta) : n485(kpi.meta); }catch(e){ meta=n485(kpi.meta); }
+      if(real==null || meta==null || meta===0) return null;
+      if(typeof calcAting==='function'){ const at=calcAting(kpi.sentido, real, meta); return at==null?null:Number(at)*100; }
+      return String(kpi.sentido||'').toLowerCase().includes('menor') ? (meta/real)*100 : (real/meta)*100;
+    }catch(e){ return null; }
+  }
+  function indiceArea485(area,mes,ano,accum){
+    try{ if(typeof window.dmxIndiceArea==='function'){ const r=window.dmxIndiceArea(area,mes,ano); if(r) return accum ? (r.indiceAcum??r.indiceMes??null) : (r.indiceMes??r.indiceAcum??null); } }catch(e){}
+    const ks=kpis485().filter(k=>String(k.area||'')===String(area) && String(k.vertente||'').toLowerCase().includes('meta'));
+    let s=0,w=0;
+    ks.forEach(k=>{ const peso=Number(k.peso_indice||0); const at=ating485(k,mes,ano,accum); if(peso>0 && at!=null){s+=at*peso/100; w+=peso;} });
+    return w ? s : null;
+  }
+
+  // ── PPR robusto ─────────────────────────────────────────────
+  const PPR_KEY='dmx_ppr_config_v1';
+  function getPprCfg(){ try{return JSON.parse(localStorage.getItem(PPR_KEY)||'{}')}catch(e){return{}} }
+  function setPprCfg(cfg){ localStorage.setItem(PPR_KEY, JSON.stringify(cfg||{})); }
+  function ensurePprPage485(){
+    if(!document.querySelector('.nav-item[data-page="ppr"]')){
+      const ref=document.querySelector('.nav-item[data-page="impacto"]') || document.querySelector('.sidebar-nav');
+      const item=document.createElement('div'); item.className='nav-item'; item.dataset.page='ppr'; item.innerHTML='<span class="icon">◉</span> Plano PPR'; item.onclick=function(){window.nav(this)};
+      ref?.parentNode?.insertBefore(item, ref.nextSibling);
+    }
+    if(!document.getElementById('page-ppr')){
+      const p=document.createElement('div'); p.className='page'; p.id='page-ppr'; document.querySelector('.content')?.appendChild(p);
+    }
+  }
+  window.renderPPR = function(){
+    ensurePprPage485();
+    const page=document.getElementById('page-ppr'); if(!page) return;
+    const cfg=getPprCfg();
+    const metas=kpis485().filter(k=>String(k.vertente||'').toLowerCase().includes('meta'));
+    const opts='<option value="">Selecione um KPI global</option>'+metas.map(k=>`<option value="${esc485(k.id)}">${esc485(k.id)} · ${esc485(k.area)} · ${esc485(k.indicador)}</option>`).join('');
+    const ano=Number(window.currentAno||currentAno||2026), mes=Number(window.currentMes||currentMes||12);
+    const areaList=areas485();
+    function sel(id,label,peso){ return `<div><label class="card-label">${label}</label><select class="filter-input dmx-ppr-input" id="${id}" style="width:100%">${opts}</select></div><div><label class="card-label">Peso</label><input class="filter-input dmx-ppr-input" id="${id}-peso" type="number" step="0.01" value="${Number(peso||0)}"></div>`; }
+    page.innerHTML = `
+      <div class="block-card" style="margin-bottom:16px">
+        <div class="section-header"><div><div class="section-title">Configuração do Plano PPR</div><div class="text-muted text-sm mt-1">Selecione os KPIs globais e o peso do índice da área. A soma recomendada é 100%.</div></div><button class="btn btn-primary btn-sm" onclick="dmxSalvarPPR485()">Salvar Configuração</button></div>
+        <div style="display:grid;grid-template-columns:minmax(360px,1fr) 110px;gap:10px 12px;align-items:end;margin-top:12px">
+          ${sel('ppr-kpi-1','KPI Global 1',cfg.peso1??20)}
+          ${sel('ppr-kpi-2','KPI Global 2',cfg.peso2??20)}
+          ${sel('ppr-kpi-3','KPI Global 3',cfg.peso3??20)}
+          <div><label class="card-label">Índice PPR da Área</label><div class="filter-input" style="background:#F8FAFC;color:var(--muted)">Automático por área</div></div><div><label class="card-label">Peso</label><input class="filter-input dmx-ppr-input" id="ppr-peso-area" type="number" step="0.01" value="${Number(cfg.pesoArea??40)}"></div>
+        </div>
+        <div id="ppr-validacao" class="text-sm text-muted" style="margin-top:10px"></div>
+      </div>
+      <div class="cards-row" id="ppr-cards" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div class="section-header"><div class="section-title">Resultado final por área</div><span class="text-muted text-sm">Base atual: ${metas.length} KPIs meta · ${areaList.length} áreas</span></div>
+      <div id="ppr-area-tables"></div>`;
+    ['1','2','3'].forEach(i=>{ const el=document.getElementById('ppr-kpi-'+i); if(el) el.value=cfg['kpi'+i]||''; });
+    document.querySelectorAll('.dmx-ppr-input').forEach(el=>el.addEventListener('change',()=>window.dmxSalvarPPR485(false)));
+    drawPpr485();
+  };
+  window.dmxSalvarPPR485 = function(show=true){
+    const cfg={kpi1:document.getElementById('ppr-kpi-1')?.value||'', kpi2:document.getElementById('ppr-kpi-2')?.value||'', kpi3:document.getElementById('ppr-kpi-3')?.value||'', peso1:Number(document.getElementById('ppr-kpi-1-peso')?.value||0), peso2:Number(document.getElementById('ppr-kpi-2-peso')?.value||0), peso3:Number(document.getElementById('ppr-kpi-3-peso')?.value||0), pesoArea:Number(document.getElementById('ppr-peso-area')?.value||0)};
+    setPprCfg(cfg); if(show && typeof showToast==='function') showToast('✓ Configuração PPR salva'); drawPpr485();
+  };
+  function calcPprArea485(area,mes,ano,accum){
+    const cfg=getPprCfg(); const vals=[['kpi1','peso1'],['kpi2','peso2'],['kpi3','peso3']].map(([k,p])=>{const kpi=kpiById485(cfg[k]); return {v:kpi?ating485(kpi,mes,ano,accum):null,p:Number(cfg[p]||0)};});
+    vals.push({v:indiceArea485(area,mes,ano,accum),p:Number(cfg.pesoArea||0)});
+    let s=0,w=0; vals.forEach(x=>{ if(x.v!=null && isFinite(x.v) && x.p>0){s+=x.v*x.p/100;w+=x.p;} }); return w?s:null;
+  }
+  function drawPpr485(){
+    const cfg=getPprCfg(), ano=Number(window.currentAno||currentAno||2026), mes=Number(window.currentMes||currentMes||12), areas=areas485();
+    const total=Number(cfg.peso1||0)+Number(cfg.peso2||0)+Number(cfg.peso3||0)+Number(cfg.pesoArea||0);
+    const v=document.getElementById('ppr-validacao'); if(v) v.innerHTML=Math.abs(total-100)<0.01?'<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>':'<span style="color:var(--red);font-weight:700">⚠ Pesos somam '+pct485(total)+'. Ajuste para 100%.</span>';
+    const finais=areas.map(a=>({area:a,valor:calcPprArea485(a,mes,ano,true)})).filter(x=>x.valor!=null);
+    const media=finais.length?finais.reduce((s,x)=>s+x.valor,0)/finais.length:null;
+    const best=finais.slice().sort((a,b)=>b.valor-a.valor)[0], worst=finais.slice().sort((a,b)=>a.valor-b.valor)[0];
+    const cards=document.getElementById('ppr-cards'); if(cards) cards.innerHTML=`<div class="kpi-card teal"><div class="card-label">PPR Global</div><div class="card-value teal">${pct485(media)}</div><div class="card-sub">média das áreas</div></div><div class="kpi-card green"><div class="card-label">Melhor Área</div><div class="card-value green" style="font-size:20px">${esc485(best?.area||'—')}</div><div class="card-sub">${pct485(best?.valor)}</div></div><div class="kpi-card red"><div class="card-label">Área em Atenção</div><div class="card-value red" style="font-size:20px">${esc485(worst?.area||'—')}</div><div class="card-sub">${pct485(worst?.valor)}</div></div><div class="kpi-card blue"><div class="card-label">Composição</div><div class="card-value blue" style="font-size:20px">${pct485(total)}</div><div class="card-sub">soma dos pesos</div></div>`;
+    const wrap=document.getElementById('ppr-area-tables'); if(!wrap) return;
+    wrap.innerHTML=areas.map(area=>{ const indice=indiceArea485(area,mes,ano,true), final=calcPprArea485(area,mes,ano,true); return `<div class="block-card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div class="section-title">${esc485(area)}</div><strong>${pct485(final)}</strong></div><div class="text-muted text-sm mt-2">Índice da área: ${pct485(indice)} · ${mes}/${ano}</div></div>`; }).join('') || '<div class="dmx-empty-recovery">Nenhuma área disponível para cálculo.</div>';
+  }
+
+  // ── Modo Diretoria robusto ───────────────────────────────────
+  function ensureDiretoria485(){
+    if(typeof dmx_installDiretoria==='function'){ try{dmx_installDiretoria();}catch(e){} }
+    if(!document.getElementById('page-diretoria')){ const p=document.createElement('div'); p.className='page'; p.id='page-diretoria'; p.innerHTML='<div id="diretoria-content"></div>'; document.querySelector('.content')?.appendChild(p); }
+    if(!document.getElementById('diretoria-content')) document.getElementById('page-diretoria').innerHTML='<div id="diretoria-content"></div>';
+  }
+  function fallbackDiretoria485(){
+    ensureDiretoria485(); const el=document.getElementById('diretoria-content'); if(!el) return;
+    const data=byPeriod485(window.currentMes||currentMes, window.currentAno||currentAno), total=data.length;
+    const crit=data.filter(l=>l.status==='VERMELHO').length, alert=data.filter(l=>l.status==='AMARELO').length, verdes=data.filter(l=>l.status==='VERDE').length;
+    el.innerHTML=`<div class="cards-row" style="grid-template-columns:repeat(4,1fr)"><div class="kpi-card teal"><div class="card-label">KPIs Monitorados</div><div class="card-value teal">${total}</div></div><div class="kpi-card green"><div class="card-label">No Verde</div><div class="card-value green">${verdes}</div></div><div class="kpi-card amber"><div class="card-label">Em Alerta</div><div class="card-value amber">${alert}</div></div><div class="kpi-card red"><div class="card-label">Críticos</div><div class="card-value red">${crit}</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>KPI</th><th>Área</th><th>Status</th><th>Realizado</th><th>Meta</th></tr></thead><tbody>${data.filter(l=>l.status!=='VERDE').slice(0,30).map(l=>`<tr><td>${esc485(l.id_kpi)} · ${esc485(l.indicador)}</td><td>${esc485(l.area)}</td><td>${typeof pill==='function'?pill(l.status):esc485(l.status)}</td><td>${esc485(l.realizado)}</td><td>${esc485(l.meta)}</td></tr>`).join('')||'<tr><td colspan="5" class="text-muted">Sem alertas no período.</td></tr>'}</tbody></table></div>`;
+  }
+  window.dmxRenderDiretoria485 = function(){
+    ensureDiretoria485();
+    try{ if(typeof renderDiretoria==='function') renderDiretoria(); }catch(e){ console.warn('renderDiretoria falhou; usando fallback',e); }
+    setTimeout(()=>{ const c=document.getElementById('diretoria-content'); if(c && !String(c.innerHTML||'').trim()) fallbackDiretoria485(); },120);
+  };
+
+  // ── Compartilhamento no popup de KPI ─────────────────────────
+  function ensureShareInModal485(id){
+    if(typeof buildShareSection!=='function') return;
+    const mc=document.getElementById('kpi-modal-content') || document.querySelector('#kpi-modal .modal');
+    if(!mc || mc.querySelector('.dmx-share-section')) return;
+    const div=document.createElement('div'); div.className='dmx-share-section'; div.innerHTML=buildShareSection(id);
+    const buttons=Array.from(mc.querySelectorAll('button')).find(b=>String(b.textContent||'').includes('Atualizar Dados'));
+    const row=buttons?.closest('div'); if(row) mc.insertBefore(div,row); else mc.appendChild(div);
+  }
+  function wrapKpiModal485(){
+    if(window.__dmxV485KpiModalWrapped || typeof window.openKPIModal!=='function') return;
+    window.__dmxV485KpiModalWrapped=true;
+    const old=window.openKPIModal;
+    window.openKPIModal=function(id){ const r=old.apply(this,arguments); setTimeout(()=>ensureShareInModal485(id),120); setTimeout(()=>ensureShareInModal485(id),400); return r; };
+  }
+
+  // ── Admin/Sheets: render sem precisar F5 ─────────────────────
+  function refreshAdmin485(){
+    if(!document.getElementById('page-admin')?.classList.contains('active')) return;
+    if(typeof window.renderAdminDMX==='function'){
+      setTimeout(()=>window.renderAdminDMX(true),60);
+      setTimeout(()=>window.renderAdminDMX(true),550);
+      setTimeout(()=>window.renderAdminDMX(true),1300);
+    }
+  }
+
+  function wrapNav485(){
+    if(window.__dmxV485NavWrapped || typeof window.nav!=='function') return;
+    window.__dmxV485NavWrapped=true;
+    const old=window.nav;
+    window.nav=nav=function(el,areaName){
+      const r=old.apply(this,arguments);
+      const p=el?.dataset?.page;
+      if(p==='diretoria') setTimeout(window.dmxRenderDiretoria485,80);
+      if(p==='ppr') setTimeout(window.renderPPR,80);
+      if(p==='admin') refreshAdmin485();
+      return r;
+    };
+  }
+  const oldPeriod485 = window.onPeriodChange;
+  if(typeof oldPeriod485==='function' && !window.__dmxV485PeriodWrapped){
+    window.__dmxV485PeriodWrapped=true;
+    window.onPeriodChange=function(){ const r=oldPeriod485.apply(this,arguments); if(window.currentPage==='diretoria') window.dmxRenderDiretoria485(); if(window.currentPage==='ppr') window.renderPPR(); if(window.currentPage==='admin') refreshAdmin485(); return r; };
+  }
+
+  function boot485(){ wrapNav485(); wrapKpiModal485(); ensurePprPage485(); ensureDiretoria485(); if(document.getElementById('page-admin')?.classList.contains('active')) refreshAdmin485(); if(document.getElementById('page-diretoria')?.classList.contains('active')) window.dmxRenderDiretoria485(); if(document.getElementById('page-ppr')?.classList.contains('active')) window.renderPPR(); }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot485,100); setTimeout(boot485,800); setTimeout(boot485,2000); });
+  setTimeout(boot485,300); setTimeout(boot485,1500); setTimeout(boot485,3500);
+})();
+</script>
+
 </body>
 </html>
