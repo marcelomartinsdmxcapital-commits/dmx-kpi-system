@@ -10300,5 +10300,220 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<!-- PATCH v48.9 — Fechamento definitivo do menu por abas permitidas -->
+<style id="dmx-v48-9-menu-lock-css">
+  .dmx-v489-hidden { display: none !important; }
+</style>
+<script id="dmx-v48-9-menu-lock-js">
+(function(){
+  if(window.__dmxV489MenuLockInstalled) return;
+  window.__dmxV489MenuLockInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  let applying = false;
+
+  function norm(v){
+    return String(v||'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .trim().toUpperCase().replace(/\s+/g,' ');
+  }
+  function key(v){ return norm(v).replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,''); }
+  function split(v){
+    if(Array.isArray(v)) return v.map(x=>String(x||'').trim()).filter(Boolean);
+    return String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean);
+  }
+  function uniq(arr){
+    const seen = new Set();
+    return (arr||[]).filter(x=>{ const k=key(x); if(!k || seen.has(k)) return false; seen.add(k); return true; });
+  }
+  function session(){ try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(e){return null;} }
+  function isAdmin(u){ return ['ADMIN','ADMINISTRADOR'].includes(key(u?.permissao || u?.perfilApi || u?.perfil || u?.cargo)); }
+  function tabs(u){
+    return uniq([].concat(
+      split(u?.abas),
+      split(u?.abasAcesso),
+      split(u?.['Abas de Acesso']),
+      split(u?.paginas),
+      split(u?.pages)
+    ));
+  }
+  function areas(u){
+    return uniq([].concat(
+      split(u?.areas),
+      split(u?.area),
+      split(u?.['Área']),
+      split(u?.areasLiberadas)
+    ));
+  }
+  function hasAll(arr){ return (arr||[]).some(x=>['TODAS','TODOS','ALL','*'].includes(key(x))); }
+
+  const PAGE_ALIAS = {
+    dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],
+    diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
+    financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
+    kpis:['CATALOGO DE KPIS','CATALOGO KPI','CATÁLOGO DE KPIS','CATÁLOGO KPI'],
+    atualizar:['ATUALIZAR DADOS','ATUALIZAR'],
+    planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],
+    impacto:['IMPACTO VOP'],
+    ppr:['PLANO PPR','PPR'],
+    indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],
+    'semanal-operacional':['SEMANAL'],
+    admin:['ADMIN / SHEETS','ADMIN','ADMIN SHEETS'],
+    'area-detail':['AREA','ÁREA']
+  };
+
+  function canPage(page,u){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    if(page === 'admin') return false;
+    if(page === 'area-detail') return true;
+    const t = tabs(u);
+    // Se não houver abas explícitas, usuário NÃO recebe menu geral por padrão.
+    // Isso evita liberar Painel Executivo quando o cadastro for restrito por área.
+    if(!t.length) return false;
+    if(hasAll(t)) return true;
+    const tk = t.map(key);
+    return (PAGE_ALIAS[page] || [page]).some(a=>tk.includes(key(a)));
+  }
+  function canArea(area,u){
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const a = areas(u);
+    if(hasAll(a)) return true;
+    return a.map(key).includes(key(area));
+  }
+
+  function hardHide(el, hide){
+    if(!el) return;
+    el.classList.toggle('dmx-v489-hidden', !!hide);
+    if(hide){ el.style.setProperty('display','none','important'); }
+    else { el.style.removeProperty('display'); el.classList.remove('dmx-v488-hidden','dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48'); }
+  }
+
+  function getBaseAreas(){
+    const fromGlobal = Array.isArray(window.AREAS) ? window.AREAS : [];
+    const fromKpis = Array.isArray(window.kpis) ? window.kpis.map(k=>k.area).filter(Boolean) : [];
+    const fromDom = Array.from(document.querySelectorAll('#area-nav-items .nav-item[data-area], .nav-item[data-area]')).map(el=>el.dataset.area).filter(Boolean);
+    return uniq([].concat(fromGlobal, fromKpis, fromDom));
+  }
+
+  function renderAllowedAreaMenu(u){
+    const cont = document.getElementById('area-nav-items');
+    if(!cont || !u) return;
+    const allowed = getBaseAreas().filter(a=>canArea(a,u));
+    const now = Array.from(cont.querySelectorAll('.nav-item[data-area]')).map(el=>key(el.dataset.area)).join('|');
+    const next = allowed.map(key).join('|');
+    if(now !== next){
+      cont.innerHTML = '';
+      allowed.forEach(area=>{
+        const div = document.createElement('div');
+        div.className = 'nav-item';
+        div.dataset.page = 'area-detail';
+        div.dataset.area = area;
+        div.innerHTML = '<span class="icon">▸</span> ' + area;
+        div.onclick = function(){ if(typeof window.nav === 'function') window.nav(this, area); };
+        cont.appendChild(div);
+      });
+    }
+  }
+
+  function fixUserChip(u){
+    const bar = document.querySelector('.topbar');
+    if(!bar || !u) return;
+    document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip,#dmx-final-user-chip').forEach(e=>e.remove());
+    const chip = document.createElement('div');
+    chip.id = 'dmx-final-user-chip';
+    chip.className = 'dmx-security-chip';
+    chip.textContent = '👤 ' + String(u.nome || u.name || u.email || 'Usuário');
+    const pwd = document.getElementById('dmx-change-password-btn');
+    if(pwd && pwd.parentNode) pwd.parentNode.insertBefore(chip, pwd); else bar.appendChild(chip);
+  }
+
+  function firstAllowedNav(){
+    return document.querySelector('.nav-item[data-page]:not(.dmx-v489-hidden)');
+  }
+
+  function applyMenuLock(options={}){
+    if(applying) return;
+    applying = true;
+    try{
+      const u = session();
+      if(!u) return;
+      renderAllowedAreaMenu(u);
+
+      document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+        const page = el.dataset.page;
+        const area = el.dataset.area || '';
+        const allowed = area ? canArea(area,u) : canPage(page,u);
+        hardHide(el, !allowed);
+      });
+
+      // Oculta títulos de seção sem itens visíveis.
+      document.querySelectorAll('.nav-section-label').forEach(label=>{
+        let n = label.nextElementSibling, any = false;
+        while(n && !n.classList.contains('nav-section-label')){
+          if(n.id === 'area-nav-items') any = any || !!n.querySelector('.nav-item:not(.dmx-v489-hidden)');
+          else if(n.matches && n.matches('.nav-item:not(.dmx-v489-hidden)')) any = true;
+          n = n.nextElementSibling;
+        }
+        hardHide(label, !any);
+      });
+
+      fixUserChip(u);
+
+      const active = document.querySelector('.nav-item.active');
+      const activeForbidden = active && active.classList.contains('dmx-v489-hidden');
+      if(options.landing && (!active || activeForbidden)){
+        const el = firstAllowedNav();
+        if(el && typeof window.nav === 'function') window.nav(el, el.dataset.area || undefined);
+      }
+    } finally { applying = false; }
+  }
+
+  // Intercepta cliques em abas proibidas sem alerta e sem redirecionamento em loop.
+  const previousNav = window.nav;
+  if(typeof previousNav === 'function'){
+    window.nav = nav = function(el, areaName){
+      const u = session();
+      if(u && el && el.dataset){
+        const page = el.dataset.page;
+        const area = areaName || el.dataset.area || '';
+        if(area && !canArea(area,u)) return;
+        if(!area && page && !canPage(page,u)) return;
+      }
+      const result = previousNav.apply(this, arguments);
+      setTimeout(()=>applyMenuLock({landing:false}), 40);
+      return result;
+    };
+  }
+
+  function schedule(landing=false){
+    requestAnimationFrame(()=>applyMenuLock({landing}));
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    schedule(true);
+    setTimeout(()=>applyMenuLock({landing:true}), 300);
+    setTimeout(()=>applyMenuLock({landing:false}), 1200);
+  });
+  setTimeout(()=>applyMenuLock({landing:true}), 200);
+  setTimeout(()=>applyMenuLock({landing:false}), 900);
+
+  const sidebar = document.querySelector('.sidebar');
+  if(sidebar && window.MutationObserver){
+    let pending = false;
+    new MutationObserver(()=>{
+      if(pending) return;
+      pending = true;
+      requestAnimationFrame(()=>{ pending=false; applyMenuLock({landing:false}); });
+    }).observe(sidebar,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
+  }
+
+  window.dmxV489ApplyMenuLock = applyMenuLock;
+})();
+</script>
+
 </body>
 </html>
