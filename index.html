@@ -9979,5 +9979,227 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<style id="dmx-v48-7-area-only-fix-css">
+  .dmx-v487-hidden { display:none !important; }
+  #dmx-final-user-chip, #dmx-security-chip, #dmx-user-chip { white-space:nowrap; }
+</style>
+<script id="dmx-v48-7-area-only-fix-js">
+(function(){
+  if(window.__dmxV487AreaOnlyFixInstalled) return;
+  window.__dmxV487AreaOnlyFixInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  const nativeAlert = window.alert ? window.alert.bind(window) : function(){};
+  window.alert = function(msg){
+    const txt = String(msg || '');
+    if(/não possui acesso|nao possui acesso|acesso a esta área|acesso a esta area|acesso a este KPI|acesso para atualizar este KPI/i.test(txt)){
+      try { console.warn('DMX acesso bloqueado silenciosamente:', txt); } catch(e) {}
+      return;
+    }
+    return nativeAlert(msg);
+  };
+
+  function readSession(){
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch(e) { return null; }
+  }
+  function norm(v){
+    return String(v == null ? '' : v)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .trim().toUpperCase();
+  }
+  function splitList(v){
+    if(Array.isArray(v)) return v.map(String).map(s=>s.trim()).filter(Boolean);
+    return String(v || '').split(/[;,|]/).map(s=>s.trim()).filter(Boolean);
+  }
+  function unique(arr){
+    const out=[], seen={};
+    (arr||[]).forEach(x=>{ const k=norm(x); if(k && !seen[k]){ seen[k]=1; out.push(String(x).trim()); }});
+    return out;
+  }
+  function isAdmin(u){
+    u = u || readSession();
+    return ['ADMIN','ADMINISTRADOR'].includes(norm(u && (u.permissao || u.permissaoApi || u.perfil || u.cargo)));
+  }
+  function userAreas(u){
+    u = u || readSession() || {};
+    return unique([].concat(
+      splitList(u.areas), splitList(u.area), splitList(u.Area), splitList(u['Área']), splitList(u.areasLiberadas), splitList(u.areas_liberadas)
+    ));
+  }
+  function userTabs(u){
+    u = u || readSession() || {};
+    return unique([].concat(
+      splitList(u.abas), splitList(u.abasAcesso), splitList(u.abas_de_acesso), splitList(u['Abas de Acesso']), splitList(u.paginas)
+    ));
+  }
+  function hasAll(arr){ return (arr||[]).some(x=>['TODAS','TODOS','*','ALL'].includes(norm(x))); }
+  function canArea(area,u){
+    u = u || readSession();
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    const arr = userAreas(u);
+    if(hasAll(arr)) return true;
+    return arr.map(norm).includes(norm(area));
+  }
+  const PAGE_ALIASES = {
+    dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],
+    diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
+    financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
+    kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],
+    atualizar:['ATUALIZAR DADOS','LANÇAMENTOS','LANCAMENTOS'],
+    planos:['PLANOS DE AÇÃO','PLANOS DE ACAO','PLANO DE AÇÃO','PLANO DE ACAO'],
+    impacto:['IMPACTO VOP'],
+    ppr:['PLANO PPR','PPR'],
+    indice:['ÍNDICE EFICIÊNCIA','INDICE EFICIENCIA','ÍNDICE DE EFICIÊNCIA','INDICE DE EFICIENCIA'],
+    'semanal-operacional':['SEMANAL','ACOMPANHAMENTO SEMANAL'],
+    admin:['ADMIN / SHEETS','ADMIN','SHEETS','ADMINISTRADOR'],
+    'area-detail':['ÁREA','AREA','SETOR','SETORES']
+  };
+  function canPage(page,u){
+    u = u || readSession();
+    if(!u) return false;
+    if(isAdmin(u)) return true;
+    if(page === 'admin') return false;
+    if(page === 'area-detail') return userAreas(u).length > 0 || hasAll(userTabs(u)) || userTabs(u).map(norm).includes('AREA');
+    const tabs = userTabs(u);
+    if(hasAll(tabs)) return true;
+    const aliases = PAGE_ALIASES[page] || [page];
+    return aliases.some(a => tabs.map(norm).includes(norm(a)));
+  }
+  function renderAllowedAreas(){
+    const cont = document.getElementById('area-nav-items');
+    if(!cont || !Array.isArray(window.AREAS)) return;
+    cont.innerHTML = '';
+    const u = readSession();
+    (window.AREAS || []).filter(a => canArea(a,u)).forEach(area=>{
+      const div = document.createElement('div');
+      div.className = 'nav-item dmx-v487-area-item';
+      div.dataset.page = 'area-detail';
+      div.dataset.area = area;
+      div.innerHTML = '<span class="icon">▸</span> ' + area;
+      div.onclick = function(){ stableNav(this, area); };
+      cont.appendChild(div);
+    });
+  }
+  function cleanForbiddenClasses(el, allowed){
+    if(!el) return;
+    ['dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48','dmx-v484-hidden','dmx-v487-hidden'].forEach(c=>el.classList.remove(c));
+    if(!allowed) el.classList.add('dmx-v487-hidden');
+  }
+  function applyStableVisibility(){
+    const u = readSession();
+    if(!u) return;
+    document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+      if(el.dataset.area) return;
+      cleanForbiddenClasses(el, canPage(el.dataset.page,u));
+    });
+    renderAllowedAreas();
+    document.querySelectorAll('#area-nav-items .nav-item[data-area], .nav-item[data-area]').forEach(el=>{
+      cleanForbiddenClasses(el, canArea(el.dataset.area,u));
+    });
+    document.querySelectorAll('.nav-section-label').forEach(label=>{
+      const txt = norm(label.textContent);
+      let n = label.nextElementSibling, any = false;
+      while(n && !n.classList.contains('nav-section-label')){
+        if(n.matches && n.matches('.nav-item:not(.dmx-v487-hidden), #area-nav-items') ){
+          if(n.id === 'area-nav-items') any = any || !!n.querySelector('.nav-item:not(.dmx-v487-hidden)');
+          else any = true;
+        }
+        n = n.nextElementSibling;
+      }
+      label.classList.toggle('dmx-v487-hidden', !any && txt !== 'AREA');
+    });
+    fixUserChip();
+  }
+  function pageTitle(page, areaName){
+    return ({dashboard:'Painel Executivo',diretoria:'Modo Diretoria',financeiro:'Painel Financeiro',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',impacto:'Impacto VOP',ppr:'Plano PPR',indice:'Índice de Eficiência','semanal-operacional':'Acompanhamento Semanal','area-detail':areaName||'Área',admin:'Administração / Google Sheets'})[page] || page;
+  }
+  function callRenderer(page, areaName){
+    try{
+      if(page==='dashboard' && typeof renderDashboard==='function') renderDashboard();
+      else if(page==='diretoria' && typeof renderDiretoria==='function') renderDiretoria();
+      else if(page==='financeiro' && typeof dmxRenderFinanceiro==='function') dmxRenderFinanceiro();
+      else if(page==='kpis' && typeof renderKPICatalog==='function') renderKPICatalog();
+      else if(page==='atualizar' && typeof renderAtualizar==='function') renderAtualizar();
+      else if(page==='planos' && typeof renderPlanos==='function') renderPlanos();
+      else if(page==='impacto' && typeof renderImpacto==='function') renderImpacto();
+      else if(page==='ppr' && typeof renderPPR==='function') renderPPR();
+      else if(page==='indice' && typeof renderIndice==='function') renderIndice();
+      else if(page==='semanal-operacional' && typeof renderWeeklyOperational==='function') renderWeeklyOperational();
+      else if(page==='area-detail' && areaName && typeof renderAreaDetail==='function') renderAreaDetail(areaName);
+      else if(page==='admin' && typeof renderAdminDMX==='function') renderAdminDMX();
+    }catch(e){ console.warn('DMX renderer falhou:', page, e); }
+  }
+  function stableNav(el, areaName){
+    const u = readSession();
+    if(!el || !el.dataset || !u) return;
+    const page = el.dataset.page;
+    const area = areaName || el.dataset.area || '';
+    if(page === 'admin' && !canPage('admin',u)){ return openFirstAllowed(); }
+    if(page === 'area-detail' && !canArea(area,u)){ return openFirstAllowed(); }
+    if(page !== 'area-detail' && !canPage(page,u)){ return openFirstAllowed(); }
+    window.currentPage = currentPage = page;
+    if(area) window.currentArea = area;
+    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active'); p.style.display=''; });
+    const t = document.getElementById('topbar-title');
+    if(t) t.textContent = pageTitle(page, area);
+    const pageEl = document.getElementById('page-' + page);
+    if(pageEl){ pageEl.classList.add('active'); if(page==='kpi-slide'||page==='weekly-slide') pageEl.style.display='flex'; }
+    callRenderer(page, area);
+    setTimeout(applyStableVisibility, 80);
+  }
+  function firstAllowedElement(){
+    applyStableVisibility();
+    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    for(const p of preferred){
+      const el = document.querySelector(`.nav-item[data-page="${p}"]:not(.dmx-v487-hidden)`);
+      if(el) return el;
+    }
+    return document.querySelector('#area-nav-items .nav-item:not(.dmx-v487-hidden), .nav-item[data-area]:not(.dmx-v487-hidden)');
+  }
+  function openFirstAllowed(){
+    const el = firstAllowedElement();
+    if(el) return stableNav(el, el.dataset.area || '');
+  }
+  function fixUserChip(){
+    const u = readSession(); if(!u) return;
+    const bar = document.querySelector('.topbar'); if(!bar) return;
+    document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip').forEach(el=>{ if(el.id !== 'dmx-final-user-chip') el.remove(); });
+    let chip = document.getElementById('dmx-final-user-chip');
+    if(!chip){ chip = document.createElement('div'); chip.id='dmx-final-user-chip'; chip.className='dmx-security-chip';
+      const pwd = document.getElementById('dmx-change-password-btn');
+      if(pwd && pwd.parentNode) pwd.parentNode.insertBefore(chip, pwd); else bar.appendChild(chip);
+    }
+    chip.textContent = '👤 ' + String(u.nome || u.name || u.email || 'Usuário');
+  }
+  function enforce(){
+    if(!readSession()) return;
+    window.nav = nav = stableNav;
+    window.goToArea = goToArea = function(area){
+      let el = document.querySelector(`#area-nav-items .nav-item[data-area="${String(area).replace(/"/g,'\\"')}"]`);
+      if(!el){ renderAllowedAreas(); el = document.querySelector(`#area-nav-items .nav-item[data-area="${String(area).replace(/"/g,'\\"')}"]`); }
+      if(el) stableNav(el, area); else openFirstAllowed();
+    };
+    window.dmxApplyGovernanceVisibility = applyStableVisibility;
+    window.dmxV483CanPage = canPage;
+    window.dmxV483CanArea = canArea;
+    window.dmxV484CanPage = canPage;
+    window.dmxV484CanArea = canArea;
+    applyStableVisibility();
+    const active = document.querySelector('.nav-item.active');
+    const current = window.currentPage || (active && active.dataset && active.dataset.page);
+    if(!active || active.classList.contains('dmx-v487-hidden') || (current && current !== 'area-detail' && !canPage(current)) || (current==='area-detail' && active.dataset.area && !canArea(active.dataset.area))){
+      openFirstAllowed();
+    }
+  }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(enforce,80); setTimeout(enforce,500); setTimeout(enforce,1500); });
+  setTimeout(enforce,100); setTimeout(enforce,700); setTimeout(enforce,2000);
+  setInterval(enforce, 1200);
+})();
+</script>
+
 </body>
 </html>
