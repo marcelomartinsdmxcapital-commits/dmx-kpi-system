@@ -7498,7 +7498,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     }
   }
   function tick(){ patchFunctions(); applyVisibility(); }
-  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(tick,800); setTimeout(tick,1600); setInterval(tick,2500); });
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(tick,800); setTimeout(tick,1600); /* v48.8: desativado para evitar reescrita visual contínua */ });
   setTimeout(tick,1000);
 })();
 </script>
@@ -7630,7 +7630,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function tick(){ const s=renewSession(); if(!s){ if(session()) clearSession(); } hardenAdminButtons(); injectSecurityPanel(); }
   ['click','keydown','mousemove','scroll'].forEach(ev=>document.addEventListener(ev,()=>renewSession(),{passive:true}));
   setInterval(()=>{ const s=session(); if(s && sessionExpired(s)){ clearSession(); showLogin(); toast('Sessão expirada por segurança. Faça login novamente.'); } tick(); },30000);
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(tick,1200)); setTimeout(tick,1800); setInterval(tick,4000);
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(tick,1200)); setTimeout(tick,1800); /* v48.8: desativado para evitar reescrita visual contínua */
 })();
 </script>
 
@@ -8040,7 +8040,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     setTimeout(boot, 600);
     setTimeout(()=>{ patchNavigation(); applySecurityRules(); }, 1500);
   });
-  setInterval(()=>{ if(localSession()){ hideLogin(); patchNavigation(); applySecurityRules(); } }, 5000);
+  /* v48.8: desativado para evitar loop visual: setInterval applySecurityRules */
 })();
 </script>
 
@@ -8927,7 +8927,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     setTimeout(()=>{ applySecurity(); }, 1600);
   });
 
-  setInterval(()=>{ if(session()){ applySecurity(); } }, 3000);
+  /* v48.8: desativado para evitar pisca-pisca: setInterval applySecurity */
 })();
 </script>
 
@@ -9024,7 +9024,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   document.addEventListener('DOMContentLoaded',()=>setTimeout(applyAreaMenu,800));
   setTimeout(applyAreaMenu,1200);
   setTimeout(applyAreaMenu,2500);
-  setInterval(applyAreaMenu,1500);
+  /* v48.8: desativado para evitar recriação contínua do menu de áreas */
 })();
 </script>
 
@@ -9242,7 +9242,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot,80); setTimeout(boot,700); setTimeout(boot,1800); });
   setTimeout(boot,300);
   setTimeout(boot,1500);
-  setInterval(()=>{ try{ applyMenu(); cleanChip(); }catch(e){} }, 800);
+  /* v48.8: desativado para evitar alternância contínua do chip/menu */
 })();
 </script>
 
@@ -9525,7 +9525,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   setTimeout(stabilize,2000);
 
   // Intervalo final mais rápido que os antigos, mas sem recriar elementos; só mantém classes finais.
-  setInterval(stabilize,250);
+  /* v48.8: desativado para evitar loop de redirecionamento */
 })();
 </script>
 
@@ -10197,7 +10197,106 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   document.addEventListener('DOMContentLoaded',()=>{ setTimeout(enforce,80); setTimeout(enforce,500); setTimeout(enforce,1500); });
   setTimeout(enforce,100); setTimeout(enforce,700); setTimeout(enforce,2000);
-  setInterval(enforce, 1200);
+  /* v48.8: desativado para evitar loop de navegação */
+})();
+</script>
+
+
+
+<!-- PATCH v48.8 — Anti-loop definitivo de navegação/permissões -->
+<style id="dmx-v48-8-anti-loop-css">
+  .dmx-v487-hidden,
+  .dmx-v488-hidden { display:none !important; }
+</style>
+<script id="dmx-v48-8-anti-loop-js">
+(function(){
+  if(window.__dmxV488AntiLoopInstalled) return;
+  window.__dmxV488AntiLoopInstalled = true;
+
+  const SESSION_KEY = 'dmx_session_v41';
+  function norm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();}
+  function session(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(e){return null}}
+  function split(v){return Array.isArray(v)?v.map(String).filter(Boolean):String(v||'').split(/[;,|]/).map(x=>x.trim()).filter(Boolean)}
+  function unique(a){const seen=new Set();return (a||[]).filter(x=>{const k=norm(x); if(!k||seen.has(k)) return false; seen.add(k); return true;});}
+  function isAdmin(u){return ['ADMIN','ADMINISTRADOR'].includes(norm(u&&(u.permissao||u.perfil||u.cargo)));}
+  function tabs(u){return unique([].concat(split(u?.abas),split(u?.abasAcesso),split(u?.['Abas de Acesso']),split(u?.paginas)));}
+  function areas(u){return unique([].concat(split(u?.areas),split(u?.area),split(u?.['Área']),split(u?.areasLiberadas)));}
+  function all(arr){return (arr||[]).some(x=>['TODAS','TODOS','*','ALL'].includes(norm(x)));}
+  const aliases={dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],impacto:['IMPACTO VOP'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
+  function canPage(p,u=session()){ if(!u) return false; if(isAdmin(u)) return true; if(p==='admin') return false; if(p==='area-detail') return areas(u).length>0 || tabs(u).map(norm).includes('AREA') || all(tabs(u)); const t=tabs(u); if(all(t)) return true; return (aliases[p]||[p]).some(a=>t.map(norm).includes(norm(a))); }
+  function canArea(a,u=session()){ if(!u) return false; if(isAdmin(u)) return true; const ar=areas(u); if(all(ar)) return true; return ar.map(norm).includes(norm(a)); }
+
+  function fixChip(){
+    const u=session(); if(!u) return;
+    const bar=document.querySelector('.topbar'); if(!bar) return;
+    document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip,#dmx-final-user-chip').forEach(e=>e.remove());
+    const chip=document.createElement('div');
+    chip.id='dmx-final-user-chip'; chip.className='dmx-security-chip';
+    chip.textContent='👤 '+String(u.nome||u.name||u.email||'Usuário');
+    const pwd=document.getElementById('dmx-change-password-btn');
+    if(pwd&&pwd.parentNode) pwd.parentNode.insertBefore(chip,pwd); else bar.appendChild(chip);
+  }
+
+  function renderAreasMenu(){
+    const u=session(); const cont=document.getElementById('area-nav-items');
+    if(!u||!cont) return;
+    const current=Array.from(cont.querySelectorAll('.nav-item[data-area]')).map(e=>norm(e.dataset.area)).join('|');
+    const base=Array.isArray(window.AREAS)?window.AREAS:[];
+    const allowed=base.filter(a=>canArea(a,u));
+    const next=allowed.map(norm).join('|');
+    if(current===next) return;
+    cont.innerHTML='';
+    allowed.forEach(area=>{
+      const div=document.createElement('div'); div.className='nav-item'; div.dataset.page='area-detail'; div.dataset.area=area;
+      div.innerHTML='<span class="icon">▸</span> '+area;
+      div.onclick=function(){ if(typeof window.nav==='function') window.nav(this, area); };
+      cont.appendChild(div);
+    });
+  }
+
+  function applyOnce(){
+    const u=session(); if(!u) return;
+    renderAreasMenu();
+    document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+      const p=el.dataset.page, a=el.dataset.area;
+      const ok=a?canArea(a,u):canPage(p,u);
+      el.classList.toggle('dmx-v488-hidden', !ok);
+      if(ok) el.classList.remove('dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48');
+    });
+    fixChip();
+  }
+
+  function firstAllowed(){
+    applyOnce();
+    return document.querySelector('.nav-item[data-page]:not(.dmx-v488-hidden):not(.dmx-v487-hidden)');
+  }
+
+  // Redireciona apenas uma vez após login, nunca em loop.
+  function landingOnce(){
+    const u=session(); if(!u || window.__dmxV488LandingDone) return;
+    window.__dmxV488LandingDone = true;
+    const active=document.querySelector('.nav-item.active');
+    const forbidden=active && (active.classList.contains('dmx-v488-hidden') || active.classList.contains('dmx-v487-hidden'));
+    if(!active || forbidden){ const el=firstAllowed(); if(el && typeof window.nav==='function') window.nav(el, el.dataset.area||undefined); }
+  }
+
+  const oldNav=window.nav;
+  if(typeof oldNav==='function'){
+    window.nav = nav = function(el, areaName){
+      const u=session();
+      if(u && el && el.dataset){
+        const p=el.dataset.page, a=areaName||el.dataset.area;
+        if((a && !canArea(a,u)) || (p && p!=='area-detail' && !canPage(p,u))){ return; }
+      }
+      const r=oldNav.apply(this, arguments);
+      setTimeout(applyOnce,40);
+      return r;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(()=>{applyOnce(); landingOnce();},120); setTimeout(applyOnce,1000); });
+  setTimeout(()=>{applyOnce(); landingOnce();},300);
+  setTimeout(applyOnce,1500);
 })();
 </script>
 
