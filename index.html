@@ -9715,5 +9715,269 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PATCH v48.6 — Compartilhamento matricial Meta/Controle + Peso por área
+     Objetivo: restaurar no Catálogo KPI a definição de compartilhamento,
+     vertente efetiva por área e peso independente para índice/PPR.
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+  if(window.__dmxV486ShareInstalled) return;
+  window.__dmxV486ShareInstalled = true;
+
+  const SHARE_WEIGHT_KEY = 'dmx_share_pesos_v486';
+  const LEGACY_WEIGHT_KEYS = ['dmx_share_pesos_v28'];
+
+  function toast486(msg){ try{ if(typeof showToast==='function') showToast(msg); }catch(e){} }
+  function norm486(v){ return String(v ?? '').trim(); }
+  function low486(v){ return norm486(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function eq486(a,b){ return low486(a) === low486(b); }
+  function uniq486(arr){ const out=[]; (arr||[]).forEach(x=>{ x=norm486(x); if(x && !out.some(y=>eq486(y,x))) out.push(x); }); return out; }
+  function num486(v, def=0){ const n=Number(String(v ?? '').replace(',','.')); return Number.isFinite(n)?n:def; }
+  function getAreaList486(){
+    const fixed = Array.isArray(window.AREAS) ? window.AREAS : [];
+    const fromKpis = Array.isArray(window.kpis) ? window.kpis.map(k=>k && k.area).filter(Boolean) : [];
+    const extra = ['Cadastro','Checagem','Cobrança','Comercial','Jurídico','MRO','Operações','PP','RH','Trustee','Painel Financeiro'];
+    return uniq486([...fixed, ...fromKpis, ...extra]).filter(a=>!['Mensal','Semanal'].some(x=>eq486(a,x))).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  }
+  function getKpi486(id){
+    try{ if(typeof getKPI==='function'){ const k=getKPI(id); if(k) return k; } }catch(e){}
+    try{ if(typeof adminAllKpis==='function'){ const k=adminAllKpis().find(x=>String(x.id)===String(id)); if(k) return k; } }catch(e){}
+    return (window.kpis||[]).find(k=>String(k.id)===String(id)) || null;
+  }
+  function splitTokens486(raw){
+    return String(raw||'').split(/[\/;|\n]+/).map(x=>norm486(x)).filter(Boolean);
+  }
+  function expandAreaToken486(token, ownArea){
+    const areas = getAreaList486();
+    const t = norm486(token).replace(/^meta\s*:\s*/i,'').replace(/^controle\s*:\s*/i,'');
+    const clean = t.split('@')[0].split(':')[0].trim();
+    if(['companhia','empresa','todos','todas','todas as areas','todas areas','all'].includes(low486(clean))){
+      return areas.filter(a=>!eq486(a, ownArea));
+    }
+    const found = areas.find(a=>eq486(a, clean));
+    return found && !eq486(found, ownArea) ? [found] : [];
+  }
+  function loadPesoMap486(){
+    let p={};
+    try{ p=JSON.parse(localStorage.getItem(SHARE_WEIGHT_KEY)||'{}')||{}; }catch(e){ p={}; }
+    LEGACY_WEIGHT_KEYS.forEach(k=>{
+      try{
+        const legacy=JSON.parse(localStorage.getItem(k)||'{}')||{};
+        Object.keys(legacy).forEach(id=>{ p[id]=Object.assign({}, legacy[id]||{}, p[id]||{}); });
+      }catch(e){}
+    });
+    return p;
+  }
+  function savePesoMap486(p){ try{ localStorage.setItem(SHARE_WEIGHT_KEY, JSON.stringify(p||{})); }catch(e){} }
+  function setPeso486(kpiId, area, peso){
+    const p=loadPesoMap486(); if(!p[kpiId]) p[kpiId]={}; p[kpiId][area]=num486(peso,0); savePesoMap486(p);
+  }
+  function getPeso486(kpiId, area, fallback){
+    const p=loadPesoMap486();
+    const hit = p[kpiId] && Object.keys(p[kpiId]).find(a=>eq486(a,area));
+    if(hit) return num486(p[kpiId][hit], fallback||0);
+    return num486(fallback,0);
+  }
+
+  function parseCompartilhar486(kpi){
+    const own = norm486(kpi && kpi.area);
+    const sh = { responsavel: norm486(kpi && kpi.responsavel) || own, meta_areas: [], controle_areas: {}, pesos: {} };
+    const raw = String((kpi && kpi.compartilhar) || '').trim();
+    splitTokens486(raw).forEach(tok=>{
+      let t=norm486(tok);
+      let isControle=/^(controle|control|c)\s*:/i.test(t);
+      let isMeta=/^(meta|m)\s*:/i.test(t);
+      t=t.replace(/^(controle|control|c|meta|m)\s*:\s*/i,'');
+      let areaPart=t, pesoPart='';
+      // Aceita: Meta:Comercial:25, Comercial:25, Comercial@25
+      if(t.includes('@')){ const parts=t.split('@'); areaPart=parts[0]; pesoPart=parts[1]; }
+      else {
+        const parts=t.split(':');
+        if(parts.length>1){ areaPart=parts[0]; pesoPart=parts[1]; }
+      }
+      const areas = expandAreaToken486(areaPart, own);
+      areas.forEach(area=>{
+        if(isControle){ sh.controle_areas[area]=true; }
+        else { sh.meta_areas.push(area); }
+        if(pesoPart!=='' && !isControle){
+          const peso=num486(pesoPart,0); sh.pesos[area]=peso; setPeso486(kpi.id, area, peso);
+        }
+      });
+    });
+    sh.meta_areas=uniq486(sh.meta_areas.filter(a=>!eq486(a, own) && !sh.controle_areas[a]));
+    Object.keys(sh.controle_areas).forEach(a=>{ if(eq486(a,own)) delete sh.controle_areas[a]; });
+    return sh;
+  }
+  function serializeCompartilhar486(kpi, sh){
+    const own = norm486(kpi && kpi.area);
+    const parts=[];
+    uniq486(sh.meta_areas||[]).filter(a=>!eq486(a,own)).forEach(area=>{
+      const peso = getPeso486(kpi.id, area, (sh.pesos||{})[area] || 0);
+      parts.push('Meta:' + area + ':' + num486(peso,0));
+    });
+    uniq486(Object.keys(sh.controle_areas||{})).filter(a=>!eq486(a,own)).forEach(area=>parts.push('Controle:' + area));
+    return parts.join('/');
+  }
+  async function persistShare486(kpi, sh, silent){
+    if(!kpi || !kpi.id) return {ok:false,error:'KPI não encontrado'};
+    const compartilhar = serializeCompartilhar486(kpi, sh);
+    kpi.compartilhar = compartilhar;
+    if(sh.responsavel) kpi.responsavel = sh.responsavel;
+    try{ if(typeof persist==='function') persist(); }catch(e){}
+    let resp={ok:true,local:true};
+    try{
+      if(typeof dmxApiPost==='function'){
+        resp = await dmxApiPost('editarKPI', { id:kpi.id, compartilhar, responsavel:kpi.responsavel || kpi.area });
+      } else if(typeof dmxSalvarKPI==='function'){
+        resp = await dmxSalvarKPI({ id:kpi.id, compartilhar, responsavel:kpi.responsavel || kpi.area });
+      }
+    }catch(e){ resp={ok:false,error:e.message}; }
+    try{ if(typeof refreshDimensions==='function') refreshDimensions(); }catch(e){}
+    if(!silent) toast486(resp && resp.ok ? '✓ Compartilhamento salvo' : '⚠ Compartilhamento salvo localmente; verifique a API');
+    setTimeout(()=>{ try{ if(typeof renderCurrentPage==='function') renderCurrentPage(); }catch(e){} },80);
+    return resp;
+  }
+
+  window.dmxShareGet = function(kpiId){ return parseCompartilhar486(getKpi486(kpiId)||{}); };
+  window.dmxLoadShares = function(){ const map={}; (window.kpis||[]).forEach(k=>{ if(k&&k.id) map[k.id]=parseCompartilhar486(k); }); return map; };
+  window.dmxShareSetPeso = async function(kpiId, area, val){
+    const kpi=getKpi486(kpiId); if(!kpi) return;
+    const sh=parseCompartilhar486(kpi); setPeso486(kpiId, area, val); sh.pesos[area]=num486(val,0);
+    await persistShare486(kpi, sh, true);
+    toast486('✓ Peso salvo: '+num486(val,0).toFixed(2)+'% em '+area);
+  };
+  window.dmxShareToggleArea = async function(kpiId, tipo, area, checked){
+    const kpi=getKpi486(kpiId); if(!kpi) return;
+    const sh=parseCompartilhar486(kpi);
+    if(tipo==='meta'){
+      if(checked){ if(!sh.meta_areas.some(a=>eq486(a,area))) sh.meta_areas.push(area); delete sh.controle_areas[area]; if(!sh.pesos[area]) sh.pesos[area]=getPeso486(kpiId, area, 0); }
+      else { sh.meta_areas=sh.meta_areas.filter(a=>!eq486(a,area)); }
+    }else{
+      if(checked){ sh.controle_areas[area]=true; sh.meta_areas=sh.meta_areas.filter(a=>!eq486(a,area)); }
+      else delete sh.controle_areas[area];
+    }
+    await persistShare486(kpi, sh, true);
+    setTimeout(()=>{ try{ openKPIModal(kpiId); }catch(e){} },120);
+  };
+  window.dmxShareSetResp = async function(kpiId, area){
+    const kpi=getKpi486(kpiId); if(!kpi) return;
+    const sh=parseCompartilhar486(kpi); sh.responsavel=area; await persistShare486(kpi, sh, false);
+  };
+
+  window.buildShareSection = function(kpiId){
+    const kpi=getKpi486(kpiId); if(!kpi) return '';
+    const sh=parseCompartilhar486(kpi);
+    const areas=getAreaList486();
+    const respOpts=areas.map(a=>'<option value="'+a+'"'+(eq486((sh.responsavel||kpi.responsavel||kpi.area),a)?' selected':'')+'>'+a+'</option>').join('');
+    const rows=areas.map(a=>{
+      const isOwn=eq486(a,kpi.area);
+      const isMeta=isOwn ? eq486(kpi.vertente,'Meta') : (sh.meta_areas||[]).some(x=>eq486(x,a));
+      const isControle=isOwn ? eq486(kpi.vertente,'Controle') : !!Object.keys(sh.controle_areas||{}).find(x=>eq486(x,a));
+      const peso = isOwn ? num486(kpi.peso_indice,0) : getPeso486(kpi.id, a, (sh.pesos||{})[a] || 0);
+      const badge=isOwn?'<span style="font-size:9px;background:#E0F5F0;color:var(--teal);border-radius:3px;padding:1px 5px;font-weight:700;margin-left:5px">Área dona</span>':'';
+      const pesoInput=isMeta
+        ? '<input class="edit-cell" type="number" min="0" max="100" step="0.01" value="'+peso.toFixed(2)+'" '+(isOwn?'disabled':'onchange="dmxShareSetPeso(\''+kpiId+'\',\''+a+'\',this.value)"')+' style="width:78px"> %'
+        : '<span style="font-size:11px;color:var(--muted)">—</span>';
+      return '<tr style="border-bottom:1px solid #F0F2F8">'+
+        '<td style="padding:7px 10px;font-size:12px;font-weight:'+(isOwn?'700':'400')+'">'+a+badge+'</td>'+ 
+        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isMeta?'checked':'')+(isOwn?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--teal)" '+(!isOwn?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'meta\',\''+a+'\',this.checked)"':'')+'></td>'+ 
+        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isControle?'checked':'')+(isOwn?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--amber)" '+(!isOwn?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'controle\',\''+a+'\',this.checked)"':'')+'></td>'+ 
+        '<td style="padding:7px 10px;text-align:center">'+pesoInput+'</td>'+ 
+        '<td style="padding:7px 10px">'+(isMeta?'<span class="status-pill VERDE" style="font-size:9px">Meta / calcula índice</span>':isControle?'<span class="status-pill AMARELO" style="font-size:9px">Controle</span>':'<span style="color:var(--muted);font-size:11px">Não compartilhado</span>')+'</td>'+ 
+      '</tr>';
+    }).join('');
+    const count=(sh.meta_areas||[]).length + Object.keys(sh.controle_areas||{}).length;
+    return '<div class="dmx-share-section block-card" style="padding:14px;margin:14px 0">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px">'+
+        '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:var(--text)">⇄ Compartilhamento do KPI entre áreas '+(count?'<span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px">'+count+' área(s)</span>':'')+'</div>'+ 
+        '<span style="font-size:10px;color:var(--muted)">Meta entra no índice/PPR da área. Controle apenas monitora.</span>'+ 
+      '</div>'+ 
+      '<div style="display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-bottom:12px">'+
+        '<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:5px">Responsável pelo lançamento</div><select style="width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;font-family:inherit;color:var(--text)" onchange="dmxShareSetResp(\''+kpiId+'\',this.value)">'+respOpts+'</select></div>'+ 
+        '<div style="background:#F8FAFD;border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--muted);line-height:1.65"><strong style="color:var(--text)">Regra operacional:</strong> cada área pode usar o mesmo KPI como <b>Meta</b> ou <b>Controle</b>. Se for Meta, informe o peso individual da área; esse peso será usado no Índice de Eficiência e no Plano PPR.</div>'+ 
+      '</div>'+ 
+      '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--bg3)"><th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Área</th><th style="padding:8px 10px;text-align:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--teal)">Meta</th><th style="padding:8px 10px;text-align:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--amber)">Controle</th><th style="padding:8px 10px;text-align:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#2563EB">Peso da área</th><th style="padding:8px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Efeito</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+ 
+    '</div>';
+  };
+
+  window.sharedEntriesFor = function(area){
+    const entries=[];
+    (window.kpis||[]).forEach(k=>{
+      if(!k || eq486(k.area, area)) return;
+      const sh=parseCompartilhar486(k);
+      const asMeta=(sh.meta_areas||[]).some(a=>eq486(a,area));
+      const asControle=Object.keys(sh.controle_areas||{}).some(a=>eq486(a,area));
+      if(asMeta || asControle){
+        const peso = asMeta ? getPeso486(k.id, area, (sh.pesos||{})[area] || k.peso_indice || 0) : 0;
+        entries.push(Object.assign({}, k, { area:area, vertente:asMeta?'Meta':'Controle', peso_indice:peso, _sharedFrom:k.area, _originalArea:k.area, _shared:true }));
+      }
+    });
+    return entries;
+  };
+  window.pesoCompartilhado = function(kpiId, area){ const k=getKpi486(kpiId); const sh=parseCompartilhar486(k||{}); return getPeso486(kpiId, area, (sh.pesos||{})[area] || (k&&k.peso_indice) || 0); };
+
+  function installOpenModal486(){
+    const old=window.openKPIModal; if(typeof old!=='function') return false;
+    if(window.__dmxV486OpenModalWrapped) return true;
+    window.__dmxV486OpenModalWrapped=true;
+    window.openKPIModal=function(id){
+      const ret=old.apply(this,arguments);
+      setTimeout(()=>{
+        const mc=document.getElementById('kpi-modal-content') || document.querySelector('#kpi-modal .modal'); if(!mc) return;
+        mc.querySelectorAll('.dmx-share-section').forEach(el=>el.remove());
+        const div=document.createElement('div'); div.innerHTML=window.buildShareSection(id);
+        const sec=div.firstElementChild;
+        const buttons=Array.from(mc.querySelectorAll('button')).filter(b=>/Plano|Atualizar|Fechar|Salvar/i.test(b.textContent||''));
+        const footer=buttons.length ? buttons[0].closest('div') : null;
+        if(footer && footer.parentNode===mc) mc.insertBefore(sec, footer); else mc.appendChild(sec);
+      },160);
+      return ret;
+    };
+    return true;
+  }
+  function installArea486(){
+    const old=window.renderAreaDetail; if(typeof old!=='function') return false;
+    if(window.__dmxV486AreaWrapped) return true;
+    window.__dmxV486AreaWrapped=true;
+    window.renderAreaDetail=function(area){
+      const orig=window.kpis || [];
+      const extras=window.sharedEntriesFor(area);
+      const seen={};
+      window.kpis=[...orig, ...extras].filter(k=>{ const key=String(k.id)+'__'+String(k.area); if(seen[key]) return false; seen[key]=true; return true; });
+      try{ return old.apply(this, arguments); } finally { window.kpis=orig; }
+    };
+    return true;
+  }
+  function installIndice486(){
+    const old=window.dmxIndiceArea; if(typeof old!=='function') return false;
+    if(window.__dmxV486IndiceWrapped) return true;
+    window.__dmxV486IndiceWrapped=true;
+    window.dmxIndiceArea=function(area, mes, ano){
+      const r=old.apply(this, arguments) || {itens:[],indice:0,indiceMes:0,indiceAcum:0,somaPesos:0};
+      const existing={}; (r.itens||[]).forEach(it=>{ if(it&&it.kpi) existing[String(it.kpi.id)+'__'+String(area)] = true; });
+      window.sharedEntriesFor(area).filter(k=>eq486(k.vertente,'Meta')).forEach(k=>{
+        const key=String(k.id)+'__'+String(area); if(existing[key]) return;
+        const peso=num486(k.peso_indice,0); if(!peso) return;
+        const l=typeof getLaunch==='function' ? getLaunch(k.id,mes,ano) : null;
+        const ref=typeof resolveRef==='function' ? resolveRef(k,mes,ano) : {meta:k.meta};
+        const at=(l && typeof calcAting==='function') ? calcAting(k.sentido,l.realizado,ref.meta) : null;
+        const atp=at!==null ? at*100 : null;
+        const contrib=atp==null ? 0 : atp*peso/100;
+        r.itens.push({kpi:k,lanc:l,atingPct:atp,peso,contrib,contribMes:contrib,contribAcum:contrib,_shared:true});
+        r.indice=(r.indice||0)+contrib; r.indiceMes=(r.indiceMes||0)+contrib; r.indiceAcum=(r.indiceAcum||0)+contrib; r.somaPesos=(r.somaPesos||0)+peso;
+      });
+      return r;
+    };
+    return true;
+  }
+  function boot486(){ installOpenModal486(); installArea486(); installIndice486(); }
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot486,200); setTimeout(boot486,1000); setTimeout(boot486,2500); });
+  setTimeout(boot486,300); setTimeout(boot486,1500);
+})();
+</script>
+
 </body>
 </html>
