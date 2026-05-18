@@ -662,17 +662,32 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           <select class="filter-input" id="weekly-month-filter" onchange="renderWeeklyOperational()"></select>
           <select class="filter-input" id="weekly-year-filter" onchange="renderWeeklyOperational()"><option value="2026">2026</option></select>
           <button class="btn btn-primary btn-sm" onclick="openWeeklySelection()">Selecionar KPIs</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('weekly-entry-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">Lançar Realizados</button>
         </div>
       </div>
       <div class="cards-row" id="weekly-summary-cards" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="block-card" style="margin-bottom:16px;border-left:4px solid var(--teal)">
         <div style="font-size:12.5px;color:var(--muted);line-height:1.5">
-          <strong style="color:var(--text)">Como usar:</strong> selecione os KPIs críticos por área e acompanhe as 4 etapas do mês com base nos dados oficiais do Google Sheets. A barra final mostra a <strong>média mensal realizada</strong> no eixo secundário.
+          <strong style="color:var(--text)">Como usar:</strong> primeiro selecione a área, o mês e os KPIs críticos. Depois use a seção <strong>Lançamento semanal por etapa</strong>, logo abaixo dos cards/gráficos, para informar somente <strong>Realizado</strong> e <strong>Comentário</strong>. A tendência é calculada automaticamente pela média das etapas lançadas, usando a meta/mínimo/máximo mensal do período selecionado.
         </div>
       </div>
       <div id="weekly-kpi-grid" class="kpi-grid cols-2"></div>
-      <div class="section-header" style="margin-top:18px"><div class="section-title">Comentários e lançamentos da área</div></div>
-      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Semana</th><th>Realizado</th><th>Meta semana</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th></tr></thead><tbody></tbody></table></div>
+      <div id="weekly-entry-panel" class="section-header" style="margin-top:22px;align-items:flex-start;gap:14px;flex-wrap:wrap">
+        <div>
+          <div class="section-title">Lançamento semanal por etapa</div>
+          <div class="text-muted text-sm mt-1">Escolha a etapa a ser editada. A tela mostrará somente essa etapa para evitar lançamentos no lugar errado.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+          <label class="text-muted text-sm font-bold" for="weekly-entry-step-filter">Etapa a editar</label>
+          <select class="filter-input" id="weekly-entry-step-filter" onchange="renderWeeklyOperational()">
+            <option value="1">Etapa 1</option>
+            <option value="2">Etapa 2</option>
+            <option value="3">Etapa 3</option>
+            <option value="4">Etapa 4</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th><th>Ação</th></tr></thead><tbody></tbody></table></div>
     </div>
 
   </div>
@@ -5043,11 +5058,59 @@ function weeklyKpiCard(kpi, mes, ano){
   const s = weeklySummary(kpi.id, mes, ano);
   return `<div class="kpi-chart-card"><div class="kpi-card-top"><div><div class="kpi-card-id">${kpi.id}</div><div class="kpi-card-name">${kpi.indicador}</div><div class="text-muted text-sm mt-1">${kpi.area} · ${kpi.vertente||''}</div></div><span class="status-pill ${s.status.cls}">${s.status.label}</span></div><div class="kpi-card-nums"><div class="kpi-num-cell"><div class="kpi-num-label">Média Real.</div><div class="kpi-num-value">${weeklyFmt(s.real,kpi.unidade)}</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Meta média</div><div class="kpi-num-value">${weeklyFmt(s.meta,kpi.unidade)}</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Ating.</div><div class="kpi-num-value">${weeklyPct(s.ating)}</div></div></div><div class="kpi-card-chart" style="height:170px"><canvas id="weekly-mini-${kpi.id}-${mes}-${ano}"></canvas></div><div class="kpi-card-footer" onclick="openWeeklyKpiDetail('${kpi.id}')">Ver análise semanal completa →</div></div>`;
 }
+function currentWeeklyEtapa(){
+  const el = document.getElementById('weekly-stage-filter');
+  const n = Number(el?.value || 1);
+  return [1,2,3,4].includes(n) ? n : 1;
+}
+function weeklyCanEditKpi(kpi){
+  try{
+    if(typeof dmxCan === 'function' && !dmxCan('canEditRealizado')) return false;
+    if(typeof dmxGovCanAccessKPI === 'function' && !dmxGovCanAccessKPI(kpi.id || kpi)) return false;
+    if(typeof dmxGovCan === 'function' && !dmxGovCan('salvar_lancamento')) return false;
+  }catch(e){ return false; }
+  return true;
+}
+function weeklyCalcTrend(id, mes, ano){
+  return weeklyAverage(id, mes, ano, 'realizado');
+}
+function weeklyEsc(v){
+  return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+async function saveWeeklyEntry(id, etapa){
+  const k = weeklyGetKpi(id);
+  if(!k) return;
+  if(!weeklyCanEditKpi(k)){ toast('Somente leitura para este KPI.'); return; }
+  const mes = currentWeeklyMes(), ano = currentWeeklyAno();
+  const ref = weeklyResolveRef(k, mes, ano) || {};
+  const realEl = document.getElementById(`weekly-real-${id}-${etapa}`);
+  const obsEl  = document.getElementById(`weekly-obs-${id}-${etapa}`);
+  const realizado = weeklyNum(realEl?.value);
+  if(realizado === null){ toast('Informe um realizado válido.'); return; }
+  const row = {
+    id_kpi: id,
+    area: k.area || '',
+    mes_num: mes,
+    ano: ano,
+    etapa: etapa,
+    realizado: realizado,
+    meta: ref.meta,
+    minimo: ref.minimo,
+    maximo: ref.maximo,
+    comentario: obsEl ? obsEl.value : '',
+    updated_at: new Date().toISOString()
+  };
+  upsertWeekly([row]);
+  toast('✓ Lançamento semanal salvo');
+  renderWeeklyOperational();
+}
 function renderWeeklyOperational(){
   fillWeeklyFilters();
-  const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+  const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno(), etapaSel = currentWeeklyEtapa();
   const ids = selectedForArea(area);
-  const kpiList = ids.map(weeklyGetKpi).filter(Boolean);
+  const kpiList = ids.map(weeklyGetKpi).filter(Boolean).filter(k=>{
+    try{ return typeof dmxGovCanAccessKPI === 'function' ? dmxGovCanAccessKPI(k.id) : true; }catch(e){ return true; }
+  });
   const summaries = kpiList.map(k=>weeklySummary(k.id,mes,ano));
   const vals = summaries.map(s=>s.ating).filter(v=>v!==null && v!==undefined);
   const media = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
@@ -5059,7 +5122,27 @@ function renderWeeklyOperational(){
   if(grid){ grid.innerHTML = kpiList.length ? kpiList.map(k=>weeklyKpiCard(k,mes,ano)).join('') : '<div class="block-card">Nenhum KPI selecionado para esta área. Clique em <strong>Selecionar KPIs</strong>.</div>'; }
   setTimeout(()=>kpiList.forEach(k=>{ const c=document.getElementById('weekly-mini-'+k.id+'-'+mes+'-'+ano); if(c) makeWeeklyChart(c,k,mes,ano,false); }),0);
   const tb = document.querySelector('#weekly-table tbody');
-  if(tb){ tb.innerHTML = kpiList.flatMap(k=>WEEKLY_ETAPAS.map(e=>{ const r=getWeeklyLaunch(k.id,mes,ano,e); const at=r?weeklyCalcAting(k,r.realizado,r.meta):null; const st=weeklyStatusByPct(at); return `<tr><td><span class="font-mono text-muted">${k.id}</span> ${k.indicador}</td><td>Semana ${e}</td><td>${weeklyFmt(r?r.realizado:null,k.unidade)}</td><td>${weeklyFmt(r?r.meta:null,k.unidade)}</td><td>${weeklyPct(at)}</td><td><span class="status-pill ${st.cls}">${st.label}</span></td><td>${weeklyFmt(r?r.tendencia_fechamento:null,k.unidade)}</td><td>${r&&r.comentario?r.comentario:''}</td></tr>`; })).join(''); }
+  if(tb){
+    tb.innerHTML = kpiList.map(k=>{
+      const r = getWeeklyLaunch(k.id,mes,ano,etapaSel);
+      const ref = weeklyResolveRef(k, mes, ano) || {};
+      const real = r ? weeklyNum(r.realizado) : null;
+      const at = weeklyCalcAting(k, real, ref.meta);
+      const st = weeklyStatusByPct(at);
+      const trend = weeklyCalcTrend(k.id, mes, ano);
+      const canEdit = weeklyCanEditKpi(k);
+      const realCell = canEdit
+        ? `<input class="edit-cell" id="weekly-real-${weeklyEsc(k.id)}-${etapaSel}" value="${real ?? ''}" placeholder="Realizado">`
+        : weeklyFmt(real,k.unidade);
+      const obsCell = canEdit
+        ? `<textarea class="filter-input" id="weekly-obs-${weeklyEsc(k.id)}-${etapaSel}" rows="2" style="min-width:220px;width:100%" placeholder="Comentário da etapa">${weeklyEsc(r?.comentario || '')}</textarea>`
+        : weeklyEsc(r?.comentario || '');
+      const actionCell = canEdit
+        ? `<button class="btn btn-primary btn-sm" onclick="saveWeeklyEntry('${weeklyEsc(k.id)}',${etapaSel})">Salvar</button>`
+        : '<span class="text-muted text-sm">Somente leitura</span>';
+      return `<tr><td><span class="font-mono text-muted">${weeklyEsc(k.id)}</span> ${weeklyEsc(k.indicador)}</td><td><strong>Etapa ${etapaSel}</strong></td><td>${realCell}</td><td>${weeklyFmt(ref.meta,k.unidade)}</td><td>${weeklyFmt(ref.minimo,k.unidade)}</td><td>${weeklyFmt(ref.maximo,k.unidade)}</td><td>${weeklyPct(at)}</td><td><span class="status-pill ${st.cls}">${st.label}</span></td><td>${weeklyFmt(trend,k.unidade)}</td><td>${obsCell}</td><td>${actionCell}</td></tr>`;
+    }).join('');
+  }
 }
 // ─── WEEKLY SLIDE (fullscreen, navegável) ────────────────────────────────────
 let weeklySlideList = [];
@@ -10512,6 +10595,227 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   window.dmxV489ApplyMenuLock = applyMenuLock;
+})();
+</script>
+
+
+
+<script id="dmx-v49-weekly-entry-monthly-ref">
+/*
+  v49 — Semanal operacional editável por permissão
+  - Realizado e comentário lançados no sistema por etapa.
+  - Tendência calculada automaticamente pelas etapas preenchidas.
+  - Meta, mínimo e máximo vêm sempre da referência mensal do KPI no mês/ano selecionado.
+  - Sem autorização de edição: leitura apenas.
+*/
+(function(){
+  function nkey(v){
+    return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  }
+  function esc(v){
+    return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  }
+  function splitList(v){
+    if(Array.isArray(v)) return v.map(x=>String(x||'').trim()).filter(Boolean);
+    return String(v||'').split(/[;,/|]+/).map(x=>x.trim()).filter(Boolean);
+  }
+  function getUser(){
+    try{
+      if(window.DMX_CURRENT_USER) return window.DMX_CURRENT_USER;
+      const raw = localStorage.getItem('dmx_current_user_v48') || localStorage.getItem('dmx_current_user_v43') || localStorage.getItem('dmx_user_session_v48') || localStorage.getItem('dmx_user_session_v43');
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function isAdminUser(u){
+    const p = nkey(u && (u.permissao || u.perfilApi || u.perfil || u.role));
+    return p === 'ADMIN' || p === 'ADMINISTRADOR';
+  }
+  function isEditorUser(u){
+    const p = nkey(u && (u.permissao || u.perfilApi || u.perfil || u.role));
+    return isAdminUser(u) || p === 'EDICAO' || p === 'EDITOR' || p === 'EDITAR';
+  }
+  function userCanArea(area, u){
+    if(!u) return false;
+    if(isAdminUser(u)) return true;
+    const areas = splitList(u.areas || u.area || u['Área'] || u.areasAcesso || u.setores || u.abasSetor);
+    if(areas.some(a => ['TODOS','TODAS','ALL','*'].includes(nkey(a)))) return true;
+    return areas.map(nkey).includes(nkey(area));
+  }
+  window.dmxCanEditWeeklyKPI = function(kpi){
+    const u = getUser();
+    if(!u) return false;
+    if(typeof window.dmxCan === 'function' && !window.dmxCan('canEditRealizado') && !isAdminUser(u)) return false;
+    return isAdminUser(u) || (isEditorUser(u) && userCanArea(kpi && kpi.area, u));
+  };
+  window.dmxWeeklyMonthlyRef = function(kpi, mes, ano){
+    let ref = {};
+    try{ ref = (typeof resolveRef === 'function') ? resolveRef(kpi, mes, ano) : {}; }catch(e){ ref = {}; }
+    function num(v){
+      if(v === null || v === undefined || v === '') return null;
+      if(typeof v === 'string') v = v.replace(/R\$/g,'').replace(/%/g,'').replace(/\./g,'').replace(',', '.').trim();
+      const n = Number(v); return Number.isFinite(n) ? n : null;
+    }
+    return {
+      meta:   num(ref.meta   ?? kpi?.meta),
+      minimo: num(ref.minimo ?? kpi?.minimo),
+      maximo: num(ref.maximo ?? kpi?.maximo)
+    };
+  };
+  window.dmxWeeklyProjectionType = function(kpi){
+    const raw = nkey(kpi && (kpi.tipo_projecao || kpi.projecao || kpi.acumulado || kpi.tipo_acumulado || kpi.regra_acumulado));
+    if(raw.includes('SOMA') || raw.includes('ACUM') || raw.includes('VOLUME') || raw.includes('VALOR')) return 'ACUMULADO';
+    return 'MEDIA';
+  };
+  window.dmxWeeklyTrend = function(kpi, mes, ano){
+    const vals = (typeof WEEKLY_ETAPAS !== 'undefined' ? WEEKLY_ETAPAS : [1,2,3,4]).map(e => {
+      const r = typeof getWeeklyLaunch === 'function' ? getWeeklyLaunch(kpi.id, mes, ano, e) : null;
+      return typeof weeklyNum === 'function' ? weeklyNum(r && r.realizado) : Number(r && r.realizado);
+    }).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
+    if(!vals.length) return null;
+    const avg = vals.reduce((s,v)=>s+Number(v),0) / vals.length;
+    return dmxWeeklyProjectionType(kpi) === 'ACUMULADO' ? avg * 4 : avg;
+  };
+  window.dmxSaveWeeklyCell = function(id, etapa){
+    const kpi = typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null;
+    if(!kpi) return;
+    if(!window.dmxCanEditWeeklyKPI(kpi)){
+      if(typeof showToast === 'function') showToast('⚠ Sem permissão para editar este KPI semanal');
+      else alert('Sem permissão para editar este KPI semanal.');
+      return;
+    }
+    const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+    const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+    const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+    const realEl = document.getElementById('weekly-real-'+id+'-'+etapa);
+    const obsEl  = document.getElementById('weekly-obs-'+id+'-'+etapa);
+    const row = {
+      id_kpi:String(id),
+      area:kpi.area || '',
+      indicador:kpi.indicador || '',
+      mes_num:Number(mes),
+      ano:Number(ano),
+      etapa:Number(etapa),
+      realizado: typeof weeklyNum === 'function' ? weeklyNum(realEl ? realEl.value : null) : Number(realEl ? realEl.value : null),
+      meta:ref.meta,
+      minimo:ref.minimo,
+      maximo:ref.maximo,
+      comentario:obsEl ? obsEl.value : ''
+    };
+    if(typeof upsertWeekly === 'function') upsertWeekly([row]);
+    if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+    if(typeof showToast === 'function') showToast('✓ Lançamento semanal salvo');
+  };
+
+  if(typeof weeklySummary === 'function'){
+    window.weeklySummary = weeklySummary = function(id, mes, ano){
+      const k = weeklyGetKpi(id);
+      const real = dmxWeeklyTrend(k, mes, ano);
+      const ref = dmxWeeklyMonthlyRef(k, mes, ano);
+      const at = weeklyCalcAting(k, real, ref.meta);
+      return {kpi:k, real, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, ating:at, status:weeklyStatusByPct(at), tipo_projecao:dmxWeeklyProjectionType(k)};
+    };
+  }
+
+  if(typeof renderWeeklyOperational === 'function'){
+    window.renderWeeklyOperational = renderWeeklyOperational = function(){
+      fillWeeklyFilters();
+      const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+      const stepEl = document.getElementById('weekly-entry-step-filter');
+      const selectedStep = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1)));
+      const ids = selectedForArea(area);
+      const kpiList = ids.map(weeklyGetKpi).filter(Boolean);
+      const summaries = kpiList.map(k=>weeklySummary(k.id,mes,ano));
+      const vals = summaries.map(s=>s.ating).filter(v=>v!==null && v!==undefined);
+      const media = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+      const crit = summaries.filter(s=>s.ating!==null && s.ating<90).length;
+      const alerta = summaries.filter(s=>s.ating!==null && s.ating>=90 && s.ating<100).length;
+      const cards = document.getElementById('weekly-summary-cards');
+      if(cards) cards.innerHTML = `<div class="kpi-card teal"><div class="card-label">KPIs acompanhados</div><div class="card-value teal">${kpiList.length}</div><div class="card-sub">${area==='__ALL__'?'Todos os setores':esc(area)}</div></div><div class="kpi-card blue"><div class="card-label">Atingimento médio</div><div class="card-value blue">${weeklyPct(media)}</div><div class="card-sub">tendência calculada pelas etapas</div></div><div class="kpi-card red"><div class="card-label">Críticos</div><div class="card-value red">${crit}</div><div class="card-sub">abaixo de 90%</div></div><div class="kpi-card amber"><div class="card-label">Em alerta</div><div class="card-value amber">${alerta}</div><div class="card-sub">entre 90% e 100%</div></div>`;
+      const grid = document.getElementById('weekly-kpi-grid');
+      if(grid){ grid.innerHTML = kpiList.length ? kpiList.map(k=>weeklyKpiCard(k,mes,ano)).join('') : '<div class="block-card">Nenhum KPI selecionado para esta área. Clique em <strong>Selecionar KPIs</strong>.</div>'; }
+      setTimeout(()=>kpiList.forEach(k=>{ const c=document.getElementById('weekly-mini-'+k.id+'-'+mes+'-'+ano); if(c) makeWeeklyChart(c,k,mes,ano,false); }),0);
+      const table = document.getElementById('weekly-table');
+      if(table){
+        const head = table.querySelector('thead tr');
+        if(head) head.innerHTML = '<th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th><th>Ação</th>';
+      }
+      const tb = document.querySelector('#weekly-table tbody');
+      if(tb){
+        const e = selectedStep;
+        tb.innerHTML = kpiList.map(k=>{
+          const canEdit = window.dmxCanEditWeeklyKPI(k);
+          const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
+          const trend = window.dmxWeeklyTrend(k, mes, ano);
+          const trendAt = weeklyCalcAting(k, trend, ref.meta);
+          const trendSt = weeklyStatusByPct(trendAt);
+          const r = getWeeklyLaunch(k.id,mes,ano,e);
+          const real = r ? weeklyNum(r.realizado) : null;
+          const at = weeklyCalcAting(k, real, ref.meta);
+          const st = weeklyStatusByPct(at);
+          const realCell = canEdit
+            ? `<input id="weekly-real-${esc(k.id)}-${e}" class="edit-cell" type="number" step="0.01" value="${real ?? ''}" style="width:96px">`
+            : weeklyFmt(real,k.unidade);
+          const obsCell = canEdit
+            ? `<textarea id="weekly-obs-${esc(k.id)}-${e}" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px">${esc(r && r.comentario ? r.comentario : '')}</textarea>`
+            : `<span style="white-space:pre-wrap">${esc(r && r.comentario ? r.comentario : '')}</span>`;
+          const actionCell = canEdit
+            ? `<button class="btn btn-primary btn-sm" onclick="dmxSaveWeeklyCell('${esc(k.id)}',${e})">Salvar</button>`
+            : '<span class="text-muted text-sm">Leitura</span>';
+          return `<tr>
+            <td><span class="font-mono text-muted">${esc(k.id)}</span> ${esc(k.indicador)}<div class="text-muted text-sm">${esc(k.area||'')} · ${dmxWeeklyProjectionType(k)==='ACUMULADO'?'Projeção acumulada':'Média'}</div></td>
+            <td><strong>Etapa ${e}</strong></td>
+            <td>${realCell}</td>
+            <td>${weeklyFmt(ref.meta,k.unidade)}</td>
+            <td>${weeklyFmt(ref.minimo,k.unidade)}</td>
+            <td>${weeklyFmt(ref.maximo,k.unidade)}</td>
+            <td>${weeklyPct(at)}</td>
+            <td><span class="status-pill ${st.cls}">${st.label}</span></td>
+            <td>${weeklyFmt(trend,k.unidade)} <span class="status-pill ${trendSt.cls}" style="font-size:9px;margin-left:4px">${trendSt.label}</span></td>
+            <td>${obsCell}</td>
+            <td>${actionCell}</td>
+          </tr>`;
+        }).join('');
+      }
+    };
+  }
+
+  if(typeof downloadWeeklyTemplate === 'function'){
+    const previousDownloadWeeklyTemplate = downloadWeeklyTemplate;
+    window.downloadWeeklyTemplate = downloadWeeklyTemplate = function(){
+      const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+      const allKpis = window.kpis||kpis||[];
+      let ids;
+      if(area === '__ALL__'){
+        const allAreas = [...new Set(allKpis.map(k=>String(k.area||'').trim()).filter(a=>a&&a.toLowerCase()!=='mensal'))];
+        const sel = loadWeeklySelection();
+        ids = [];
+        allAreas.forEach(a => {
+          if(Array.isArray(sel[a]) && sel[a].length) ids.push(...sel[a]);
+          else ids.push(...allKpis.filter(k=>k.area===a && String(k.vertente||'').trim().toLowerCase()==='meta').slice(0,4).map(k=>k.id));
+        });
+        ids = [...new Set(ids)];
+      } else ids = selectedForArea(area);
+      const header = 'id_kpi;area;mes_num;ano;etapa;realizado;meta_mensal;minimo_mensal;maximo_mensal;comentario';
+      const rows = [];
+      ids.forEach(id => {
+        const k = weeklyGetKpi(id);
+        const ref = k ? dmxWeeklyMonthlyRef(k, mes, ano) : {};
+        WEEKLY_ETAPAS.forEach(e => rows.push([id, k?k.area:'', mes, ano, e, '', ref.meta??'', ref.minimo??'', ref.maximo??'', ''].join(';')));
+      });
+      const csv = header+'\n'+rows.join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = area==='__ALL__' ? 'template_semanal_todos_setores_DMX.csv' : 'template_lancamento_semanal_DMX.csv';
+      a.click(); URL.revokeObjectURL(a.href);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if(typeof renderWeeklyOperational === 'function'){
+      try{ renderWeeklyOperational(); }catch(e){}
+    }
+  });
 })();
 </script>
 
