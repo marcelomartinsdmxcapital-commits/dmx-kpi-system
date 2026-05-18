@@ -763,8 +763,20 @@ const PLANOS_RAW=[];
 
 // \u2500\u2500\u2500 STATE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 let currentPage = 'dashboard';
-let currentMes = 12;
-let currentAno = 2026;
+let currentMes = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem('dmx_ui_state_v49') || '{}');
+    const m = Number(s.currentMes || s.mes);
+    return (m >= 1 && m <= 12) ? m : (new Date().getMonth() + 1);
+  } catch(e) { return new Date().getMonth() + 1; }
+})();
+let currentAno = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem('dmx_ui_state_v49') || '{}');
+    const a = Number(s.currentAno || s.ano);
+    return (a >= 2020 && a <= 2100) ? a : new Date().getFullYear();
+  } catch(e) { return new Date().getFullYear(); }
+})();
 let editingLancId = null;
 let editingPlanoId = null;
 let pendingUpdates = {};
@@ -1180,7 +1192,7 @@ function init() {
   try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); dmxSaveCatalogToStorage(); } catch(e) {}
   buildSidebar();
   buildFilters();
-  renderDashboard();
+  if (typeof dmxBootRenderState === 'function') dmxBootRenderState(); else renderDashboard();
   updatePlanosBadge();
   // Se uma URL do Apps Script já tiver sido configurada, atualiza o catálogo automaticamente.
   setTimeout(() => dmxCarregarCatalogoDaAPI(false), 300);
@@ -11075,5 +11087,161 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<!-- PATCH v51 — Estado inicial sem flicker e persistência estável de navegação/período/filtros -->
+<script id="dmx-v51-state-persistence-stable">
+(function(){
+  'use strict';
+  const KEY = 'dmx_ui_state_v49';
+  const DEFAULT_PAGE = 'dashboard';
+  const FILTER_IDS = [
+    'mes-sel','ano-sel','weekly-area-filter','weekly-month-filter','weekly-year-filter','weekly-entry-step-filter',
+    'kpi-area-filter','kpi-pilar-filter','kpi-status-filter','upd-area-filter','upd-vertente-filter',
+    'plano-area-filter','plano-status-filter','indice-area-filter','indice-search','area-mes-sel','slide-mes-sel','weekly-slide-mes-sel'
+  ];
+  const PAGE_TITLES = {
+    dashboard:'Painel Executivo', areas:'Visão por Área', diretoria:'Modo Diretoria', financeiro:'Painel Financeiro',
+    kpis:'Catálogo de KPIs', atualizar:'Atualizar Dados do Mês', planos:'Planos de Ação',
+    indice:'Índice de Eficiência', ppr:'Plano PPR', admin:'Admin / Sheets',
+    'semanal-operacional':'Acompanhamento Semanal', 'area-detail':'Área'
+  };
+
+  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function write(next){ try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, read(), next || {}, {updatedAt:new Date().toISOString()}))); } catch(e){} }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function currentMonth(){ return new Date().getMonth() + 1; }
+  function currentYear(){ return new Date().getFullYear(); }
+  function normalPage(p){ return p === 'kpi-slide' ? 'area-detail' : (p === 'weekly-slide' ? 'semanal-operacional' : (p || DEFAULT_PAGE)); }
+  function savedPeriod(){ const s=read(); return { mes: validMonth(s.currentMes || s.mes) || currentMonth(), ano: validYear(s.currentAno || s.ano) || currentYear() }; }
+  function cssEsc(v){ try { return CSS.escape(String(v)); } catch(e){ return String(v).replace(/"/g,'\\"'); } }
+  function setGlobal(page, area){
+    page = normalPage(page);
+    window.currentPage = currentPage = page;
+    if(page === 'area-detail') window.currentArea = currentArea = (area || window.currentArea || '');
+    else window.currentArea = currentArea = '';
+  }
+  function ensureOption(sel, value, label){
+    if(!sel || value === undefined || value === null || value === '') return;
+    const v=String(value);
+    if(!Array.from(sel.options||[]).some(o=>String(o.value)===v)) sel.add(new Option(label || v, v));
+  }
+  function setValue(id, value){
+    const el=document.getElementById(id); if(!el || value === undefined || value === null || value === '') return false;
+    ensureOption(el, value, value); el.value=String(value); return true;
+  }
+  function syncPeriod(mes, ano){
+    const m=validMonth(mes), a=validYear(ano);
+    if(m) window.currentMes = currentMes = m;
+    if(a) window.currentAno = currentAno = a;
+    if(m) ['mes-sel','area-mes-sel','slide-mes-sel','weekly-month-filter','weekly-slide-mes-sel'].forEach(id=>setValue(id,m));
+    if(a) ['ano-sel','weekly-year-filter'].forEach(id=>setValue(id,a));
+  }
+  function applySavedFilters(){
+    const s=read(), f=s.filters||{};
+    Object.keys(f).forEach(id=>setValue(id,f[id]));
+    syncPeriod(f['mes-sel'] || s.currentMes, f['ano-sel'] || s.currentAno);
+  }
+  function collectFilters(){
+    const f=Object.assign({}, read().filters||{});
+    FILTER_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) f[id]=el.value; });
+    return f;
+  }
+  function saveState(extra){
+    const active=document.querySelector('.nav-item.active[data-page]');
+    const page=normalPage((window.currentPage || (active && active.dataset.page) || DEFAULT_PAGE));
+    const area = page === 'area-detail' ? (window.currentArea || (active && active.dataset.area) || '') : '';
+    const mes=validMonth(window.currentMes || document.getElementById('mes-sel')?.value) || currentMonth();
+    const ano=validYear(window.currentAno || document.getElementById('ano-sel')?.value) || currentYear();
+    write(Object.assign({currentPage:page,currentArea:area,currentMes:mes,currentAno:ano,filters:collectFilters()}, extra||{}));
+  }
+  window.dmxSaveUiState = saveState;
+
+  function renderPage(page, area){
+    page=normalPage(page); area = page === 'area-detail' ? area : '';
+    setGlobal(page, area);
+    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+    let navEl = null;
+    if(page === 'area-detail' && area) navEl = document.querySelector('.nav-item[data-page="area-detail"][data-area="'+cssEsc(area)+'"]');
+    if(!navEl) navEl = document.querySelector('.nav-item[data-page="'+cssEsc(page)+'"]');
+    if(navEl) navEl.classList.add('active');
+    document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active'); p.style.display=''; });
+    const pageEl=document.getElementById('page-'+page);
+    if(pageEl){ pageEl.classList.add('active'); if(page==='kpi-slide'||page==='weekly-slide') pageEl.style.display='flex'; }
+    const title=document.getElementById('topbar-title'); if(title) title.textContent = page === 'area-detail' ? (area || 'Área') : (PAGE_TITLES[page] || page);
+    try{
+      if(page==='dashboard' && typeof renderDashboard==='function') renderDashboard();
+      else if(page==='areas' && typeof renderAreas==='function') renderAreas();
+      else if(page==='diretoria' && typeof renderDiretoria==='function') renderDiretoria();
+      else if(page==='financeiro' && typeof renderFinanceiro==='function') renderFinanceiro();
+      else if(page==='kpis' && typeof renderKPICatalog==='function') renderKPICatalog();
+      else if(page==='atualizar' && typeof renderAtualizar==='function') renderAtualizar();
+      else if(page==='planos' && typeof renderPlanos==='function') renderPlanos();
+      else if(page==='semanal-operacional' && typeof renderWeeklyOperational==='function') renderWeeklyOperational();
+      else if(page==='indice' && typeof renderIndice==='function') renderIndice();
+      else if(page==='ppr' && typeof renderPPR==='function') renderPPR();
+      else if(page==='admin' && typeof renderAdminDMX==='function') renderAdminDMX(true);
+      else if(page==='area-detail' && area && typeof renderAreaDetail==='function') renderAreaDetail(area);
+      else if(typeof renderCurrentPage==='function') renderCurrentPage();
+    }catch(e){ console.warn('Falha ao renderizar estado salvo:', e); }
+  }
+
+  window.dmxBootRenderState = function(){
+    const s=read(), p=savedPeriod();
+    syncPeriod(p.mes,p.ano);
+    applySavedFilters();
+    const page=normalPage(s.currentPage || DEFAULT_PAGE);
+    const area=page === 'area-detail' ? (s.currentArea || '') : '';
+    renderPage(page, area);
+    setTimeout(function(){ applySavedFilters(); if(typeof dmxApplyGovernanceVisibility==='function') dmxApplyGovernanceVisibility(); if(typeof dmxApplyApiSecurityRules==='function') dmxApplyApiSecurityRules(); saveState(); }, 120);
+  };
+
+  // Define período e página antes do DOMContentLoaded executar o init original, evitando renderização inicial no Painel Executivo.
+  const bootPeriod=savedPeriod();
+  syncPeriod(bootPeriod.mes, bootPeriod.ano);
+  const bootState=read();
+  setGlobal(normalPage(bootState.currentPage || DEFAULT_PAGE), bootState.currentPage === 'area-detail' ? bootState.currentArea : '');
+
+  function installNavOverride(){
+    if(window.__dmxV51NavInstalled) return;
+    window.__dmxV51NavInstalled = true;
+    const oldNav = window.nav;
+    window.nav = nav = function(el, areaName){
+      if(!el || !el.dataset) return;
+      const page=normalPage(el.dataset.page);
+      const area=page==='area-detail' ? (areaName || el.dataset.area || '') : '';
+      if(typeof oldNav === 'function'){
+        try { oldNav.call(this, el, area || undefined); }
+        catch(e){ console.warn('Navegação base falhou, usando v51:', e); renderPage(page, area); }
+      } else renderPage(page, area);
+      setGlobal(page, area);
+      if(page==='area-detail' && area){ const t=document.getElementById('topbar-title'); if(t) t.textContent=area; }
+      saveState({currentPage:page,currentArea:area});
+    };
+    window.navTo = navTo = function(page){ const p=normalPage(page); const el=document.querySelector('.nav-item[data-page="'+cssEsc(p)+'"]'); if(el) nav(el); else renderPage(p,''); saveState({currentPage:p,currentArea:''}); };
+    window.goToArea = goToArea = function(area){ const el=document.querySelector('.nav-item[data-page="area-detail"][data-area="'+cssEsc(area)+'"]'); if(el) nav(el,area); else renderPage('area-detail',area); saveState({currentPage:'area-detail',currentArea:area}); };
+  }
+
+  const oldPeriod = window.onPeriodChange;
+  window.onPeriodChange = onPeriodChange = function(){
+    if(typeof oldPeriod==='function') oldPeriod.apply(this,arguments);
+    syncPeriod(document.getElementById('mes-sel')?.value, document.getElementById('ano-sel')?.value);
+    saveState();
+  };
+
+  document.addEventListener('change', function(ev){
+    const el=ev.target; if(!el || !el.id || !FILTER_IDS.includes(el.id)) return;
+    if(el.id==='mes-sel' || el.id==='ano-sel') syncPeriod(document.getElementById('mes-sel')?.value, document.getElementById('ano-sel')?.value);
+    if(el.id==='weekly-month-filter') syncPeriod(el.value, document.getElementById('weekly-year-filter')?.value || document.getElementById('ano-sel')?.value);
+    if(el.id==='weekly-year-filter') syncPeriod(document.getElementById('weekly-month-filter')?.value || document.getElementById('mes-sel')?.value, el.value);
+    if(el.id==='area-mes-sel' || el.id==='slide-mes-sel' || el.id==='weekly-slide-mes-sel') syncPeriod(el.value, document.getElementById('ano-sel')?.value);
+    saveState();
+  }, true);
+  document.addEventListener('input', function(ev){ if(ev.target && ev.target.id && FILTER_IDS.includes(ev.target.id)) saveState(); }, true);
+  document.addEventListener('DOMContentLoaded', function(){ installNavOverride(); setTimeout(installNavOverride,250); setTimeout(function(){ applySavedFilters(); saveState(); },700); });
+  setTimeout(installNavOverride,0);
+})();
+</script>
 </body>
 </html>
