@@ -493,7 +493,6 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
     <div class="nav-item" data-page="atualizar" onclick="nav(this)"><span class="icon">⊙</span> Atualizar Dados</div>
     <div class="nav-item" data-page="planos" onclick="nav(this)"><span class="icon">◪</span> Planos de Ação <span class="nav-badge badge-amber" id="planos-badge"></span></div>
     <div class="nav-section-label">Análise</div>
-    <div class="nav-item" data-page="impacto" onclick="nav(this)"><span class="icon">◬</span> Impacto VOP</div>
     <div class="nav-item" data-page="semanal-operacional" onclick="nav(this)"><span class="icon">▣</span> Semanal</div>
     <div class="nav-section-label">Área</div>
     <div id="area-nav-items"></div>
@@ -547,7 +546,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <div class="scroll-box">
         <div class="scroll-box-body">
           <table class="data-table" id="critical-table">
-            <thead><tr><th>KPI</th><th>Área</th><th>Realizado</th><th>Meta</th><th>Atingimento</th><th>Status</th><th>Impacto VOP</th></tr></thead>
+            <thead><tr><th>KPI</th><th>Área</th><th>Realizado</th><th>Meta</th><th>Atingimento</th><th>Status</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -632,24 +631,6 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <div id="planos-board"></div>
     </div>
 
-    <!-- IMPACTO VOP -->
-    <div class="page" id="page-impacto">
-      <div class="cards-row" id="ebitda-cards" style="grid-template-columns:repeat(3,1fr)"></div>
-      <div class="two-col">
-        <div>
-          <div class="section-header"><div class="section-title">Ranking por Impacto VOP</div></div>
-          <div class="table-wrap"><table class="data-table" id="ebitda-table">
-            <thead><tr><th>Rank</th><th>KPI</th><th>Área</th><th>Impacto R$</th><th>Status</th></tr></thead>
-            <tbody></tbody>
-          </table></div>
-        </div>
-        <div>
-          <div class="section-header"><div class="section-title">Impacto por Área</div></div>
-          <div class="block-card" style="padding:14px"><div style="height:300px"><canvas id="ebitda-bar-chart"></canvas></div></div>
-        </div>
-      </div>
-    </div>
-
     <!-- SEMANAL OPERACIONAL -->
     <div class="page" id="page-semanal-operacional">
       <div class="section-header">
@@ -668,7 +649,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <div class="cards-row" id="weekly-summary-cards" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="block-card" style="margin-bottom:16px;border-left:4px solid var(--teal)">
         <div style="font-size:12.5px;color:var(--muted);line-height:1.5">
-          <strong style="color:var(--text)">Como usar:</strong> primeiro selecione a área, o mês e os KPIs críticos. Depois use a seção <strong>Lançamento semanal por etapa</strong>, logo abaixo dos cards/gráficos, para informar somente <strong>Realizado</strong> e <strong>Comentário</strong>. A tendência é calculada automaticamente pela média das etapas lançadas, usando a meta/mínimo/máximo mensal do período selecionado.
+          <strong style="color:var(--text)">Como usar:</strong> primeiro selecione a área, o mês e os KPIs críticos. Depois use a seção <strong>Lançamento semanal por etapa</strong>, logo abaixo dos cards/gráficos, para escolher a etapa, informar <strong>Realizado</strong> e <strong>Comentário</strong>, e salvar todos os lançamentos da etapa de uma só vez. A tendência é calculada automaticamente pela média das etapas lançadas, usando a meta/mínimo/máximo mensal do período selecionado.
         </div>
       </div>
       <div id="weekly-kpi-grid" class="kpi-grid cols-2"></div>
@@ -685,9 +666,10 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
             <option value="3">Etapa 3</option>
             <option value="4">Etapa 4</option>
           </select>
+          <button class="btn btn-primary btn-sm" onclick="dmxSaveWeeklySelectedStepAll()">💾 Salvar lançamentos da etapa</button>
         </div>
       </div>
-      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th><th>Ação</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th></tr></thead><tbody></tbody></table></div>
     </div>
 
   </div>
@@ -1392,7 +1374,7 @@ function nav(el, areaName) {
   });
   const titles = {dashboard:'Painel Executivo', areas:'Vis\u00E3o por \u00C1rea', kpis:'Cat\u00E1logo de KPIs',
     atualizar:'Atualizar Dados do M\u00EAs', planos:'Planos de A\u00E7\u00E3o',
-    impacto:'Impacto VOP', 'area-detail': areaName || '\u00C1rea', 'semanal-operacional': 'Acompanhamento Semanal'};
+     'area-detail': areaName || '\u00C1rea', 'semanal-operacional': 'Acompanhamento Semanal'};
   document.getElementById('topbar-title').textContent = titles[page] || page;
   const pageEl = document.getElementById('page-' + page);
   if (pageEl) {
@@ -1404,7 +1386,7 @@ function nav(el, areaName) {
   else if (page === 'kpis') renderKPICatalog();
   else if (page === 'atualizar') renderAtualizar();
   else if (page === 'planos') renderPlanos();
-  else if (page === 'impacto') renderImpacto();
+  
   else if (page === 'semanal-operacional') renderWeeklyOperational();
   else if (page === 'area-detail' && areaName) renderAreaDetail(areaName);
     else if (page === 'kpi-slide') { /* rendered by openKPISlide */ }
@@ -1423,7 +1405,7 @@ function onPeriodChange() {
   if (currentPage === 'dashboard') renderDashboard();
   else if (currentPage === 'kpis') renderKPICatalog();
   else if (currentPage === 'atualizar') renderAtualizar();
-  else if (currentPage === 'impacto') renderImpacto();
+  
   else if (currentPage === 'semanal-operacional') renderWeeklyOperational();
   else if (currentPage === 'area-detail') renderAreaDetail(document.getElementById('topbar-title').textContent);
   else if (currentPage === 'areas') renderAreas();
@@ -1477,8 +1459,7 @@ function renderDashboard() {
     card('teal','KPIs Monitorados',total,'teal', MES[currentMes]+' '+currentAno) +
     card('green','No Verde',verde,'green', pct(verde)+'% do total') +
     card('amber','Em Alerta',amarelo,'amber', pct(amarelo)+'% do total') +
-    card('red','Cr\u00EDtico',vermelho,'red', pct(vermelho)+'% do total') +
-    card('blue','Impacto VOP',fmtImpact(totalImpact),'blue','vs. metas do per\u00EDodo',true);
+    card('red','Cr\u00EDtico',vermelho,'red', pct(vermelho)+'% do total');
 
   renderAreaCards('area-grid', data, 2);
   renderDonut(verde, amarelo, vermelho, total);
@@ -1495,7 +1476,6 @@ function renderDashboard() {
       '<td>' + fmtVal(l.meta, l.unidade) + '</td>' +
       '<td>' + (at!==null ? Math.round(at*100)+'%' : '\u2014') + '</td>' +
       '<td>' + pill(l.status) + '</td>' +
-      '<td style="font-weight:600;color:' + (l.impacto>=0?'var(--green)':'var(--red)') + '">' + fmtImpact(l.impacto) + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -1988,7 +1968,6 @@ function renderKPISlide() {
           '<div class="slide-detail-row"><span class="slide-detail-label">Sentido</span><span class="slide-detail-val">' + kpi.sentido + '</span></div>' +
           '<div class="slide-detail-row"><span class="slide-detail-label">Acumulado</span><span class="slide-detail-val">' + fmtAccumType(kpi) + '</span></div>' +
           renderDirectionalRefsHtml(kpi, ref) +
-          '<div class="slide-detail-row"><span class="slide-detail-label">Impacto</span><span class="slide-detail-val" style="color:' + (impact >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtImpact(impact) + '</span></div>' +
           '<div class="slide-detail-row"><span class="slide-detail-label">Resp.</span><span class="slide-detail-val">' + kpi.responsavel + '</span></div>' +
         '</div>' +
         // \u2500\u2500 MONTH DATA SUMMARY \u2500\u2500
@@ -2424,7 +2403,6 @@ function renderLancamentos() {
       '<td>'+fmtVal(l.realizado,l.unidade)+'</td><td>'+fmtVal(l.meta,l.unidade)+'</td>'+
       '<td>'+(at!==null?Math.round(at*100)+'%':'\u2014')+'</td>'+
       '<td>'+pill(l.status)+'</td>'+
-      '<td style="font-weight:600;color:'+(l.impacto>=0?'var(--green)':'var(--red)')+'">'+fmtImpact(l.impacto)+'</td>'+
       '<td><button class="btn btn-ghost btn-sm" onclick="openEditLancamento(\''+l.id_kpi+'\','+l.mes_num+','+l.ano+')">\u270E</button></td>'+
       '</tr>';
   }).join('');
@@ -3038,39 +3016,8 @@ function openNewPlano() { editingPlanoId=null; buildPlanoForm({}); document.getE
 function openNewPlanoForKPI(kpiId) { editingPlanoId=null; buildPlanoForm({id_kpi:kpiId}); document.getElementById('plano-modal').classList.add('open'); }
 function openEditPlano(id) { const p=planos.find(x=>x.id===id); if(!p)return; editingPlanoId=id; buildPlanoForm(p); document.getElementById('plano-modal').classList.add('open'); }
 
-function renderImpacto() {
-  const data = byPeriod(currentMes, currentAno);
-  const pos = data.filter(l=>l.impacto>0).reduce((s,l)=>s+l.impacto,0);
-  const neg = data.filter(l=>l.impacto<0).reduce((s,l)=>s+l.impacto,0);
-  const liq = pos+neg;
-  document.getElementById('ebitda-cards').innerHTML =
-    card('teal','Impacto L\u00EDquido',fmtImpact(liq),liq>=0?'teal':'red', MES[currentMes]+' '+currentAno, true) +
-    card('green','Impacto Positivo','+R$ '+Math.round(pos).toLocaleString('pt-BR'),'green','KPIs acima da meta',true) +
-    card('red','Impacto Negativo',fmtImpact(neg),'red','KPIs abaixo da meta',true);
-  const sorted = [...data].sort((a,b)=>(a.impacto||0)-(b.impacto||0));
-  document.querySelector('#ebitda-table tbody').innerHTML = sorted.map((l,i) =>
-    '<tr><td class="text-muted text-sm">#'+(i+1)+'</td>'+
-    '<td style="cursor:pointer" onclick="openKPIModal(\''+l.id_kpi+'\')">'+l.indicador.slice(0,32)+'</td>'+
-    '<td><span class="tag tag-area">'+l.area+'</span></td>'+
-    '<td style="font-weight:700;color:'+(l.impacto>=0?'var(--green)':'var(--red)')+'">'+fmtImpact(l.impacto)+'</td>'+
-    '<td>'+pill(l.status)+'</td></tr>'
-  ).join('');
-  const byArea = {};
-  AREAS.forEach(a=>byArea[a]=0);
-  data.forEach(l=>{if(byArea[l.area]!==undefined)byArea[l.area]+=(l.impacto||0);});
-  const vals = AREAS.map(a=>byArea[a]);
-  const colors = vals.map(v=>v>=0?'#16A34A':'#DC2626');
-  const ctx = document.getElementById('ebitda-bar-chart').getContext('2d');
-  if (ebitdaBarChart) ebitdaBarChart.destroy();
-  ebitdaBarChart = new Chart(ctx, {
-    type:'bar', data:{labels:AREAS, datasets:[{data:vals,backgroundColor:colors,borderRadius:4}]},
-    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
-      scales:{ x:{grid:{color:'#F0F2F8'}, ticks:{color:'#6B7A99',font:{size:10},callback:v=>'R$'+Math.round(v/1000)+'k'}, border:{display:false}},
-               y:{grid:{display:false}, ticks:{color:'#1A2340',font:{size:11}}, border:{color:'#DDE2EE'}} },
-      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmtImpact(c.raw)}}}, animation:{duration:400}
-    }
-  });
-}
+function renderImpacto(){ if(typeof showToast==='function') showToast('Módulo removido da ferramenta.'); }
+
 
 // \u2500\u2500\u2500 KPI MODAL \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function openKPIModal(id) {
@@ -3103,7 +3050,7 @@ function openKPIModal(id) {
     '<div><span class="text-muted">Sentido:</span> '+kpi.sentido+' \u00B7 <span class="text-muted">Unid:</span> '+kpi.unidade+'</div>'+
     '<div><span class="text-muted">M\u00EDn:</span> '+fmtVal(kpi.minimo,kpi.unidade)+' \u00B7 <span class="text-muted">M\u00E1x:</span> '+fmtVal(kpi.maximo,kpi.unidade)+'</div>'+
     '<div><span class="text-muted">Resp:</span> '+kpi.responsavel+'</div>'+
-    '<div><span class="text-muted">Sensibilidade VOP:</span> '+kpi.peso_ebitda+'</div></div></div>'+
+    '<div><span class="text-muted">:</span> '+kpi.peso_ebitda+'</div></div></div>'+
     '<div class="block-card" style="padding:12px;overflow-y:auto;max-height:180px"><div class="card-label mb-2">Hist\u00F3rico '+currentAno+'</div>'+
     '<table style="width:100%;font-size:11px">'+allYear.map(x=>'<tr><td style="padding:2px 4px;color:var(--muted)">'+MES[x.mes_num]+'</td><td style="padding:2px 4px">'+fmtVal(x.realizado,kpi.unidade)+'</td><td style="padding:2px 4px">'+pill(calcStatus(kpi.sentido, x.realizado, resolveRef(kpi, x.mes_num, currentAno).meta))+'</td></tr>').join('')+'</table></div></div>'+
     (plans.length>0?'<div class="block-card" style="padding:12px;margin-bottom:12px"><div class="card-label mb-2">\u1F4CB Planos de A\u00E7\u00E3o ('+plans.length+')</div>'+plans.map(p=>'<div style="display:flex;gap:10px;margin-bottom:5px;font-size:12px"><span class="font-mono text-muted" style="font-size:10px">'+p.id+'</span><span style="flex:1">'+((p.acao||'').slice(0,60))+'</span>'+pill({'Em andamento':'AMARELO','Conclu\u00EDdo':'VERDE','Atrasado':'VERMELHO'}[p.prioridade]||'NA')+'</div>').join('')+'</div>':'')+
@@ -3481,39 +3428,8 @@ function openNewPlano() { editingPlanoId=null; buildPlanoForm({}); document.getE
 function openNewPlanoForKPI(kpiId) { editingPlanoId=null; buildPlanoForm({id_kpi:kpiId}); document.getElementById('plano-modal').classList.add('open'); }
 function openEditPlano(id) { const p=planos.find(x=>x.id===id); if(!p)return; editingPlanoId=id; buildPlanoForm(p); document.getElementById('plano-modal').classList.add('open'); }
 
-function renderImpacto() {
-  const data = byPeriod(currentMes, currentAno);
-  const pos = data.filter(l=>l.impacto>0).reduce((s,l)=>s+l.impacto,0);
-  const neg = data.filter(l=>l.impacto<0).reduce((s,l)=>s+l.impacto,0);
-  const liq = pos+neg;
-  document.getElementById('ebitda-cards').innerHTML =
-    card('teal','Impacto L\u00EDquido',fmtImpact(liq),liq>=0?'teal':'red', MES[currentMes]+' '+currentAno, true) +
-    card('green','Impacto Positivo','+R$ '+Math.round(pos).toLocaleString('pt-BR'),'green','KPIs acima da meta',true) +
-    card('red','Impacto Negativo',fmtImpact(neg),'red','KPIs abaixo da meta',true);
-  const sorted = [...data].sort((a,b)=>(a.impacto||0)-(b.impacto||0));
-  document.querySelector('#ebitda-table tbody').innerHTML = sorted.map((l,i) =>
-    '<tr><td class="text-muted text-sm">#'+(i+1)+'</td>'+
-    '<td style="cursor:pointer" onclick="openKPIModal(\''+l.id_kpi+'\')">'+l.indicador.slice(0,32)+'</td>'+
-    '<td><span class="tag tag-area">'+l.area+'</span></td>'+
-    '<td style="font-weight:700;color:'+(l.impacto>=0?'var(--green)':'var(--red)')+'">'+fmtImpact(l.impacto)+'</td>'+
-    '<td>'+pill(l.status)+'</td></tr>'
-  ).join('');
-  const byArea = {};
-  AREAS.forEach(a=>byArea[a]=0);
-  data.forEach(l=>{if(byArea[l.area]!==undefined)byArea[l.area]+=(l.impacto||0);});
-  const vals = AREAS.map(a=>byArea[a]);
-  const colors = vals.map(v=>v>=0?'#16A34A':'#DC2626');
-  const ctx = document.getElementById('ebitda-bar-chart').getContext('2d');
-  if (ebitdaBarChart) ebitdaBarChart.destroy();
-  ebitdaBarChart = new Chart(ctx, {
-    type:'bar', data:{labels:AREAS, datasets:[{data:vals,backgroundColor:colors,borderRadius:4}]},
-    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
-      scales:{ x:{grid:{color:'#F0F2F8'}, ticks:{color:'#6B7A99',font:{size:10},callback:v=>'R$'+Math.round(v/1000)+'k'}, border:{display:false}},
-               y:{grid:{display:false}, ticks:{color:'#1A2340',font:{size:11}}, border:{color:'#DDE2EE'}} },
-      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmtImpact(c.raw)}}}, animation:{duration:400}
-    }
-  });
-}
+function renderImpacto(){ if(typeof showToast==='function') showToast('Módulo removido da ferramenta.'); }
+
 
 // \u2500\u2500\u2500 KPI MODAL \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function openKPIModal(id) {
@@ -3546,7 +3462,7 @@ function openKPIModal(id) {
     '<div><span class="text-muted">Sentido:</span> '+kpi.sentido+' \u00B7 <span class="text-muted">Unid:</span> '+kpi.unidade+'</div>'+
     '<div><span class="text-muted">M\u00EDn:</span> '+fmtVal(kpi.minimo,kpi.unidade)+' \u00B7 <span class="text-muted">M\u00E1x:</span> '+fmtVal(kpi.maximo,kpi.unidade)+'</div>'+
     '<div><span class="text-muted">Resp:</span> '+kpi.responsavel+'</div>'+
-    '<div><span class="text-muted">Sensibilidade VOP:</span> '+kpi.peso_ebitda+'</div></div></div>'+
+    '<div><span class="text-muted">:</span> '+kpi.peso_ebitda+'</div></div></div>'+
     '<div class="block-card" style="padding:12px;overflow-y:auto;max-height:180px"><div class="card-label mb-2">Hist\u00F3rico '+currentAno+'</div>'+
     '<table style="width:100%;font-size:11px">'+allYear.map(x=>'<tr><td style="padding:2px 4px;color:var(--muted)">'+MES[x.mes_num]+'</td><td style="padding:2px 4px">'+fmtVal(x.realizado,kpi.unidade)+'</td><td style="padding:2px 4px">'+pill(calcStatus(kpi.sentido, x.realizado, resolveRef(kpi, x.mes_num, currentAno).meta))+'</td></tr>').join('')+'</table></div></div>'+
     (plans.length>0?'<div class="block-card" style="padding:12px;margin-bottom:12px"><div class="card-label mb-2">\u1F4CB Planos de A\u00E7\u00E3o ('+plans.length+')</div>'+plans.map(p=>'<div style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="font-mono text-muted" style="font-size:10px">'+p.id+'</span><span style="font-size:11px;font-weight:600;flex:1">'+(p.kpi_nome||'')+'</span>'+pill({'Em andamento':'AMARELO','Conclu\u00EDdo':'VERDE','Atrasado':'VERMELHO'}[p.prioridade]||'NA')+'</div>'+renderPlanoViewList(p)+'</div>').join('')+'</div>':'')+
@@ -3667,20 +3583,20 @@ function renderDiretoria(){
     const alert=arr.filter(l=>l.status==='AMARELO').length;
     return {area, riscoArea, crit, alert, qtd:arr.length};
   }).sort((a,b)=>b.riscoArea-a.riscoArea || b.crit-a.crit).slice(0,6);
-  const msg1 = risco>0 ? 'Há VOP em risco concentrado em '+(top[0]?.area||'áreas críticas')+'.' : 'Resultado líquido sob controle no período.';
+  const msg1 = risco>0 ? 'Há KPIs em risco concentrado em '+(top[0]?.area||'áreas críticas')+'.' : 'Resultado líquido sob controle no período.';
   const msg2 = vermelhos>0 ? vermelhos+' KPI(s) em condição crítica exigem decisão de gestão.' : 'Nenhum KPI crítico no mês selecionado.';
   const msg3 = atrasados>0 ? atrasados+' plano(s) de ação atrasado(s) precisam de destravamento.' : 'Planos sem atraso relevante registrado.';
   document.getElementById('diretoria-content').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px">
       <div>
         <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo de Performance</div>
-        <div class="text-muted" style="font-size:12.5px;margin-top:4px">Visão diretoria · ${MES[currentMes]} ${currentAno} · KPI → Ação → VOP</div>
+        <div class="text-muted" style="font-size:12.5px;margin-top:4px">Visão diretoria · ${MES[currentMes]} ${currentAno} · KPI → Ação → Resultado</div>
       </div>
       <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
     </div>
     <div class="cards-row" style="grid-template-columns:repeat(5,1fr)">
-      ${card('red','VOP em risco','R$ '+Math.round(risco).toLocaleString('pt-BR'),'red','Somatório dos desvios negativos',true)}
-      ${card(liq>=0?'green':'red','Impacto líquido',fmtImpact(liq),liq>=0?'green':'red','saldo dos KPIs',true)}
+      ${card('red','KPIs em risco','R$ '+Math.round(risco).toLocaleString('pt-BR'),'red','Somatório dos desvios negativos',true)}
+      ${card(liq>=0?'green':'red','Saldo de performance',fmtImpact(liq),liq>=0?'green':'red','saldo dos KPIs',true)}
       ${card('red','KPIs críticos',vermelhos,'red',total?Math.round(vermelhos/total*100)+'% da base':'—')}
       ${card('amber','KPIs em alerta',amarelos,'amber',total?Math.round(amarelos/total*100)+'% da base':'—')}
       ${card(atrasados?'red':'teal','Planos abertos',plansOpen,atrasados?'Atrasados: '+atrasados:'Sem atraso crítico')}
@@ -3695,13 +3611,13 @@ function renderDiretoria(){
         <div style="display:grid;gap:7px;font-size:12.5px;line-height:1.45"><div>• Atacar primeiro os KPIs com maior <strong>prioridade executiva</strong>, não apenas os vermelhos.</div><div>• Todo KPI vermelho sem plano deve sair da reunião com dono, prazo e ação 5W2H.</div><div>• Planos atrasados devem ser destravados pela diretoria ou replanejados formalmente.</div></div>
       </div>
     </div>
-    <div class="section-header"><div class="section-title">Top prioridades executivas</div><span class="section-link">Score = VOP em risco × criticidade</span></div>
-    <div class="table-wrap" style="margin-bottom:18px"><table class="data-table"><thead><tr><th>#</th><th>KPI</th><th>Área</th><th>Status</th><th>VOP em risco</th><th>Prioridade</th><th>Classificação</th><th>Decisão sugerida</th></tr></thead><tbody>
+    <div class="section-header"><div class="section-title">Top prioridades executivas</div><span class="section-link">Score = KPIs em risco × criticidade</span></div>
+    <div class="table-wrap" style="margin-bottom:18px"><table class="data-table"><thead><tr><th>#</th><th>KPI</th><th>Área</th><th>Status</th><th>KPIs em risco</th><th>Prioridade</th><th>Classificação</th><th>Decisão sugerida</th></tr></thead><tbody>
       ${top.map((l,i)=>`<tr style="cursor:pointer" onclick="openKPIModal('${l.id_kpi}')"><td class="font-mono text-muted">#${i+1}</td><td><span class="font-mono text-muted text-sm">${l.id_kpi}</span> ${dmx_escapeHtml(l.indicador)}</td><td><span class="tag tag-area">${dmx_escapeHtml(l.area)}</span></td><td>${pill(l.status)}</td><td style="font-weight:700;color:${dmx_riscoEBITDA(l)>0?'var(--red)':'var(--muted)'}">R$ ${Math.round(dmx_riscoEBITDA(l)).toLocaleString('pt-BR')}</td><td><strong>${dmx_prioridade(l).toLocaleString('pt-BR')}</strong></td><td>${dmx_escapeHtml(dmx_classificacao(l))}</td><td>${dmx_escapeHtml(dmx_decisao(l))}</td></tr>`).join('') || '<tr><td colspan="8" class="text-muted">Nenhuma prioridade crítica para o período.</td></tr>'}
     </tbody></table></div>
-    <div class="two-col"><div><div class="section-header"><div class="section-title">Áreas que mais exigem atenção</div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Área</th><th>Críticos</th><th>Alertas</th><th>VOP em risco</th><th>Direcionamento</th></tr></thead><tbody>
+    <div class="two-col"><div><div class="section-header"><div class="section-title">Áreas que mais exigem atenção</div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Área</th><th>Críticos</th><th>Alertas</th><th>KPIs em risco</th><th>Direcionamento</th></tr></thead><tbody>
       ${areas.map(a=>`<tr onclick="goToArea('${dmx_escapeHtml(a.area)}')" style="cursor:pointer"><td><strong>${dmx_escapeHtml(a.area)}</strong></td><td>${a.crit}</td><td>${a.alert}</td><td><strong>R$ ${Math.round(a.riscoArea).toLocaleString('pt-BR')}</strong></td><td>${a.crit?'Reunião de causa-raiz':'Monitorar tendência'}</td></tr>`).join('')}
-    </tbody></table></div></div><div class="block-card"><div class="section-title" style="margin-bottom:12px">Rito sugerido da reunião semanal</div><div style="display:grid;gap:10px;font-size:12.5px;line-height:1.45"><div><strong>1. Resultado:</strong> validar VOP em risco e impacto líquido.</div><div><strong>2. Foco:</strong> discutir apenas top prioridades executivas.</div><div><strong>3. Causa:</strong> separar problema de dado, processo, cliente ou decisão comercial.</div><div><strong>4. Ação:</strong> atualizar plano 5W2H com responsável e prazo.</div><div><strong>5. Decisão:</strong> registrar bloqueios que dependem da diretoria.</div></div></div></div>`;
+    </tbody></table></div></div><div class="block-card"><div class="section-title" style="margin-bottom:12px">Rito sugerido da reunião semanal</div><div style="display:grid;gap:10px;font-size:12.5px;line-height:1.45"><div><strong>1. Resultado:</strong> validar KPIs em risco e saldo de performance.</div><div><strong>2. Foco:</strong> discutir apenas top prioridades executivas.</div><div><strong>3. Causa:</strong> separar problema de dado, processo, cliente ou decisão comercial.</div><div><strong>4. Ação:</strong> atualizar plano 5W2H com responsável e prazo.</div><div><strong>5. Decisão:</strong> registrar bloqueios que dependem da diretoria.</div></div></div></div>`;
   dmx_updateDiretoriaBadge();
 }
 
@@ -3882,7 +3798,7 @@ function previewImport(){
 function confirmImport(){
   const rows=_importRows||[]; if(!rows.length){showToast('Faça a prévia primeiro.');return;} let saved=0, errors=0;
   rows.forEach(row=>{ if(row.error || !row.kpi){errors++; return;} const kpi=row.kpi, ex=row.existing || getLaunch(row.id,row.mes,row.ano); const meta=row.meta!==undefined?row.meta:(ex?ex.meta:kpi.meta); const minimo=row.minimo!==undefined?row.minimo:(ex?ex.minimo:kpi.minimo); const maximo=row.maximo!==undefined?row.maximo:(ex?ex.maximo:kpi.maximo); const realizado=row.realizado!==undefined?row.realizado:(ex?ex.realizado:null); const comentario=row.comentario || (ex?ex.comentario:''); const status=calcStatus(kpi.sentido,realizado,meta), impacto=calcImpact(kpi.sentido,realizado,meta,kpi.peso_ebitda); if(ex){Object.assign(ex,{realizado,comentario,meta,minimo,maximo,status,impacto});} else launches.push({id_kpi:row.id,area:kpi.area,indicador:kpi.indicador,ano:row.ano,mes_num:row.mes,unidade:kpi.unidade,sentido:kpi.sentido,meta,minimo,maximo,peso_ebitda:kpi.peso_ebitda,realizado,comentario,status,impacto}); saved++; });
-  persist(); closeModal('import-modal'); if(currentPage==='dashboard')renderDashboard(); else if(currentPage==='diretoria')renderDiretoria(); else if(currentPage==='atualizar')renderAtualizar(); else if(currentPage==='impacto')renderImpacto(); dmx_updateDiretoriaBadge(); showToast(`Importação concluída: ${saved} salvo(s), ${errors} erro(s)`);
+  persist(); closeModal('import-modal'); if(currentPage==='dashboard')renderDashboard(); else if(currentPage==='diretoria')renderDiretoria(); else if(currentPage==='atualizar')renderAtualizar();  dmx_updateDiretoriaBadge(); showToast(`Importação concluída: ${saved} salvo(s), ${errors} erro(s)`);
 }
 function downloadTemplate(){
   // Template completo do mês selecionado, com meta/mínimo/máximo preenchidos a partir do cadastro/lançamento atual.
@@ -3931,7 +3847,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.dmxIndiceArea=function(area,mes,ano){let indice=0,somaPesos=0;const itens=(window.kpis||[]).filter(k=>k.area===area&&k.vertente==='Meta').map(k=>{const l=getLaunch(k.id,mes,ano),ref=resolveRef(k,mes,ano);const at=l?calcAting(k.sentido,l.realizado,ref.meta):null;const atp=at==null?null:at*100;const p=peso(k.id);const c=atp==null?0:atp*p/100;indice+=c;somaPesos+=p;return{kpi:k,lanc:l,atingPct:atp,peso:p,contrib:c}});return{area,indice,somaPesos,itens}};
   function installIndice(){
     const navEl=document.querySelector('.sidebar-nav');
-    if(navEl&&!document.querySelector('[data-page="indice"]')){const item=document.createElement('div');item.className='nav-item';item.dataset.page='indice';item.setAttribute('onclick','nav(this)');item.innerHTML='<span class="icon">◎</span> Índice Eficiência';const ref=document.querySelector('[data-page="impacto"]');ref?ref.parentNode.insertBefore(item,ref.nextSibling):navEl.appendChild(item);}
+    if(navEl&&!document.querySelector('[data-page="indice"]')){const item=document.createElement('div');item.className='nav-item';item.dataset.page='indice';item.setAttribute('onclick','nav(this)');item.innerHTML='<span class="icon">◎</span> Índice Eficiência';navEl.appendChild(item);}
     const content=document.querySelector('.content');
     if(content&&!document.getElementById('page-indice')){const page=document.createElement('div');page.className='page';page.id='page-indice';page.innerHTML=`
       <div class="cards-row" id="indice-summary-cards" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -4835,7 +4751,7 @@ window.addEventListener('DOMContentLoaded', init);
   function somaPesos(cfg){ return Number(cfg.peso1||0)+Number(cfg.peso2||0)+Number(cfg.peso3||0)+Number(cfg.pesoArea||0); }
   function statusTxt(v){ return v === null ? 'Sem dados' : v >= 105 ? 'Excelente' : v >= 90 ? 'Dentro' : 'Abaixo'; }
   function ensurePPRPage(){
-    if(!document.querySelector('[data-page="ppr"]')){ const ref = document.querySelector('[data-page="impacto"]'); const item = document.createElement('div'); item.className = 'nav-item'; item.dataset.page = 'ppr'; item.setAttribute('onclick','nav(this)'); item.innerHTML = '<span class="icon">◉</span> Plano PPR'; if(ref) ref.parentNode.insertBefore(item, ref.nextSibling); else document.querySelector('.sidebar-nav')?.appendChild(item); }
+    if(!document.querySelector('[data-page="ppr"]')){ const ref = null; const item = document.createElement('div'); item.className = 'nav-item'; item.dataset.page = 'ppr'; item.setAttribute('onclick','nav(this)'); item.innerHTML = '<span class="icon">◉</span> Plano PPR'; if(ref) ref.parentNode.insertBefore(item, ref.nextSibling); else document.querySelector('.sidebar-nav')?.appendChild(item); }
     if(!document.getElementById('page-ppr')){ const content = document.querySelector('.content'); const page = document.createElement('div'); page.className = 'page'; page.id = 'page-ppr'; page.innerHTML = '<div class="cards-row" id="ppr-cards" style="grid-template-columns:repeat(4,1fr)"></div>'+ 
         '<div class="block-card" style="margin-bottom:16px">'+
           '<div class="section-header"><div><div class="section-title">Configuração do PPR</div><div class="text-muted text-sm mt-1">Defina os 3 KPIs globais e os pesos da composição. A soma deve fechar 100%.</div></div><button class="btn btn-primary btn-sm" onclick="salvarConfigPPR()">Salvar Configuração</button></div>'+ 
@@ -5166,6 +5082,42 @@ function openWeeklyKpiDetail(id) {
   renderWeeklySlide();
 }
 
+
+function weeklyAllStageCommentsHtml(id, mes, ano){
+  const esc = (typeof weeklyEsc === 'function') ? weeklyEsc : (v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])));
+  const stepNumLocal = (v) => {
+    const m = String(v ?? '').match(/\d+/);
+    const n = m ? Number(m[0]) : Number(v);
+    return [1,2,3,4].includes(n) ? n : null;
+  };
+  let data = [];
+  try { data = (typeof loadWeeklyData === 'function' ? loadWeeklyData() : []) || []; } catch(e) { data = []; }
+  const latestByStep = new Map();
+  data.forEach(r => {
+    const e = stepNumLocal(r && r.etapa);
+    if(!e) return;
+    if(String(r.id_kpi || r.id || '').trim() !== String(id).trim()) return;
+    if(Number(r.mes_num || r.mes) !== Number(mes)) return;
+    if(Number(r.ano) !== Number(ano)) return;
+    const txt = String(r.comentario ?? '').trim();
+    if(!txt) return;
+    const old = latestByStep.get(e);
+    const oldTs = old ? Date.parse(old.updated_at || old.timestamp || 0) || 0 : -1;
+    const newTs = Date.parse(r.updated_at || r.timestamp || 0) || 0;
+    if(!old || newTs >= oldTs) latestByStep.set(e, r);
+  });
+  const items = [1,2,3,4].map(e => {
+    const r = latestByStep.get(e);
+    const txt = String(r && r.comentario ? r.comentario : '').trim();
+    if(!txt) return '';
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:3px">Etapa ${e}</div>
+      <div style="font-size:12px;line-height:1.65;color:var(--text);background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:0 7px 7px 0;padding:8px 11px;white-space:pre-wrap">${esc(txt)}</div>
+    </div>`;
+  }).filter(Boolean);
+  return items.length ? items.join('') : '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0">Nenhuma observação registrada na base Google Sheets.</div>';
+}
+
 function renderWeeklySlide() {
   const kpi = weeklySlideList[weeklySlideIdx];
   if (!kpi) return;
@@ -5192,20 +5144,8 @@ function renderWeeklySlide() {
       ).join('')
     : '<div style="font-size:11px;color:var(--muted);padding:6px 0">Nenhum plano de ação cadastrado.</div>';
 
-  // Comentários por etapa — agora vão para a sidebar
-  const comentarios = WEEKLY_ETAPAS.map(e => {
-    const r = getWeeklyLaunch(kpi.id, mes, ano, e);
-    return r && r.comentario ? { etapa: e, texto: r.comentario } : null;
-  }).filter(Boolean);
-
-  const obsHtml = comentarios.length > 0
-    ? comentarios.map(c =>
-        `<div style="margin-bottom:10px">
-          <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:3px">Etapa ${c.etapa}</div>
-          <div style="font-size:12px;line-height:1.65;color:var(--text);background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:0 7px 7px 0;padding:8px 11px;white-space:pre-wrap">${c.texto}</div>
-        </div>`
-      ).join('')
-    : '<div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0">Nenhuma observação registrada na base Google Sheets.</div>';
+  // Comentários por etapa — sempre lista todas as etapas que tiverem comentário salvo
+  const obsHtml = weeklyAllStageCommentsHtml(kpi.id, mes, ano);
 
   // Detalhe etapas (tabela no main)
   const etapaRows = WEEKLY_ETAPAS.map(e => {
@@ -5301,7 +5241,7 @@ function renderWeeklySlide() {
           <div class="slide-detail-row"><span class="slide-detail-label">Sentido</span><span class="slide-detail-val">${kpi.sentido}</span></div>
           <div class="slide-detail-row"><span class="slide-detail-label">Acumulado</span><span class="slide-detail-val">${(typeof fmtAccumType==='function')?fmtAccumType(kpi):kpi.acumulado||'—'}</span></div>
           <div class="slide-detail-row"><span class="slide-detail-label">Meta mensal</span><span class="slide-detail-val">${(typeof fmtVal==='function')?fmtVal(ref.meta,kpi.unidade):ref.meta||'—'}</span></div>
-          <div class="slide-detail-row"><span class="slide-detail-label">Impacto VOP</span><span class="slide-detail-val" style="color:${impact>=0?'var(--green)':'var(--red)'}">${(typeof fmtImpact==='function')?fmtImpact(impact):'—'}</span></div>
+          <div class="slide-detail-row"><span class="slide-detail-label"></span><span class="slide-detail-val" style="color:${impact>=0?'var(--green)':'var(--red)'}">${(typeof fmtImpact==='function')?fmtImpact(impact):'—'}</span></div>
           <div class="slide-detail-row"><span class="slide-detail-label">Responsável</span><span class="slide-detail-val">${kpi.responsavel||'—'}</span></div>
         </div>
         <!-- observações / comentários por etapa -->
@@ -6613,7 +6553,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   };
 
   function installAdminPage(){
-    const navRef = document.querySelector('[data-page="semanal-operacional"]') || document.querySelector('[data-page="ppr"]') || document.querySelector('[data-page="impacto"]');
+    const navRef = document.querySelector('[data-page="semanal-operacional"]') || document.querySelector('[data-page="ppr"]');
     if(navRef && !document.querySelector('[data-page="admin"]')){
       const item = document.createElement('div');
       item.className = 'nav-item'; item.dataset.page = 'admin'; item.setAttribute('onclick','nav(this)');
@@ -7002,9 +6942,6 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       minimo_padrao: num(document.getElementById('adm-kpi-minimo')?.value,0),
       maximo_padrao: num(document.getElementById('adm-kpi-maximo')?.value,0),
       peso_indice: num(document.getElementById('adm-kpi-peso-indice')?.value,0),
-      peso_ebitda: num(document.getElementById('adm-kpi-peso-ebitda')?.value,0),
-      sensibilidade_vop: num(document.getElementById('adm-kpi-vop')?.value,0),
-      tipo_vop: (document.getElementById('adm-kpi-tipo-vop')?.value || '').trim(),
       acumulado: (document.getElementById('adm-kpi-acumulado')?.value || 'média').trim(),
       status_impl: (document.getElementById('adm-kpi-status')?.value || 'Ativo').trim(),
       ativo: document.getElementById('adm-kpi-ativo')?.checked ? 'SIM' : 'NAO',
@@ -7059,11 +6996,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">Frequência</span><input id="adm-kpi-frequencia" class="filter-input" value="${esc(k.frequencia||'Mensal')}" style="width:100%"></label>
           <label><span class="card-label">Controle</span><input id="adm-kpi-controle" class="filter-input" value="${esc(k.controle||'Mensal')}" style="width:100%"></label>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
+        <div style="display:grid;grid-template-columns:repeat(1,1fr);gap:10px;margin-top:10px">
           <label><span class="card-label">Peso Índice %</span><input id="adm-kpi-peso-indice" type="number" step="0.01" class="filter-input" value="${esc(k.peso_indice||0)}" style="width:100%"></label>
-          <label><span class="card-label">Peso EBITDA</span><input id="adm-kpi-peso-ebitda" type="number" step="0.01" class="filter-input" value="${esc(k.peso_ebitda||0)}" style="width:100%"></label>
-          <label><span class="card-label">Sensib. VOP</span><input id="adm-kpi-vop" type="number" step="0.01" class="filter-input" value="${esc(k.sensibilidade_vop||0)}" style="width:100%"></label>
-          <label><span class="card-label">Tipo VOP</span><input id="adm-kpi-tipo-vop" class="filter-input" value="${esc(k.tipo_vop||'')}" style="width:100%"></label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">
           <label><span class="card-label">Responsável</span><input id="adm-kpi-responsavel" class="filter-input" value="${esc(k.responsavel||'')}" style="width:100%"></label>
@@ -8198,7 +8132,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');p.style.display='';});
-    const titles={dashboard:'Painel Executivo',areas:'Visão por Área',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',impacto:'Impacto VOP','area-detail':areaName||'Área','semanal-operacional':'Acompanhamento Semanal'};
+    const titles={dashboard:'Painel Executivo',areas:'Visão por Área',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação','area-detail':areaName||'Área','semanal-operacional':'Acompanhamento Semanal'};
     const t=document.getElementById('topbar-title'); if(t) t.textContent=titles[page]||page;
     const pageEl=document.getElementById('page-'+page);
     if(pageEl){pageEl.classList.add('active'); if(page==='kpi-slide'||page==='weekly-slide') pageEl.style.display='flex';}
@@ -8207,7 +8141,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     else if(page==='kpis') renderKPICatalog();
     else if(page==='atualizar') renderAtualizar();
     else if(page==='planos') renderPlanos();
-    else if(page==='impacto') renderImpacto();
+    
     else if(page==='semanal-operacional') renderWeeklyOperational();
     else if(page==='area-detail' && areaName) renderAreaDetail(areaName);
     setTimeout(()=>{try{dmxApplyGovernanceVisibility(); dmxApplyApiSecurityRules&&dmxApplyApiSecurityRules();}catch(e){}},80);
@@ -8380,7 +8314,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   const ABAS_OPCOES = [
     'TODAS','PAINEL EXECUTIVO','MODO DIRETORIA','PAINEL FINANCEIRO',
-    'CATÁLOGO DE KPIs','ATUALIZAR DADOS','PLANOS DE AÇÃO','IMPACTO VOP',
+    'CATÁLOGO DE KPIs','ATUALIZAR DADOS','PLANOS DE AÇÃO',
     'PLANO PPR','ÍNDICE EFICIÊNCIA','SEMANAL','ADMIN / SHEETS','ÁREA'
   ];
   const CARGOS_OPCOES = ['CEO','DIRETOR','GERENTE','COORDENADOR','LÍDER','ANALISTA','ASSISTENTE'];
@@ -8394,7 +8328,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     kpis:'CATÁLOGO DE KPIs',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
-    impacto:'IMPACTO VOP',
+    
     ppr:'PLANO PPR',
     indice:'ÍNDICE EFICIÊNCIA',
     'semanal-operacional':'SEMANAL',
@@ -8591,7 +8525,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function firstAllowedPage(u=session()){
-    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','areas','admin'];
+    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','ppr','indice','semanal-operacional','areas','admin'];
     return order.find(p=>canPage(p,u)) || 'dashboard';
   }
 
@@ -9141,7 +9075,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     kpis:'CATÁLOGO DE KPIS',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
-    impacto:'IMPACTO VOP',
+    
     ppr:'PLANO PPR',
     indice:'ÍNDICE EFICIÊNCIA',
     'semanal-operacional':'SEMANAL',
@@ -9253,7 +9187,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   function firstAllowedItem(){
     applyMenu();
-    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','ppr','indice','semanal-operacional','admin'];
     for(const p of preferred){
       const el = document.querySelector(`.nav-item[data-page="${p}"]:not(.dmx-hidden-by-v48)`);
       if(el && el.style.display !== 'none') return el;
@@ -9402,7 +9336,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     kpis:'CATÁLOGO DE KPIS',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
-    impacto:'IMPACTO VOP',
+    
     ppr:'PLANO PPR',
     indice:'ÍNDICE EFICIÊNCIA',
     'semanal-operacional':'SEMANAL',
@@ -9539,7 +9473,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function firstAllowedItem(){
-    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    const order = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','ppr','indice','semanal-operacional','admin'];
     for(const p of order){
       const el = document.querySelector(`.nav-item[data-page="${p}"].dmx-v484-allowed`);
       if(el) return el;
@@ -9673,7 +9607,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function setPprCfg(cfg){ localStorage.setItem(PPR_KEY, JSON.stringify(cfg||{})); }
   function ensurePprPage485(){
     if(!document.querySelector('.nav-item[data-page="ppr"]')){
-      const ref=document.querySelector('.nav-item[data-page="impacto"]') || document.querySelector('.sidebar-nav');
+      const ref=document.querySelector('.sidebar-nav');
       const item=document.createElement('div'); item.className='nav-item'; item.dataset.page='ppr'; item.innerHTML='<span class="icon">◉</span> Plano PPR'; item.onclick=function(){window.nav(this)};
       ref?.parentNode?.insertBefore(item, ref.nextSibling);
     }
@@ -10132,7 +10066,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],
     atualizar:['ATUALIZAR DADOS','LANÇAMENTOS','LANCAMENTOS'],
     planos:['PLANOS DE AÇÃO','PLANOS DE ACAO','PLANO DE AÇÃO','PLANO DE ACAO'],
-    impacto:['IMPACTO VOP'],
+    
     ppr:['PLANO PPR','PPR'],
     indice:['ÍNDICE EFICIÊNCIA','INDICE EFICIENCIA','ÍNDICE DE EFICIÊNCIA','INDICE DE EFICIENCIA'],
     'semanal-operacional':['SEMANAL','ACOMPANHAMENTO SEMANAL'],
@@ -10196,7 +10130,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     fixUserChip();
   }
   function pageTitle(page, areaName){
-    return ({dashboard:'Painel Executivo',diretoria:'Modo Diretoria',financeiro:'Painel Financeiro',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',impacto:'Impacto VOP',ppr:'Plano PPR',indice:'Índice de Eficiência','semanal-operacional':'Acompanhamento Semanal','area-detail':areaName||'Área',admin:'Administração / Google Sheets'})[page] || page;
+    return ({dashboard:'Painel Executivo',diretoria:'Modo Diretoria',financeiro:'Painel Financeiro',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',ppr:'Plano PPR',indice:'Índice de Eficiência','semanal-operacional':'Acompanhamento Semanal','area-detail':areaName||'Área',admin:'Administração / Google Sheets'})[page] || page;
   }
   function callRenderer(page, areaName){
     try{
@@ -10206,7 +10140,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       else if(page==='kpis' && typeof renderKPICatalog==='function') renderKPICatalog();
       else if(page==='atualizar' && typeof renderAtualizar==='function') renderAtualizar();
       else if(page==='planos' && typeof renderPlanos==='function') renderPlanos();
-      else if(page==='impacto' && typeof renderImpacto==='function') renderImpacto();
+      
       else if(page==='ppr' && typeof renderPPR==='function') renderPPR();
       else if(page==='indice' && typeof renderIndice==='function') renderIndice();
       else if(page==='semanal-operacional' && typeof renderWeeklyOperational==='function') renderWeeklyOperational();
@@ -10236,7 +10170,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function firstAllowedElement(){
     applyStableVisibility();
-    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','impacto','ppr','indice','semanal-operacional','admin'];
+    const preferred = ['dashboard','diretoria','financeiro','kpis','atualizar','planos','ppr','indice','semanal-operacional','admin'];
     for(const p of preferred){
       const el = document.querySelector(`.nav-item[data-page="${p}"]:not(.dmx-v487-hidden)`);
       if(el) return el;
@@ -10305,7 +10239,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function tabs(u){return unique([].concat(split(u?.abas),split(u?.abasAcesso),split(u?.['Abas de Acesso']),split(u?.paginas)));}
   function areas(u){return unique([].concat(split(u?.areas),split(u?.area),split(u?.['Área']),split(u?.areasLiberadas)));}
   function all(arr){return (arr||[]).some(x=>['TODAS','TODOS','*','ALL'].includes(norm(x)));}
-  const aliases={dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],impacto:['IMPACTO VOP'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
+  const aliases={dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
   function canPage(p,u=session()){ if(!u) return false; if(isAdmin(u)) return true; if(p==='admin') return false; if(p==='area-detail') return areas(u).length>0 || tabs(u).map(norm).includes('AREA') || all(tabs(u)); const t=tabs(u); if(all(t)) return true; return (aliases[p]||[p]).some(a=>t.map(norm).includes(norm(a))); }
   function canArea(a,u=session()){ if(!u) return false; if(isAdmin(u)) return true; const ar=areas(u); if(all(ar)) return true; return ar.map(norm).includes(norm(a)); }
 
@@ -10439,7 +10373,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     kpis:['CATALOGO DE KPIS','CATALOGO KPI','CATÁLOGO DE KPIS','CATÁLOGO KPI'],
     atualizar:['ATUALIZAR DADOS','ATUALIZAR'],
     planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],
-    impacto:['IMPACTO VOP'],
+    
     ppr:['PLANO PPR','PPR'],
     indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],
     'semanal-operacional':['SEMANAL'],
@@ -10706,6 +10640,51 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(typeof showToast === 'function') showToast('✓ Lançamento semanal salvo');
   };
 
+  window.dmxSaveWeeklySelectedStepAll = function(){
+    const area = typeof currentWeeklyArea === 'function' ? currentWeeklyArea() : '__ALL__';
+    const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+    const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+    const stepEl = document.getElementById('weekly-entry-step-filter');
+    const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1)));
+    const ids = typeof selectedForArea === 'function' ? selectedForArea(area) : [];
+    const rows = [];
+    let bloqueados = 0;
+    ids.map(id => typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null).filter(Boolean).forEach(kpi => {
+      if(!window.dmxCanEditWeeklyKPI(kpi)){ bloqueados++; return; }
+      const realEl = document.getElementById('weekly-real-'+kpi.id+'-'+etapa);
+      const obsEl  = document.getElementById('weekly-obs-'+kpi.id+'-'+etapa);
+      if(!realEl && !obsEl) return;
+      const dirty = (realEl && realEl.dataset.weeklyDirty === '1') || (obsEl && obsEl.dataset.weeklyDirty === '1');
+      if(!dirty) return;
+      const realizado = typeof weeklyNum === 'function' ? weeklyNum(realEl ? realEl.value : null) : Number(realEl ? realEl.value : null);
+      if(realEl && String(realEl.value || '').trim() !== '' && (realizado === null || !Number.isFinite(Number(realizado)))) return;
+      const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+      rows.push({
+        id_kpi:String(kpi.id),
+        area:kpi.area || '',
+        indicador:kpi.indicador || '',
+        mes_num:Number(mes),
+        ano:Number(ano),
+        etapa:Number(etapa),
+        realizado: realizado,
+        meta:ref.meta,
+        minimo:ref.minimo,
+        maximo:ref.maximo,
+        comentario:obsEl ? obsEl.value : '',
+        updated_at: new Date().toISOString()
+      });
+    });
+    if(!rows.length){
+      if(typeof showToast === 'function') showToast('Nenhuma alteração para salvar nesta etapa.');
+      else alert('Nenhuma alteração para salvar nesta etapa.');
+      return;
+    }
+    if(typeof upsertWeekly === 'function') upsertWeekly(rows);
+    if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+    const msg = '✓ '+rows.length+' lançamento(s) da Etapa '+etapa+' salvo(s)';
+    if(typeof showToast === 'function') showToast(msg); else alert(msg);
+  };
+
   if(typeof weeklySummary === 'function'){
     window.weeklySummary = weeklySummary = function(id, mes, ano){
       const k = weeklyGetKpi(id);
@@ -10737,7 +10716,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const table = document.getElementById('weekly-table');
       if(table){
         const head = table.querySelector('thead tr');
-        if(head) head.innerHTML = '<th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th><th>Ação</th>';
+        if(head) head.innerHTML = '<th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th>';
       }
       const tb = document.querySelector('#weekly-table tbody');
       if(tb){
@@ -10753,14 +10732,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           const at = weeklyCalcAting(k, real, ref.meta);
           const st = weeklyStatusByPct(at);
           const realCell = canEdit
-            ? `<input id="weekly-real-${esc(k.id)}-${e}" class="edit-cell" type="number" step="0.01" value="${real ?? ''}" style="width:96px">`
+            ? `<input id="weekly-real-${esc(k.id)}-${e}" class="edit-cell" type="number" step="0.01" value="${real ?? ''}" style="width:96px" oninput="this.dataset.weeklyDirty='1'">`
             : weeklyFmt(real,k.unidade);
           const obsCell = canEdit
-            ? `<textarea id="weekly-obs-${esc(k.id)}-${e}" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px">${esc(r && r.comentario ? r.comentario : '')}</textarea>`
+            ? `<textarea id="weekly-obs-${esc(k.id)}-${e}" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty='1'">${esc(r && r.comentario ? r.comentario : '')}</textarea>`
             : `<span style="white-space:pre-wrap">${esc(r && r.comentario ? r.comentario : '')}</span>`;
-          const actionCell = canEdit
-            ? `<button class="btn btn-primary btn-sm" onclick="dmxSaveWeeklyCell('${esc(k.id)}',${e})">Salvar</button>`
-            : '<span class="text-muted text-sm">Leitura</span>';
           return `<tr>
             <td><span class="font-mono text-muted">${esc(k.id)}</span> ${esc(k.indicador)}<div class="text-muted text-sm">${esc(k.area||'')} · ${dmxWeeklyProjectionType(k)==='ACUMULADO'?'Projeção acumulada':'Média'}</div></td>
             <td><strong>Etapa ${e}</strong></td>
@@ -10772,7 +10748,6 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
             <td><span class="status-pill ${st.cls}">${st.label}</span></td>
             <td>${weeklyFmt(trend,k.unidade)} <span class="status-pill ${trendSt.cls}" style="font-size:9px;margin-left:4px">${trendSt.label}</span></td>
             <td>${obsCell}</td>
-            <td>${actionCell}</td>
           </tr>`;
         }).join('');
       }
@@ -10815,6 +10790,242 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(typeof renderWeeklyOperational === 'function'){
       try{ renderWeeklyOperational(); }catch(e){}
     }
+  });
+})();
+</script>
+
+
+<script id="dmx-v48-fix-semanal-etapa-individualizada">
+/* v48.7 — Correção: comentários/realizados semanais individualizados por etapa.
+   - Normaliza etapa como número 1..4 em todas as leituras/gravações.
+   - O salvamento em lote grava somente a etapa selecionada.
+   - A apresentação lê observações estritamente da etapa correspondente. */
+(function(){
+  function stepNum(v){
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'number') return [1,2,3,4].includes(v) ? v : null;
+    const s = String(v).trim();
+    const m = s.match(/[1-4]/);
+    return m ? Number(m[0]) : null;
+  }
+  window.dmxWeeklyStepNum = stepNum;
+
+  function weeklyKeySafe(r){
+    return [String(r && r.id_kpi || '').trim(), Number(r && r.ano), Number(r && r.mes_num), stepNum(r && r.etapa)].join('|');
+  }
+
+  if(typeof loadWeeklyData === 'function' && typeof saveWeeklyData === 'function'){
+    window.dmxNormalizeWeeklyStore = function(){
+      const src = loadWeeklyData() || [];
+      const map = new Map();
+      src.forEach(raw => {
+        if(!raw) return;
+        const e = stepNum(raw.etapa);
+        if(!e) return;
+        const row = Object.assign({}, raw, {
+          id_kpi: String(raw.id_kpi || raw.id || '').trim(),
+          mes_num: Number(raw.mes_num || raw.mes || window.currentMes || new Date().getMonth()+1),
+          ano: Number(raw.ano || window.currentAno || new Date().getFullYear()),
+          etapa: e
+        });
+        const key = weeklyKeySafe(row);
+        const prev = map.get(key);
+        // Mantém o registro mais recente quando houver duplicidade real da mesma etapa.
+        if(!prev) map.set(key, row);
+        else {
+          const t1 = Date.parse(prev.updated_at || prev.data_atualizacao || '') || 0;
+          const t2 = Date.parse(row.updated_at || row.data_atualizacao || '') || 0;
+          map.set(key, t2 >= t1 ? Object.assign({}, prev, row, {etapa:e}) : prev);
+        }
+      });
+      const normalized = Array.from(map.values());
+      saveWeeklyData(normalized);
+      return normalized;
+    };
+  }
+
+  window.weeklyKeyOf = weeklyKeyOf = function(r){ return weeklyKeySafe(r); };
+
+  if(typeof upsertWeekly === 'function'){
+    const prevUpsert = upsertWeekly;
+    window.upsertWeekly = upsertWeekly = function(rows){
+      const arr = (Array.isArray(rows) ? rows : []).map(r => {
+        const e = stepNum(r && r.etapa);
+        if(!r || !e) return null;
+        return Object.assign({}, r, {
+          id_kpi: String(r.id_kpi || r.id || '').trim(),
+          mes_num: Number(r.mes_num || r.mes || currentWeeklyMes?.() || window.currentMes || new Date().getMonth()+1),
+          ano: Number(r.ano || currentWeeklyAno?.() || window.currentAno || new Date().getFullYear()),
+          etapa: e
+        });
+      }).filter(Boolean);
+      // Aplica no storage local de forma estritamente chaveada por KPI+ano+mês+etapa.
+      const data = (typeof loadWeeklyData === 'function' ? loadWeeklyData() : []) || [];
+      const map = new Map(data.map(r => [weeklyKeySafe(r), Object.assign({}, r, {etapa:stepNum(r.etapa)})]));
+      arr.forEach(r => map.set(weeklyKeySafe(r), Object.assign({}, map.get(weeklyKeySafe(r)) || {}, r)));
+      if(typeof saveWeeklyData === 'function') saveWeeklyData(Array.from(map.values()).filter(r => stepNum(r.etapa)));
+      // Mantém integração com Sheets do patch original, sem chamar o upsert antigo para evitar duplicação de etapa.
+      if(!window.__dmxApplyingSheetsData && typeof dmxApiPost === 'function'){
+        arr.forEach(row => dmxApiPost('salvarSemanal', row));
+      }
+      return true;
+    };
+  }
+
+  window.getWeeklyLaunch = getWeeklyLaunch = function(id, mes, ano, etapa){
+    const e = stepNum(etapa);
+    if(!e) return null;
+    const data = (typeof loadWeeklyData === 'function' ? loadWeeklyData() : []) || [];
+    return data.find(r =>
+      String(r.id_kpi || r.id || '').trim() === String(id).trim() &&
+      Number(r.mes_num || r.mes) === Number(mes) &&
+      Number(r.ano) === Number(ano) &&
+      stepNum(r.etapa) === e
+    ) || null;
+  };
+
+  window.getWeeklySeries = getWeeklySeries = function(id, mes, ano){
+    return [1,2,3,4].map(e => getWeeklyLaunch(id, mes, ano, e));
+  };
+
+  window.dmxSaveWeeklySelectedStepAll = function(){
+    const area = typeof currentWeeklyArea === 'function' ? currentWeeklyArea() : '__ALL__';
+    const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+    const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+    const stepEl = document.getElementById('weekly-entry-step-filter');
+    const etapa = stepNum(stepEl && stepEl.value ? stepEl.value : 1) || 1;
+    const ids = typeof selectedForArea === 'function' ? selectedForArea(area) : [];
+    const rows = [];
+    ids.map(id => typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null).filter(Boolean).forEach(kpi => {
+      const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(kpi) : true;
+      if(!canEdit) return;
+      const realEl = document.getElementById('weekly-real-'+kpi.id+'-'+etapa);
+      const obsEl  = document.getElementById('weekly-obs-'+kpi.id+'-'+etapa);
+      if(!realEl && !obsEl) return;
+      const dirty = (realEl && realEl.dataset.weeklyDirty === '1') || (obsEl && obsEl.dataset.weeklyDirty === '1');
+      if(!dirty) return;
+      const realizado = typeof weeklyNum === 'function' ? weeklyNum(realEl ? realEl.value : null) : Number(realEl ? realEl.value : null);
+      if(realEl && String(realEl.value || '').trim() !== '' && (realizado === null || !Number.isFinite(Number(realizado)))) return;
+      const ref = typeof dmxWeeklyMonthlyRef === 'function' ? dmxWeeklyMonthlyRef(kpi, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(kpi, mes, ano) : {});
+      rows.push({
+        id_kpi:String(kpi.id),
+        area:kpi.area || '',
+        indicador:kpi.indicador || '',
+        mes_num:Number(mes),
+        ano:Number(ano),
+        etapa:Number(etapa),
+        realizado: realizado,
+        meta:ref.meta,
+        minimo:ref.minimo,
+        maximo:ref.maximo,
+        comentario:obsEl ? obsEl.value : '',
+        updated_at: new Date().toISOString()
+      });
+    });
+    if(!rows.length){
+      if(typeof showToast === 'function') showToast('Nenhuma alteração para salvar nesta etapa.');
+      else alert('Nenhuma alteração para salvar nesta etapa.');
+      return;
+    }
+    upsertWeekly(rows);
+    rows.forEach(r => {
+      const realEl = document.getElementById('weekly-real-'+r.id_kpi+'-'+r.etapa);
+      const obsEl  = document.getElementById('weekly-obs-'+r.id_kpi+'-'+r.etapa);
+      if(realEl) realEl.dataset.weeklyDirty = '0';
+      if(obsEl) obsEl.dataset.weeklyDirty = '0';
+    });
+    if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+    if(typeof showToast === 'function') showToast('✓ '+rows.length+' lançamento(s) da Etapa '+etapa+' salvo(s)');
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    try{ if(typeof dmxNormalizeWeeklyStore === 'function') dmxNormalizeWeeklyStore(); }catch(e){}
+    try{ if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational(); }catch(e){}
+  });
+})();
+</script>
+
+
+<script id="dmx-remove-impacto-vop-final-patch">
+(function(){
+  function cleanup(){
+    try{
+      document.querySelectorAll('[data-page="impacto"], #page-impacto').forEach(el=>el.remove());
+      document.querySelectorAll('th,td,.nav-item,.section-title,.card-label,.slide-detail-label,.slide-section-title').forEach(el=>{
+        const t=el.textContent||'';
+        if(/VOP|Impacto\s*R\$|Impacto\s*líquido|Sensib\.\s*VOP|Tipo\s*VOP/i.test(t)) el.remove();
+      });
+    }catch(e){}
+  }
+  window.renderImpacto=function(){ cleanup(); if(typeof showToast==='function') showToast('Módulo removido da ferramenta.'); };
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(cleanup,100));
+  const oldNav=window.nav;
+  if(typeof oldNav==='function' && !window.__dmxRemoveImpactoVopNav){
+    window.__dmxRemoveImpactoVopNav=true;
+    window.nav=function(el,areaName){
+      if(el && el.dataset && el.dataset.page==='impacto') return window.renderImpacto();
+      const r=oldNav.apply(this,arguments); setTimeout(cleanup,80); return r;
+    };
+  }
+})();
+</script>
+
+
+
+<script id="dmx-fix-nav-analise-safe-no-observer">
+(function(){
+  function normTxt(s){
+    return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  }
+  function makeItem(page, icon, label){
+    const el=document.createElement('div');
+    el.className='nav-item';
+    el.dataset.page=page;
+    el.setAttribute('onclick','nav(this)');
+    el.innerHTML='<span class="icon">'+icon+'</span> '+label;
+    return el;
+  }
+  function getItem(page, icon, label){
+    const selector='.sidebar-nav .nav-item[data-page="'+page+'"]';
+    const items=[...document.querySelectorAll(selector)];
+    let keep=items[0] || makeItem(page, icon, label);
+    items.slice(1).forEach(x=>x.remove());
+    keep.className='nav-item';
+    keep.dataset.page=page;
+    keep.setAttribute('onclick','nav(this)');
+    if(!normTxt(keep.textContent).includes(normTxt(label))){
+      keep.innerHTML='<span class="icon">'+icon+'</span> '+label;
+    }
+    return keep;
+  }
+  function fixNavAnalise(){
+    try{
+      const nav=document.querySelector('.sidebar-nav');
+      if(!nav) return;
+      const labels=[...nav.querySelectorAll('.nav-section-label')];
+      const area=labels.find(l=>normTxt(l.textContent)==='AREA');
+      if(!area) return;
+
+      // Remove VOP apenas da navegação, sem tocar em conteúdo de telas ou referências.
+      [...nav.querySelectorAll('.nav-item')].forEach(item=>{
+        const t=normTxt(item.textContent);
+        if(t.includes('IMPACTO VOP') || t.includes('VOP IMPACTADO')) item.remove();
+      });
+
+      // Itens analíticos devem ficar imediatamente antes da seção Área.
+      const semanal=getItem('semanal-operacional','▣','Semanal');
+      const indice=getItem('indice','◎','Índice Eficiência');
+      const ppr=getItem('ppr','◉','Plano PPR');
+      [semanal, indice, ppr].forEach(item=>{
+        if(item.parentNode!==nav || item.nextSibling!==area){
+          nav.insertBefore(item, area);
+        }
+      });
+    }catch(e){ console.warn('dmx nav fix:', e); }
+  }
+  window.dmxFixNavAnaliseSafe = fixNavAnalise;
+  document.addEventListener('DOMContentLoaded', function(){
+    [50,300,800,1500,3000].forEach(ms=>setTimeout(fixNavAnalise,ms));
   });
 })();
 </script>
