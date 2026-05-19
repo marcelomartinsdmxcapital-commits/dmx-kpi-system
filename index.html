@@ -12263,5 +12263,486 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<!-- PATCH v67 — Semanal: número BR e referência mensal única -->
+<script>
+(function(){
+  if(window.__dmxV67WeeklyNumberRefPatch) return;
+  window.__dmxV67WeeklyNumberRefPatch = true;
+
+  function parseNumBR(v){
+    if(v === null || v === undefined) return null;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).trim();
+    if(!s || ['-','—','na','n/a','null','undefined'].includes(s.toLowerCase())) return null;
+    s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    // 9,04 => 9.04 | 1.234,56 => 1234.56 | 1,234.56 => 1234.56
+    if(s.includes(',') && s.includes('.')){
+      const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+      if(lastComma > lastDot) s = s.replace(/\./g,'').replace(',', '.');
+      else s = s.replace(/,/g,'');
+    } else if(s.includes(',')) {
+      s = s.replace(',', '.');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function fmtInput(v){
+    const n = parseNumBR(v);
+    return n === null ? '' : String(n).replace('.', ',');
+  }
+
+  function esc(v){
+    return String(v ?? '').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
+
+  window.weeklyNum = weeklyNum = parseNumBR;
+
+  window.dmxWeeklyMonthlyRef = function(kpi, mes, ano){
+    function valid(v){ const n=parseNumBR(v); return n !== null ? n : null; }
+    let l = null;
+    try{ if(typeof getLaunch === 'function' && kpi) l = getLaunch(kpi.id, mes, ano); }catch(e){}
+    let rr = {};
+    try{ if(typeof resolveRef === 'function' && kpi) rr = resolveRef(kpi, mes, ano) || {}; }catch(e){}
+    function pick(field){
+      const fromMonthly = l ? valid(l[field]) : null;
+      if(fromMonthly !== null) return fromMonthly;
+      const fromResolve = valid(rr[field]);
+      if(fromResolve !== null) return fromResolve;
+      return valid(kpi && kpi[field]);
+    }
+    return { meta: pick('meta'), minimo: pick('minimo'), maximo: pick('maximo') };
+  };
+
+  if(typeof weeklyResolveRef === 'function'){
+    window.weeklyResolveRef = weeklyResolveRef = function(kpi, mes, ano){ return window.dmxWeeklyMonthlyRef(kpi, mes, ano); };
+  }
+
+  if(typeof weeklySummary === 'function'){
+    window.weeklySummary = weeklySummary = function(id, mes, ano){
+      const k = weeklyGetKpi(id);
+      const real = (typeof dmxWeeklyTrend === 'function') ? dmxWeeklyTrend(k, mes, ano) : weeklyAverage(id, mes, ano, 'realizado');
+      const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
+      const at = weeklyCalcAting(k, real, ref.meta);
+      return {kpi:k, real, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, ating:at, status:weeklyStatusByPct(at)};
+    };
+  }
+
+  if(typeof makeWeeklyChart === 'function'){
+    window.makeWeeklyChart = makeWeeklyChart = function(canvas, kpi, mes, ano, full){
+      const labels = ['Semana 1','Semana 2','Semana 3','Semana 4','Média'];
+      const series = getWeeklySeries(kpi.id, mes, ano);
+      const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+      const real = series.map(r => r ? parseNumBR(r.realizado) : null).concat([null]);
+      const meta = [ref.meta, ref.meta, ref.meta, ref.meta, null];
+      const min  = [ref.minimo, ref.minimo, ref.minimo, ref.minimo, null];
+      const max  = [ref.maximo, ref.maximo, ref.maximo, ref.maximo, null];
+      const trend = (typeof dmxWeeklyTrend === 'function') ? dmxWeeklyTrend(kpi, mes, ano) : weeklyAverage(kpi.id, mes, ano, 'realizado');
+      const avg  = [null,null,null,null, trend];
+      const ctx = canvas.getContext('2d');
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+      const maior = String(kpi && kpi.sentido || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('maior');
+      const datasets = [
+        {label:'Realizado', data:real, borderWidth:2.5, tension:.25, pointRadius:full?4:2, yAxisID:'y'},
+        {label:'Meta', data:meta, borderWidth:1.5, borderDash:[4,4], tension:.2, pointRadius:0, yAxisID:'y'},
+        maior ? {label:'Mínimo', data:min, borderWidth:1, borderDash:[3,5], tension:.2, pointRadius:0, yAxisID:'y'} : {label:'Máximo', data:max, borderWidth:1, borderDash:[3,5], tension:.2, pointRadius:0, yAxisID:'y'},
+        {label:'Média mensal realizada', data:avg, type:'bar', yAxisID:'y1', borderWidth:0, barPercentage:.55, categoryPercentage:.55}
+      ];
+      weeklyCharts[canvas.id] = new Chart(ctx, {type:'line', data:{labels:labels,datasets:datasets}, options:{responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:!!full, labels:{boxWidth:10, font:{size:11}}}, tooltip:{enabled:true}}, scales:{x:{grid:{display:false}, ticks:{font:{size:full?11:9}}}, y:{beginAtZero:false, position:'left', ticks:{font:{size:full?11:9}}}, y1:{beginAtZero:false, position:'right', grid:{drawOnChartArea:false}, ticks:{font:{size:full?11:9}}}}}, plugins: (full && typeof weeklyLabelPlugin !== 'undefined') ? [weeklyLabelPlugin] : []});
+    };
+  }
+
+  function saveOne(id, etapa){
+    const kpi = typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null;
+    if(!kpi) return;
+    const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(kpi) : (typeof weeklyCanEditKpi === 'function' ? weeklyCanEditKpi(kpi) : true);
+    if(!canEdit){ if(typeof showToast==='function') showToast('⚠ Sem permissão para editar este KPI semanal'); return; }
+    const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+    const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+    const realEl = document.getElementById('weekly-real-'+id+'-'+etapa);
+    const obsEl  = document.getElementById('weekly-obs-'+id+'-'+etapa);
+    const realizado = parseNumBR(realEl ? realEl.value : null);
+    if(realEl && String(realEl.value || '').trim() !== '' && realizado === null){ if(typeof showToast==='function') showToast('Informe um realizado válido.'); return; }
+    const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+    upsertWeekly([{id_kpi:String(id), area:kpi.area||'', indicador:kpi.indicador||'', mes_num:Number(mes), ano:Number(ano), etapa:Number(etapa), realizado:realizado, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, comentario:obsEl?obsEl.value:'', updated_at:new Date().toISOString()}]);
+    if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+    if(typeof showToast==='function') showToast('✓ Lançamento semanal salvo');
+  }
+  window.saveWeeklyEntry = saveWeeklyEntry = saveOne;
+  window.dmxSaveWeeklyCell = saveOne;
+
+  window.dmxSaveWeeklySelectedStepAll = function(){
+    const area = typeof currentWeeklyArea === 'function' ? currentWeeklyArea() : '__ALL__';
+    const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+    const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+    const stepEl = document.getElementById('weekly-entry-step-filter');
+    const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1))) || 1;
+    const ids = typeof selectedForArea === 'function' ? selectedForArea(area) : [];
+    const rows = [];
+    ids.map(id => typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null).filter(Boolean).forEach(kpi => {
+      const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(kpi) : true;
+      if(!canEdit) return;
+      const realEl = document.getElementById('weekly-real-'+kpi.id+'-'+etapa);
+      const obsEl  = document.getElementById('weekly-obs-'+kpi.id+'-'+etapa);
+      if(!realEl && !obsEl) return;
+      const dirty = (realEl && realEl.dataset.weeklyDirty === '1') || (obsEl && obsEl.dataset.weeklyDirty === '1');
+      if(!dirty) return;
+      const realizado = parseNumBR(realEl ? realEl.value : null);
+      if(realEl && String(realEl.value || '').trim() !== '' && realizado === null) return;
+      const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+      rows.push({id_kpi:String(kpi.id), area:kpi.area||'', indicador:kpi.indicador||'', mes_num:Number(mes), ano:Number(ano), etapa:Number(etapa), realizado:realizado, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, comentario:obsEl?obsEl.value:'', updated_at:new Date().toISOString()});
+    });
+    if(!rows.length){ if(typeof showToast==='function') showToast('Nenhuma alteração para salvar nesta etapa.'); return; }
+    upsertWeekly(rows);
+    if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+    if(typeof showToast==='function') showToast('✓ '+rows.length+' lançamento(s) da Etapa '+etapa+' salvo(s)');
+  };
+
+  if(typeof renderWeeklyOperational === 'function'){
+    const previousRenderWeeklyOperational = renderWeeklyOperational;
+    window.renderWeeklyOperational = renderWeeklyOperational = function(){
+      previousRenderWeeklyOperational.apply(this, arguments);
+      try{
+        const area = typeof currentWeeklyArea === 'function' ? currentWeeklyArea() : '__ALL__';
+        const mes = typeof currentWeeklyMes === 'function' ? currentWeeklyMes() : (window.currentMes || new Date().getMonth()+1);
+        const ano = typeof currentWeeklyAno === 'function' ? currentWeeklyAno() : (window.currentAno || new Date().getFullYear());
+        const stepEl = document.getElementById('weekly-entry-step-filter');
+        const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1))) || 1;
+        const ids = typeof selectedForArea === 'function' ? selectedForArea(area) : [];
+        const kpiList = ids.map(id => typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null).filter(Boolean);
+        const tb = document.querySelector('#weekly-table tbody');
+        if(!tb) return;
+        tb.innerHTML = kpiList.map(k => {
+          const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(k) : true;
+          const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
+          const r = typeof getWeeklyLaunch === 'function' ? getWeeklyLaunch(k.id, mes, ano, etapa) : null;
+          const real = r ? parseNumBR(r.realizado) : null;
+          const at = typeof weeklyCalcAting === 'function' ? weeklyCalcAting(k, real, ref.meta) : null;
+          const st = typeof weeklyStatusByPct === 'function' ? weeklyStatusByPct(at) : {cls:'NA',label:'—'};
+          const trend = typeof dmxWeeklyTrend === 'function' ? dmxWeeklyTrend(k, mes, ano) : (typeof weeklyCalcTrend === 'function' ? weeklyCalcTrend(k.id, mes, ano) : null);
+          const trendAt = typeof weeklyCalcAting === 'function' ? weeklyCalcAting(k, trend, ref.meta) : null;
+          const trendSt = typeof weeklyStatusByPct === 'function' ? weeklyStatusByPct(trendAt) : {cls:'NA',label:'—'};
+          const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+fmtInput(real)+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : weeklyFmt(real,k.unidade);
+          const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
+        }).join('');
+      }catch(e){ console.warn('[DMX v67] Falha ao reaplicar tabela semanal:', e); }
+    };
+  }
+})();
+</script>
+
+
+
+<!-- PATCH v68 — Correção definitiva do Semanal: número BR + referência mensal + último override -->
+<script>
+(function(){
+  if(window.__dmxV68WeeklyFinalPatch) return;
+  window.__dmxV68WeeklyFinalPatch = true;
+
+  function parseBR(v){
+    if(v === null || v === undefined) return null;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).trim();
+    if(!s || ['-','—','na','n/a','null','undefined'].includes(s.toLowerCase())) return null;
+    s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if(s.includes(',') && s.includes('.')){
+      const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+      s = lc > ld ? s.replace(/\./g,'').replace(',', '.') : s.replace(/,/g,'');
+    } else if(s.includes(',')) {
+      s = s.replace(',', '.');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmtInput(v){ const n=parseBR(v); return n===null ? '' : String(n).replace('.', ','); }
+  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function toast(m){ try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(e){} }
+
+  window.dmxParseNumberBR = parseBR;
+  window.weeklyNum = weeklyNum = parseBR;
+
+  window.dmxWeeklyMonthlyRef = function(kpi, mes, ano){
+    function pick(field){
+      let launch = null;
+      try{ if(typeof getLaunch === 'function' && kpi) launch = getLaunch(kpi.id, Number(mes), Number(ano)); }catch(e){}
+      const lv = launch ? parseBR(launch[field]) : null;
+      if(lv !== null) return lv;
+      let ref = {};
+      try{ if(typeof resolveRef === 'function' && kpi) ref = resolveRef(kpi, Number(mes), Number(ano)) || {}; }catch(e){}
+      const rv = parseBR(ref[field]);
+      if(rv !== null) return rv;
+      return parseBR(kpi && kpi[field]);
+    }
+    return { meta:pick('meta'), minimo:pick('minimo'), maximo:pick('maximo') };
+  };
+  window.weeklyResolveRef = weeklyResolveRef = function(kpi, mes, ano){ return window.dmxWeeklyMonthlyRef(kpi, mes, ano); };
+
+  window.dmxApiToWeekly = function(row){
+    if(Array.isArray(row)){
+      const h = ['id_kpi','area','ano','mes_num','etapa','realizado','meta','minimo','maximo','tendencia_fechamento','comentario','atualizado_por','atualizado_em'];
+      const o = {}; h.forEach((k,i)=>o[k]=row[i]); row = o;
+    }
+    row = row || {};
+    const id = String(row.id_kpi || row.id || row.codigo || row.kpi || '').trim();
+    if(!id) return null;
+    const kpi = (typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null) || (typeof getKPI === 'function' ? getKPI(id) : null) || {};
+    const ano = parseBR(row.ano) || window.currentAno || new Date().getFullYear();
+    const mes = parseBR(row.mes_num ?? row.mes) || window.currentMes || (new Date().getMonth()+1);
+    const etapa = parseBR(row.etapa ?? row.semana) || 1;
+    const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+    return {
+      id_kpi:id,
+      area:row.area || kpi.area || 'Sem área',
+      indicador:row.indicador || kpi.indicador || id,
+      ano:Number(ano), mes_num:Number(mes), etapa:Number(etapa),
+      realizado:parseBR(row.realizado),
+      meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo,
+      tendencia_fechamento:parseBR(row.tendencia_fechamento),
+      comentario:row.comentario || row.justificativa || row.obs || '',
+      atualizado_por:row.atualizado_por || '', atualizado_em:row.atualizado_em || ''
+    };
+  };
+
+  window.dmxApplySemanalRows = function(rows){
+    if(!Array.isArray(rows)) return 0;
+    const mapped = rows.map(window.dmxApiToWeekly).filter(Boolean);
+    if(!mapped.length) return 0;
+    window.__dmxApplyingSheetsData = true;
+    try{ if(typeof upsertWeekly === 'function') upsertWeekly(mapped); else localStorage.setItem('dmx_weekly_stage_data_v18_1', JSON.stringify(mapped)); }
+    finally{ setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0); }
+    return mapped.length;
+  };
+
+  window.weeklySummary = weeklySummary = function(id, mes, ano){
+    const k = weeklyGetKpi(id);
+    const real = (typeof dmxWeeklyTrend === 'function') ? dmxWeeklyTrend(k, mes, ano) : weeklyAverage(id, mes, ano, 'realizado');
+    const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
+    const at = weeklyCalcAting(k, real, ref.meta);
+    return {kpi:k, real, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, ating:at, status:weeklyStatusByPct(at)};
+  };
+
+  function buildWeeklyRow(kpi, etapa, mes, ano){
+    const realEl = document.getElementById('weekly-real-'+kpi.id+'-'+etapa);
+    const obsEl  = document.getElementById('weekly-obs-'+kpi.id+'-'+etapa);
+    const realizado = parseBR(realEl ? realEl.value : null);
+    const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+    return { id_kpi:String(kpi.id), area:kpi.area||'', indicador:kpi.indicador||'', mes_num:Number(mes), ano:Number(ano), etapa:Number(etapa), realizado, meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo, comentario:obsEl?obsEl.value:'', updated_at:new Date().toISOString() };
+  }
+
+  function saveOne(id, etapa){
+    const kpi = weeklyGetKpi(id);
+    if(!kpi) return;
+    const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(kpi) : (typeof weeklyCanEditKpi === 'function' ? weeklyCanEditKpi(kpi) : true);
+    if(!canEdit){ toast('⚠ Sem permissão para editar este KPI semanal'); return; }
+    const mes = currentWeeklyMes(), ano = currentWeeklyAno();
+    const realEl = document.getElementById('weekly-real-'+id+'-'+etapa);
+    const raw = realEl ? String(realEl.value || '').trim() : '';
+    const row = buildWeeklyRow(kpi, etapa, mes, ano);
+    if(raw && row.realizado === null){ toast('Informe um realizado válido.'); return; }
+    upsertWeekly([row]);
+    renderWeeklyOperational();
+    toast('✓ Lançamento semanal salvo');
+  }
+  window.saveWeeklyEntry = saveWeeklyEntry = saveOne;
+  window.dmxSaveWeeklyCell = saveOne;
+
+  window.dmxSaveWeeklySelectedStepAll = function(){
+    const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+    const stepEl = document.getElementById('weekly-entry-step-filter');
+    const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1))) || 1;
+    const ids = typeof selectedForArea === 'function' ? selectedForArea(area) : [];
+    const rows = [];
+    ids.map(weeklyGetKpi).filter(Boolean).forEach(kpi=>{
+      const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(kpi) : true;
+      if(!canEdit) return;
+      const realEl = document.getElementById('weekly-real-'+kpi.id+'-'+etapa);
+      const obsEl = document.getElementById('weekly-obs-'+kpi.id+'-'+etapa);
+      if(!realEl && !obsEl) return;
+      const dirty = (realEl && realEl.dataset.weeklyDirty === '1') || (obsEl && obsEl.dataset.weeklyDirty === '1');
+      if(!dirty) return;
+      const row = buildWeeklyRow(kpi, etapa, mes, ano);
+      if(realEl && String(realEl.value || '').trim() !== '' && row.realizado === null) return;
+      rows.push(row);
+    });
+    if(!rows.length){ toast('Nenhuma alteração para salvar nesta etapa.'); return; }
+    upsertWeekly(rows);
+    renderWeeklyOperational();
+    toast('✓ '+rows.length+' lançamento(s) da Etapa '+etapa+' salvo(s)');
+  };
+
+  const oldMakeWeeklyChart = typeof makeWeeklyChart === 'function' ? makeWeeklyChart : null;
+  if(oldMakeWeeklyChart){
+    window.makeWeeklyChart = makeWeeklyChart = function(canvas, kpi, mes, ano, full){
+      const labels = ['Semana 1','Semana 2','Semana 3','Semana 4','Média'];
+      const series = getWeeklySeries(kpi.id, mes, ano);
+      const ref = window.dmxWeeklyMonthlyRef(kpi, mes, ano);
+      const real = series.map(r => r ? parseBR(r.realizado) : null).concat([null]);
+      const meta = [ref.meta, ref.meta, ref.meta, ref.meta, null];
+      const min  = [ref.minimo, ref.minimo, ref.minimo, ref.minimo, null];
+      const max  = [ref.maximo, ref.maximo, ref.maximo, ref.maximo, null];
+      const trend = (typeof dmxWeeklyTrend === 'function') ? dmxWeeklyTrend(kpi, mes, ano) : weeklyAverage(kpi.id, mes, ano, 'realizado');
+      const avg = [null,null,null,null,trend];
+      const ctx = canvas.getContext('2d');
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+      const maior = String(kpi && kpi.sentido || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('maior');
+      weeklyCharts[canvas.id] = new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Realizado',data:real,borderWidth:2.5,tension:.25,pointRadius:full?4:2,yAxisID:'y'},{label:'Meta',data:meta,borderWidth:1.5,borderDash:[4,4],tension:.2,pointRadius:0,yAxisID:'y'},maior?{label:'Mínimo',data:min,borderWidth:1,borderDash:[3,5],tension:.2,pointRadius:0,yAxisID:'y'}:{label:'Máximo',data:max,borderWidth:1,borderDash:[3,5],tension:.2,pointRadius:0,yAxisID:'y'},{label:'Média mensal realizada',data:avg,type:'bar',yAxisID:'y1',borderWidth:0,barPercentage:.55,categoryPercentage:.55}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:!!full,labels:{boxWidth:10,font:{size:11}}},tooltip:{enabled:true}},scales:{x:{grid:{display:false},ticks:{font:{size:full?11:9}}},y:{beginAtZero:false,position:'left',ticks:{font:{size:full?11:9}}},y1:{beginAtZero:false,position:'right',grid:{drawOnChartArea:false},ticks:{font:{size:full?11:9}}}}},plugins:(full && typeof weeklyLabelPlugin!=='undefined')?[weeklyLabelPlugin]:[]});
+    };
+  }
+
+  const prevRender = typeof renderWeeklyOperational === 'function' ? renderWeeklyOperational : null;
+  if(prevRender){
+    window.renderWeeklyOperational = renderWeeklyOperational = function(){
+      prevRender.apply(this, arguments);
+      try{
+        const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+        const stepEl = document.getElementById('weekly-entry-step-filter');
+        const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1))) || 1;
+        const ids = selectedForArea(area);
+        const kpiList = ids.map(weeklyGetKpi).filter(Boolean);
+        const tb = document.querySelector('#weekly-table tbody');
+        if(!tb) return;
+        tb.innerHTML = kpiList.map(k=>{
+          const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(k) : true;
+          const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
+          const r = getWeeklyLaunch(k.id, mes, ano, etapa);
+          const real = r ? parseBR(r.realizado) : null;
+          const at = weeklyCalcAting(k, real, ref.meta);
+          const st = weeklyStatusByPct(at);
+          const trend = typeof dmxWeeklyTrend === 'function' ? dmxWeeklyTrend(k, mes, ano) : weeklyCalcTrend(k.id, mes, ano);
+          const trendAt = weeklyCalcAting(k, trend, ref.meta);
+          const trendSt = weeklyStatusByPct(trendAt);
+          const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+fmtInput(real)+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : weeklyFmt(real,k.unidade);
+          const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
+        }).join('');
+      }catch(e){ console.warn('[DMX v68] Falha ao renderizar tabela semanal final:', e); }
+    };
+  }
+})();
+</script>
+
+
+
+<!-- PATCH v69 — Semanal: meta/mínimo/máximo sempre vindos do mensal carregado -->
+<script>
+(function(){
+  if(window.__dmxV69WeeklyMonthlyRefPatch) return;
+  window.__dmxV69WeeklyMonthlyRefPatch = true;
+
+  function normId(v){ return String(v == null ? '' : v).trim().toUpperCase(); }
+  function toNum(v){
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).trim();
+    if(!s || ['-','—','NA','N/A','NULL','UNDEFINED'].includes(s.toUpperCase())) return null;
+    s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if(s.includes(',') && s.includes('.')){
+      const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+      s = lc > ld ? s.replace(/\./g,'').replace(',', '.') : s.replace(/,/g,'');
+    } else if(s.includes(',')) s = s.replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function pick(obj, names){
+    if(!obj) return null;
+    for(const n of names){
+      if(Object.prototype.hasOwnProperty.call(obj,n)){
+        const v = toNum(obj[n]);
+        if(v !== null) return v;
+      }
+    }
+    const keys = Object.keys(obj);
+    for(const n of names){
+      const target = String(n).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      const k = keys.find(x => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() === target);
+      if(k){ const v = toNum(obj[k]); if(v !== null) return v; }
+    }
+    return null;
+  }
+  function monthKey(id, ano, mes){ return normId(id)+'|'+Number(ano)+'|'+Number(mes); }
+
+  window.__dmxMonthlyRefByKey = window.__dmxMonthlyRefByKey || {};
+
+  function captureMonthlyRows(rows){
+    if(!Array.isArray(rows)) return;
+    const map = window.__dmxMonthlyRefByKey || (window.__dmxMonthlyRefByKey = {});
+    rows.forEach(row => {
+      if(!row) return;
+      const id = row.id_kpi || row.id || row.codigo || row.kpi;
+      const ano = pick(row, ['ano','Ano','ANO']) || window.currentAno || new Date().getFullYear();
+      const mes = pick(row, ['mes_num','mes','mês','Mes','Mês','MES_NUM','MES']) || window.currentMes || (new Date().getMonth()+1);
+      if(!id || !ano || !mes) return;
+      const meta = pick(row, ['meta','Meta','META','meta_mensal','Meta Mensal','meta_padrao','Meta Padrão']);
+      const minimo = pick(row, ['minimo','mínimo','Minimo','Mínimo','MINIMO','minimo_mensal','Mínimo Mensal','minimo_padrao','Mínimo Padrão']);
+      const maximo = pick(row, ['maximo','máximo','Maximo','Máximo','MAXIMO','maximo_mensal','Máximo Mensal','maximo_padrao','Máximo Padrão']);
+      const old = map[monthKey(id, ano, mes)] || {};
+      map[monthKey(id, ano, mes)] = {
+        meta: meta !== null ? meta : old.meta,
+        minimo: minimo !== null ? minimo : old.minimo,
+        maximo: maximo !== null ? maximo : old.maximo
+      };
+    });
+  }
+
+  const oldApplyMensal = window.dmxApplyMensalRows;
+  if(typeof oldApplyMensal === 'function'){
+    window.dmxApplyMensalRows = function(rows){
+      captureMonthlyRows(rows);
+      const ret = oldApplyMensal.apply(this, arguments);
+      try{
+        if(window.currentPage === 'semanal-operacional' && typeof renderWeeklyOperational === 'function'){
+          setTimeout(function(){ renderWeeklyOperational(); }, 80);
+        }
+      }catch(e){}
+      return ret;
+    };
+  }
+
+  function fromLaunches(kpi, mes, ano){
+    try{
+      const id = normId(kpi && kpi.id);
+      const l = Array.isArray(window.launches) ? window.launches.find(x => normId(x.id_kpi) === id && Number(x.ano) === Number(ano) && Number(x.mes_num) === Number(mes)) : null;
+      if(!l) return {};
+      return { meta:toNum(l.meta), minimo:toNum(l.minimo), maximo:toNum(l.maximo) };
+    }catch(e){ return {}; }
+  }
+
+  window.dmxWeeklyMonthlyRef = function(kpi, mes, ano){
+    mes = Number(mes || window.currentMes || (new Date().getMonth()+1));
+    ano = Number(ano || window.currentAno || new Date().getFullYear());
+    const key = monthKey(kpi && kpi.id, ano, mes);
+    const mapped = (window.__dmxMonthlyRefByKey && window.__dmxMonthlyRefByKey[key]) || {};
+    const l = fromLaunches(kpi, mes, ano);
+    function fallback(field){
+      const kv = toNum(kpi && kpi[field]);
+      return kv !== null ? kv : null;
+    }
+    return {
+      meta: mapped.meta !== undefined && mapped.meta !== null ? mapped.meta : (l.meta !== null && l.meta !== undefined ? l.meta : fallback('meta')),
+      minimo: mapped.minimo !== undefined && mapped.minimo !== null ? mapped.minimo : (l.minimo !== null && l.minimo !== undefined ? l.minimo : fallback('minimo')),
+      maximo: mapped.maximo !== undefined && mapped.maximo !== null ? mapped.maximo : (l.maximo !== null && l.maximo !== undefined ? l.maximo : fallback('maximo'))
+    };
+  };
+  window.weeklyResolveRef = function(kpi, mes, ano){ return window.dmxWeeklyMonthlyRef(kpi, mes, ano); };
+
+  // Ao salvar semanal, força as referências mensais atuais na linha semanal.
+  const oldUpsertWeekly = window.upsertWeekly;
+  if(typeof oldUpsertWeekly === 'function'){
+    window.upsertWeekly = function(rows){
+      if(Array.isArray(rows)){
+        rows = rows.map(r => {
+          const k = (typeof weeklyGetKpi === 'function' ? weeklyGetKpi(r.id_kpi) : null) || (typeof getKPI === 'function' ? getKPI(r.id_kpi) : null) || {};
+          const ref = window.dmxWeeklyMonthlyRef(k, r.mes_num || r.mes, r.ano);
+          return Object.assign({}, r, { meta:ref.meta, minimo:ref.minimo, maximo:ref.maximo });
+        });
+      }
+      return oldUpsertWeekly.call(this, rows);
+    };
+  }
+})();
+</script>
+
 </body>
 </html>
