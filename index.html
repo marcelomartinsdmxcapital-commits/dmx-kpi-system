@@ -11512,5 +11512,398 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 <style id="dmx-v59-hide-weekly-month-filter">
   #weekly-month-filter { display: none !important; }
 </style>
+
+
+<!-- PATCH v60 — KPI Slide: mês único pelo cabeçalho + persistência real no F5/API -->
+<style id="dmx-v60-kpi-slide-mes-unico-css">
+  /* Oculta o seletor de mês interno da página de apresentação do KPI.
+     O mês oficial passa a ser somente o seletor global do cabeçalho. */
+  #slide-mes-sel { display: none !important; }
+</style>
+<script id="dmx-v60-kpi-slide-mes-unico-persistente">
+(function(){
+  'use strict';
+  if(window.__dmxV60KpiSlideMesUnico) return;
+  window.__dmxV60KpiSlideMesUnico = true;
+
+  const KEY = 'dmx_ui_state_v57';
+  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function write(patch){
+    try{
+      const s = Object.assign({}, read(), patch || {}, {updatedAt:new Date().toISOString()});
+      localStorage.setItem(KEY, JSON.stringify(s));
+    }catch(e){}
+  }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function isKpiSlideActive(){ return !!document.querySelector('#page-kpi-slide.active'); }
+  function setGlobalPeriodFromTopbar(){
+    const m = validMonth(document.getElementById('mes-sel')?.value) || validMonth(window.currentMes) || (new Date().getMonth()+1);
+    const a = validYear(document.getElementById('ano-sel')?.value) || validYear(window.currentAno) || (new Date().getFullYear());
+    try{ window.currentMes = currentMes = m; }catch(e){ window.currentMes = m; }
+    try{ window.currentAno = currentAno = a; }catch(e){ window.currentAno = a; }
+    ['area-mes-sel','weekly-month-filter','weekly-slide-mes-sel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=String(m); });
+    ['weekly-year-filter'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=String(a); });
+    return {mes:m, ano:a};
+  }
+  function currentSlideInfo(){
+    let kpiId = '', idx = 0, area = '';
+    try{
+      if(typeof slideKPIList !== 'undefined' && Array.isArray(slideKPIList) && slideKPIList[slideCurrentIdx]){
+        kpiId = String(slideKPIList[slideCurrentIdx].id || '');
+        idx = Number(slideCurrentIdx) || 0;
+        area = String(slideKPIList[slideCurrentIdx].area || '');
+      }
+    }catch(e){}
+    return {kpiId, idx, area};
+  }
+  function saveKpiSlideState(){
+    const p = setGlobalPeriodFromTopbar();
+    const info = currentSlideInfo();
+    const old = read();
+    const filters = Object.assign({}, old.filters || {});
+    filters['mes-sel'] = String(p.mes);
+    filters['ano-sel'] = String(p.ano);
+    if(info.kpiId){
+      write({
+        currentPage: 'kpi-slide',
+        currentArea: info.area || old.currentArea || '',
+        currentMes: p.mes,
+        currentAno: p.ano,
+        kpiSlideKpiId: info.kpiId,
+        kpiSlideIdx: info.idx,
+        filters
+      });
+    } else {
+      write({ currentPage:'kpi-slide', currentMes:p.mes, currentAno:p.ano, filters });
+    }
+  }
+  function decorateSlide(){
+    try{
+      const sel = document.getElementById('slide-mes-sel');
+      if(sel){
+        const box = sel.closest('div');
+        if(box) box.style.display = 'none';
+      }
+    }catch(e){}
+  }
+
+  function installRenderWrapper(){
+    if(typeof window.renderKPISlide === 'function' && !window.renderKPISlide.__dmxV60Wrapped){
+      const base = window.renderKPISlide;
+      window.renderKPISlide = renderKPISlide = function(){
+        setGlobalPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateSlide();
+        setTimeout(decorateSlide, 0);
+        try{ saveKpiSlideState(); }catch(e){}
+        return r;
+      };
+      window.renderKPISlide.__dmxV60Wrapped = true;
+    }
+  }
+  function installOpenWrapper(){
+    if(typeof window.openKPISlide === 'function' && !window.openKPISlide.__dmxV60Wrapped){
+      const base = window.openKPISlide;
+      window.openKPISlide = openKPISlide = function(kpiId, idx){
+        setGlobalPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateSlide();
+        try{ saveKpiSlideState(); write({currentPage:'kpi-slide', kpiSlideKpiId:String(kpiId||''), kpiSlideIdx:Number(idx)||0}); }catch(e){}
+        return r;
+      };
+      window.openKPISlide.__dmxV60Wrapped = true;
+    }
+    if(typeof window.slideNav === 'function' && !window.slideNav.__dmxV60Wrapped){
+      const baseNav = window.slideNav;
+      window.slideNav = slideNav = function(dir){
+        const r = baseNav.apply(this, arguments);
+        try{ saveKpiSlideState(); }catch(e){}
+        return r;
+      };
+      window.slideNav.__dmxV60Wrapped = true;
+    }
+    if(typeof window.slideChangeMes === 'function' && !window.slideChangeMes.__dmxV60Wrapped){
+      window.slideChangeMes = slideChangeMes = function(){
+        setGlobalPeriodFromTopbar();
+        if(typeof window.renderKPISlide === 'function') window.renderKPISlide();
+        try{ saveKpiSlideState(); }catch(e){}
+      };
+      window.slideChangeMes.__dmxV60Wrapped = true;
+    }
+  }
+
+  function restoreKpiSlide(){
+    const s = read();
+    if(s.currentPage !== 'kpi-slide') return false;
+    const m = validMonth(s.currentMes || s.filters?.['mes-sel']);
+    const a = validYear(s.currentAno || s.filters?.['ano-sel']);
+    if(m){ const el=document.getElementById('mes-sel'); if(el) el.value=String(m); try{ window.currentMes=currentMes=m; }catch(e){ window.currentMes=m; } }
+    if(a){ const el=document.getElementById('ano-sel'); if(el) el.value=String(a); try{ window.currentAno=currentAno=a; }catch(e){ window.currentAno=a; } }
+    const id = String(s.kpiSlideKpiId || '').trim();
+    if(!id) return false;
+    try{
+      const k = (typeof kpis !== 'undefined' && Array.isArray(kpis)) ? kpis.find(x => String(x.id) === id) : null;
+      if(k && typeof currentAreaKPIs !== 'undefined'){
+        const area = k.area || s.currentArea || '';
+        window.currentArea = area;
+        currentAreaKPIs = kpis.filter(x => x.area === area);
+        if(!currentAreaKPIs.some(x => String(x.id) === id)) currentAreaKPIs = [k];
+      }
+      let idx = Number(s.kpiSlideIdx);
+      if(!Number.isFinite(idx) || idx < 0){
+        idx = (typeof currentAreaKPIs !== 'undefined' && Array.isArray(currentAreaKPIs)) ? currentAreaKPIs.findIndex(x => String(x.id) === id) : 0;
+      }
+      if(idx < 0) idx = 0;
+      if(typeof window.openKPISlide === 'function'){
+        window.openKPISlide(id, idx);
+        saveKpiSlideState();
+        return true;
+      }
+    }catch(e){ console.warn('v60 restore kpi-slide:', e); }
+    return false;
+  }
+
+  function installRestoreOverrides(){
+    const prevRestore = window.dmxRestoreUiState;
+    window.dmxRestoreUiState = function(){
+      if(restoreKpiSlide()) return true;
+      return typeof prevRestore === 'function' ? prevRestore.apply(this, arguments) : false;
+    };
+    window.dmxBootRenderState = window.dmxRestoreUiState;
+    window.renderCurrentPage = window.dmxRestoreUiState;
+  }
+
+  function installTopbarPeriodBridge(){
+    ['mes-sel','ano-sel'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el || el.__dmxV60PeriodBridge) return;
+      el.addEventListener('change', function(){
+        if(!isKpiSlideActive()) return;
+        setGlobalPeriodFromTopbar();
+        if(typeof window.renderKPISlide === 'function') window.renderKPISlide();
+        try{ saveKpiSlideState(); }catch(e){}
+      }, true);
+      el.__dmxV60PeriodBridge = true;
+    });
+  }
+
+  function boot(){
+    installRenderWrapper();
+    installOpenWrapper();
+    installRestoreOverrides();
+    installTopbarPeriodBridge();
+    decorateSlide();
+  }
+
+  boot();
+  document.addEventListener('DOMContentLoaded', function(){
+    boot();
+    [250,900,1800,2600,3600,5200].forEach(ms => setTimeout(function(){ boot(); restoreKpiSlide(); }, ms));
+  });
+  [400,1200,2400,5000,6500].forEach(ms => setTimeout(function(){ boot(); restoreKpiSlide(); }, ms));
+})();
+</script>
+
+
+
+<!-- PATCH v61 — Weekly Slide: mês único pelo cabeçalho + persistência real no F5/API -->
+<style id="dmx-v61-weekly-slide-mes-unico-css">
+  /* Remove o segundo seletor de mês da apresentação semanal. O período oficial é o cabeçalho global. */
+  #weekly-slide-mes-sel,
+  #weekly-slide-mes-sel + * { display: none !important; }
+  #weekly-slide-mes-sel { width:0 !important; opacity:0 !important; pointer-events:none !important; }
+  #weekly-slide-mes-sel option { display:none !important; }
+</style>
+<script id="dmx-v61-weekly-slide-mes-unico-persistente">
+(function(){
+  'use strict';
+  if(window.__dmxV61WeeklySlideMesUnico) return;
+  window.__dmxV61WeeklySlideMesUnico = true;
+
+  const KEY = 'dmx_ui_state_v57';
+  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function write(patch){ try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, read(), patch || {}, {updatedAt:new Date().toISOString()}))); } catch(e){} }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function isWeeklySlideActive(){ return !!document.querySelector('#page-weekly-slide.active'); }
+  function getTopbarPeriod(){
+    const m = validMonth(document.getElementById('mes-sel')?.value) || validMonth(window.currentMes) || (new Date().getMonth()+1);
+    const a = validYear(document.getElementById('ano-sel')?.value) || validYear(window.currentAno) || (new Date().getFullYear());
+    return {mes:m, ano:a};
+  }
+  function syncWeeklyPeriodFromTopbar(){
+    const p = getTopbarPeriod();
+    try{ window.currentMes = currentMes = p.mes; }catch(e){ window.currentMes = p.mes; }
+    try{ window.currentAno = currentAno = p.ano; }catch(e){ window.currentAno = p.ano; }
+    ['weekly-month-filter','weekly-slide-mes-sel','area-mes-sel','slide-mes-sel'].forEach(id => { const el=document.getElementById(id); if(el) el.value=String(p.mes); });
+    ['weekly-year-filter'].forEach(id => { const el=document.getElementById(id); if(el) el.value=String(p.ano); });
+    return p;
+  }
+  function decorateWeeklySlide(){
+    try{
+      const sel = document.getElementById('weekly-slide-mes-sel');
+      if(sel){
+        const box = sel.closest('div');
+        if(box) box.style.display = 'none';
+      }
+    }catch(e){}
+  }
+  function currentWeeklyId(){
+    try{
+      if(typeof weeklySlideList !== 'undefined' && Array.isArray(weeklySlideList) && weeklySlideList[weeklySlideIdx]){
+        return String(weeklySlideList[weeklySlideIdx].id || '');
+      }
+    }catch(e){}
+    return String(read().weeklyKpiId || '');
+  }
+  function saveWeeklySlideState(){
+    const p = syncWeeklyPeriodFromTopbar();
+    const filters = Object.assign({}, read().filters || {});
+    filters['mes-sel'] = String(p.mes);
+    filters['ano-sel'] = String(p.ano);
+    filters['weekly-month-filter'] = String(p.mes);
+    filters['weekly-year-filter'] = String(p.ano);
+    filters['weekly-slide-mes-sel'] = String(p.mes);
+    write({
+      currentPage: 'weekly-slide',
+      currentArea: '',
+      currentMes: p.mes,
+      currentAno: p.ano,
+      filters,
+      weeklyKpiId: currentWeeklyId(),
+      weeklySlideIdx: (typeof weeklySlideIdx !== 'undefined' ? Number(weeklySlideIdx) || 0 : Number(read().weeklySlideIdx) || 0)
+    });
+  }
+
+  function installCurrentWeeklyPeriodBridge(){
+    if(typeof window.currentWeeklyMes === 'function' && !window.currentWeeklyMes.__dmxV61Wrapped){
+      const baseMes = window.currentWeeklyMes;
+      window.currentWeeklyMes = currentWeeklyMes = function(){
+        if(isWeeklySlideActive()) return syncWeeklyPeriodFromTopbar().mes;
+        return validMonth(document.getElementById('mes-sel')?.value) || validMonth(document.getElementById('weekly-month-filter')?.value) || baseMes.apply(this, arguments);
+      };
+      window.currentWeeklyMes.__dmxV61Wrapped = true;
+    }
+    if(typeof window.currentWeeklyAno === 'function' && !window.currentWeeklyAno.__dmxV61Wrapped){
+      const baseAno = window.currentWeeklyAno;
+      window.currentWeeklyAno = currentWeeklyAno = function(){
+        if(isWeeklySlideActive()) return syncWeeklyPeriodFromTopbar().ano;
+        return validYear(document.getElementById('ano-sel')?.value) || validYear(document.getElementById('weekly-year-filter')?.value) || baseAno.apply(this, arguments);
+      };
+      window.currentWeeklyAno.__dmxV61Wrapped = true;
+    }
+  }
+
+  function installWeeklyRenderWrapper(){
+    if(typeof window.renderWeeklySlide === 'function' && !window.renderWeeklySlide.__dmxV61Wrapped){
+      const base = window.renderWeeklySlide;
+      window.renderWeeklySlide = renderWeeklySlide = function(){
+        syncWeeklyPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateWeeklySlide();
+        setTimeout(decorateWeeklySlide, 0);
+        try{ saveWeeklySlideState(); }catch(e){}
+        return r;
+      };
+      window.renderWeeklySlide.__dmxV61Wrapped = true;
+    }
+    if(typeof window.openWeeklyKpiDetail === 'function' && !window.openWeeklyKpiDetail.__dmxV61Wrapped){
+      const baseOpen = window.openWeeklyKpiDetail;
+      window.openWeeklyKpiDetail = openWeeklyKpiDetail = function(id){
+        syncWeeklyPeriodFromTopbar();
+        const r = baseOpen.apply(this, arguments);
+        decorateWeeklySlide();
+        try{ saveWeeklySlideState(); write({weeklyKpiId:String(id||currentWeeklyId()||'')}); }catch(e){}
+        return r;
+      };
+      window.openWeeklyKpiDetail.__dmxV61Wrapped = true;
+    }
+    if(typeof window.weeklySlideNav === 'function' && !window.weeklySlideNav.__dmxV61Wrapped){
+      const baseNav = window.weeklySlideNav;
+      window.weeklySlideNav = weeklySlideNav = function(dir){
+        const r = baseNav.apply(this, arguments);
+        try{ saveWeeklySlideState(); }catch(e){}
+        return r;
+      };
+      window.weeklySlideNav.__dmxV61Wrapped = true;
+    }
+    if(typeof window.weeklySlideChangeMes === 'function' && !window.weeklySlideChangeMes.__dmxV61Wrapped){
+      window.weeklySlideChangeMes = weeklySlideChangeMes = function(){
+        syncWeeklyPeriodFromTopbar();
+        if(typeof window.renderWeeklySlide === 'function') window.renderWeeklySlide();
+        try{ saveWeeklySlideState(); }catch(e){}
+      };
+      window.weeklySlideChangeMes.__dmxV61Wrapped = true;
+    }
+  }
+
+  function installTopbarBridge(){
+    ['mes-sel','ano-sel'].forEach(id => {
+      const el = document.getElementById(id);
+      if(!el || el.__dmxV61WeeklyTopbarBridge) return;
+      el.addEventListener('change', function(){
+        if(!isWeeklySlideActive()) return;
+        syncWeeklyPeriodFromTopbar();
+        if(typeof window.renderWeeklySlide === 'function') window.renderWeeklySlide();
+        try{ saveWeeklySlideState(); }catch(e){}
+      }, true);
+      el.__dmxV61WeeklyTopbarBridge = true;
+    });
+  }
+
+  function restoreWeeklySlide(){
+    const s = read();
+    if(s.currentPage !== 'weekly-slide') return false;
+    const m = validMonth(s.currentMes || s.filters?.['mes-sel'] || s.filters?.['weekly-month-filter']);
+    const a = validYear(s.currentAno || s.filters?.['ano-sel'] || s.filters?.['weekly-year-filter']);
+    if(m){ const el=document.getElementById('mes-sel'); if(el) el.value=String(m); }
+    if(a){ const el=document.getElementById('ano-sel'); if(el) el.value=String(a); }
+    syncWeeklyPeriodFromTopbar();
+    const id = String(s.weeklyKpiId || '').trim();
+    try{
+      if(id && typeof window.openWeeklyKpiDetail === 'function'){
+        window.openWeeklyKpiDetail(id);
+        saveWeeklySlideState();
+        return true;
+      }
+      if(typeof window.renderWeeklySlide === 'function'){
+        window.renderWeeklySlide();
+        saveWeeklySlideState();
+        return true;
+      }
+    }catch(e){ console.warn('v61 weekly restore:', e); }
+    return false;
+  }
+
+  function installRestoreBridge(){
+    if(window.dmxRestoreUiState && !window.dmxRestoreUiState.__dmxV61WeeklyWrapped){
+      const prev = window.dmxRestoreUiState;
+      window.dmxRestoreUiState = function(){
+        if(restoreWeeklySlide()) return true;
+        return prev.apply(this, arguments);
+      };
+      window.dmxRestoreUiState.__dmxV61WeeklyWrapped = true;
+      window.dmxBootRenderState = window.dmxRestoreUiState;
+      window.renderCurrentPage = window.dmxRestoreUiState;
+    }
+  }
+
+  function boot(){
+    installCurrentWeeklyPeriodBridge();
+    installWeeklyRenderWrapper();
+    installTopbarBridge();
+    installRestoreBridge();
+    decorateWeeklySlide();
+  }
+  boot();
+  document.addEventListener('DOMContentLoaded', function(){
+    boot();
+    [250,900,1800,3000,4800,6500].forEach(ms => setTimeout(function(){ boot(); if(read().currentPage === 'weekly-slide') restoreWeeklySlide(); }, ms));
+  });
+  [400,1200,2500,5200,7600].forEach(ms => setTimeout(function(){ boot(); if(read().currentPage === 'weekly-slide') restoreWeeklySlide(); }, ms));
+})();
+</script>
+
 </body>
 </html>
