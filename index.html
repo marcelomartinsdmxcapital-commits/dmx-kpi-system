@@ -11132,7 +11132,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function normPage(p){
     p = String(p || DEFAULT_PAGE);
     if(p === 'kpi-slide') return 'area-detail';
-    if(p === 'weekly-slide') return 'semanal-operacional';
+    // v59: mantém weekly-slide para restaurar o modo apresentação no F5.
     return p;
   }
   function cssEscape(v){ try { return CSS.escape(String(v)); } catch(e){ return String(v).replace(/"/g,'\\"'); } }
@@ -11196,7 +11196,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const n = normalizeState(page || d.page, area || d.area);
     const filters = collectFilters();
     const p = getPeriodFromFilters(filters);
-    write({ currentPage:n.page, currentArea:n.area, currentMes:p.mes, currentAno:p.ano, filters });
+    let weeklyKpiId = '';
+    try{
+      if(n.page === 'weekly-slide' && typeof weeklySlideList !== 'undefined' && Array.isArray(weeklySlideList) && weeklySlideList[weeklySlideIdx]){
+        weeklyKpiId = String(weeklySlideList[weeklySlideIdx].id || '');
+      }
+    }catch(e){}
+    write({ currentPage:n.page, currentArea:n.area, currentMes:p.mes, currentAno:p.ano, filters, weeklyKpiId: weeklyKpiId || (n.page==='weekly-slide' ? (read().weeklyKpiId || '') : '') });
   }
   window.dmxSaveUiState = saveState;
 
@@ -11217,6 +11223,23 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function callOfficialNavigation(page, area){
     applySavedFilters();
+    if(page === 'weekly-slide'){
+      try{
+        const st = read();
+        const savedId = String(st.weeklyKpiId || '').trim();
+        if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+        let id = savedId;
+        if(!id){
+          try{
+            const areaW = (document.getElementById('weekly-area-filter')?.value) || '__ALL__';
+            const ids = (typeof selectedForArea === 'function') ? selectedForArea(areaW) : [];
+            id = ids && ids.length ? String(ids[0]) : '';
+          }catch(e){}
+        }
+        if(id && typeof openWeeklyKpiDetail === 'function') { openWeeklyKpiDetail(id); return true; }
+      }catch(e){ console.warn('v59 weekly-slide restore:', e); }
+      page = 'semanal-operacional';
+    }
     if(page === 'financeiro' || (page === 'area-detail' && isFinanceArea(area))){
       const el = findNav('financeiro');
       if(typeof window.dmxOpenFinanceiro === 'function') { window.dmxOpenFinanceiro(el); return true; }
@@ -11234,6 +11257,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       else if(page === 'planos' && typeof renderPlanos === 'function') renderPlanos();
       else if(page === 'ppr' && typeof renderPPR === 'function') renderPPR();
       else if(page === 'indice' && typeof renderIndice === 'function') renderIndice();
+      else if(page === 'weekly-slide' && typeof renderWeeklySlide === 'function') renderWeeklySlide();
       else if(page === 'semanal-operacional' && typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
       else if(page === 'area-detail' && area && typeof renderAreaDetail === 'function') renderAreaDetail(area);
       return true;
@@ -11324,6 +11348,36 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }, true);
   window.addEventListener('beforeunload', function(){ try{ saveState(); }catch(e){} });
 
+  function installWeeklySlideWrapper(){
+    if(typeof window.openWeeklyKpiDetail === 'function' && !window.openWeeklyKpiDetail.__dmxV59Wrapped){
+      const baseOpenWeekly = window.openWeeklyKpiDetail;
+      window.openWeeklyKpiDetail = openWeeklyKpiDetail = function(id){
+        const r = baseOpenWeekly.apply(this, arguments);
+        try{ saveState('weekly-slide',''); write({weeklyKpiId:String(id||'')}); }catch(e){}
+        return r;
+      };
+      window.openWeeklyKpiDetail.__dmxV59Wrapped = true;
+    }
+    if(typeof window.weeklySlideNav === 'function' && !window.weeklySlideNav.__dmxV59Wrapped){
+      const baseWeeklyNav = window.weeklySlideNav;
+      window.weeklySlideNav = weeklySlideNav = function(dir){
+        const r = baseWeeklyNav.apply(this, arguments);
+        try{ saveState('weekly-slide',''); }catch(e){}
+        return r;
+      };
+      window.weeklySlideNav.__dmxV59Wrapped = true;
+    }
+    if(typeof window.weeklySlideChangeMes === 'function' && !window.weeklySlideChangeMes.__dmxV59Wrapped){
+      const baseWeeklyMes = window.weeklySlideChangeMes;
+      window.weeklySlideChangeMes = weeklySlideChangeMes = function(){
+        const r = baseWeeklyMes.apply(this, arguments);
+        try{ saveState('weekly-slide',''); }catch(e){}
+        return r;
+      };
+      window.weeklySlideChangeMes.__dmxV59Wrapped = true;
+    }
+  }
+
   function installFinanceiroWrapper(){
     if(typeof window.dmxOpenFinanceiro === 'function' && !window.dmxOpenFinanceiro.__dmxV57Wrapped){
       const baseFin = window.dmxOpenFinanceiro;
@@ -11337,9 +11391,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   installFinanceiroWrapper();
+  installWeeklySlideWrapper();
   installWrappers();
   document.addEventListener('DOMContentLoaded', function(){
-    [60, 350, 900, 2100].forEach(ms => setTimeout(function(){ installFinanceiroWrapper(); installWrappers(); }, ms));
+    [60, 350, 900, 2100].forEach(ms => setTimeout(function(){ installFinanceiroWrapper(); installWeeklySlideWrapper(); installWrappers(); }, ms));
     // Restauração final somente após os demais patches de permissão/menu estabilizarem.
     setTimeout(restoreState, 2300);
   });
@@ -11452,5 +11507,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<!-- PATCH v59 — Oculta seletor mensal numérico do semanal -->
+<style id="dmx-v59-hide-weekly-month-filter">
+  #weekly-month-filter { display: none !important; }
+</style>
 </body>
 </html>
