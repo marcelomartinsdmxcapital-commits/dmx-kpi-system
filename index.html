@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de Performance v48 Governança Completa</title>
+<title>DMX Capital · Sistema de Gestão de Performance v57 F5 Financeiro Corrigido</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -11090,15 +11090,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
 
 
-<!-- PATCH v56 — Persistência limpa de navegação e filtros no F5 -->
-<script id="dmx-v56-f5-persistencia-limpa">
+<!-- PATCH v57 — Persistência F5 com rota correta do Painel Financeiro -->
+<script id="dmx-v57-f5-financeiro-rota-corrigida">
 (function(){
   'use strict';
-  if(window.__dmxV56F5PersistenciaLimpa) return;
-  window.__dmxV56F5PersistenciaLimpa = true;
+  if(window.__dmxV57F5FinanceiroRotaCorrigida) return;
+  window.__dmxV57F5FinanceiroRotaCorrigida = true;
 
-  const KEY = 'dmx_ui_state_v56';
-  const LEGACY_KEYS = ['dmx_ui_state_v54','dmx_ui_state_v49'];
+  const KEY = 'dmx_ui_state_v57';
+  const LEGACY_KEYS = ['dmx_ui_state_v56','dmx_ui_state_v54','dmx_ui_state_v49'];
   const DEFAULT_PAGE = 'dashboard';
   const FILTER_IDS = [
     'mes-sel','ano-sel','area-mes-sel','slide-mes-sel',
@@ -11132,7 +11132,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function normPage(p){
     p = String(p || DEFAULT_PAGE);
     if(p === 'kpi-slide') return 'area-detail';
-    if(p === 'weekly-slide') return 'semanal-operacional';
+    // v59: mantém weekly-slide para restaurar o modo apresentação no F5.
     return p;
   }
   function cssEscape(v){ try { return CSS.escape(String(v)); } catch(e){ return String(v).replace(/"/g,'\\"'); } }
@@ -11181,10 +11181,14 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     }
     return { page: normPage(page), area: area || '' };
   }
+  function isFinanceArea(area){ return /^(painel financeiro|financeiro|ceo)$/i.test(String(area || '').trim()); }
   function normalizeState(page, area){
     page = normPage(page || DEFAULT_PAGE);
+    // Painel Financeiro não possui page própria. Ele usa page-area-detail + renderAreaDetail('Painel Financeiro').
+    // Portanto nunca gravamos/restauramos currentPage='financeiro', pois isso ativa menu sem tela real e gera branco.
+    if(page === 'financeiro') return {page:'area-detail', area:'Painel Financeiro'};
     area = page === 'area-detail' ? (area || '') : '';
-    if(page === 'financeiro') area = '';
+    if(page === 'area-detail' && isFinanceArea(area)) area = 'Painel Financeiro';
     return {page, area};
   }
   function saveState(page, area){
@@ -11192,12 +11196,19 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const n = normalizeState(page || d.page, area || d.area);
     const filters = collectFilters();
     const p = getPeriodFromFilters(filters);
-    write({ currentPage:n.page, currentArea:n.area, currentMes:p.mes, currentAno:p.ano, filters });
+    let weeklyKpiId = '';
+    try{
+      if(n.page === 'weekly-slide' && typeof weeklySlideList !== 'undefined' && Array.isArray(weeklySlideList) && weeklySlideList[weeklySlideIdx]){
+        weeklyKpiId = String(weeklySlideList[weeklySlideIdx].id || '');
+      }
+    }catch(e){}
+    write({ currentPage:n.page, currentArea:n.area, currentMes:p.mes, currentAno:p.ano, filters, weeklyKpiId: weeklyKpiId || (n.page==='weekly-slide' ? (read().weeklyKpiId || '') : '') });
   }
   window.dmxSaveUiState = saveState;
 
   function hasAccess(page, area){
     try{
+      if(page === 'area-detail' && isFinanceArea(area)) return true;
       if(page === 'area-detail' && area && typeof window.dmxV484CanArea === 'function') return window.dmxV484CanArea(area);
       if(page !== 'area-detail' && typeof window.dmxV484CanPage === 'function') return window.dmxV484CanPage(page);
     }catch(e){}
@@ -11212,9 +11223,27 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function callOfficialNavigation(page, area){
     applySavedFilters();
-    if(page === 'financeiro'){
+    if(page === 'weekly-slide'){
+      try{
+        const st = read();
+        const savedId = String(st.weeklyKpiId || '').trim();
+        if(typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+        let id = savedId;
+        if(!id){
+          try{
+            const areaW = (document.getElementById('weekly-area-filter')?.value) || '__ALL__';
+            const ids = (typeof selectedForArea === 'function') ? selectedForArea(areaW) : [];
+            id = ids && ids.length ? String(ids[0]) : '';
+          }catch(e){}
+        }
+        if(id && typeof openWeeklyKpiDetail === 'function') { openWeeklyKpiDetail(id); return true; }
+      }catch(e){ console.warn('v59 weekly-slide restore:', e); }
+      page = 'semanal-operacional';
+    }
+    if(page === 'financeiro' || (page === 'area-detail' && isFinanceArea(area))){
       const el = findNav('financeiro');
       if(typeof window.dmxOpenFinanceiro === 'function') { window.dmxOpenFinanceiro(el); return true; }
+      page = 'area-detail'; area = 'Painel Financeiro';
     }
     const el = findNav(page, area);
     if(el && typeof window.nav === 'function') { window.nav(el, page === 'area-detail' ? area : undefined); return true; }
@@ -11228,6 +11257,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       else if(page === 'planos' && typeof renderPlanos === 'function') renderPlanos();
       else if(page === 'ppr' && typeof renderPPR === 'function') renderPPR();
       else if(page === 'indice' && typeof renderIndice === 'function') renderIndice();
+      else if(page === 'weekly-slide' && typeof renderWeeklySlide === 'function') renderWeeklySlide();
       else if(page === 'semanal-operacional' && typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
       else if(page === 'area-detail' && area && typeof renderAreaDetail === 'function') renderAreaDetail(area);
       return true;
@@ -11318,12 +11348,918 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }, true);
   window.addEventListener('beforeunload', function(){ try{ saveState(); }catch(e){} });
 
+  function installWeeklySlideWrapper(){
+    if(typeof window.openWeeklyKpiDetail === 'function' && !window.openWeeklyKpiDetail.__dmxV59Wrapped){
+      const baseOpenWeekly = window.openWeeklyKpiDetail;
+      window.openWeeklyKpiDetail = openWeeklyKpiDetail = function(id){
+        const r = baseOpenWeekly.apply(this, arguments);
+        try{ saveState('weekly-slide',''); write({weeklyKpiId:String(id||'')}); }catch(e){}
+        return r;
+      };
+      window.openWeeklyKpiDetail.__dmxV59Wrapped = true;
+    }
+    if(typeof window.weeklySlideNav === 'function' && !window.weeklySlideNav.__dmxV59Wrapped){
+      const baseWeeklyNav = window.weeklySlideNav;
+      window.weeklySlideNav = weeklySlideNav = function(dir){
+        const r = baseWeeklyNav.apply(this, arguments);
+        try{ saveState('weekly-slide',''); }catch(e){}
+        return r;
+      };
+      window.weeklySlideNav.__dmxV59Wrapped = true;
+    }
+    if(typeof window.weeklySlideChangeMes === 'function' && !window.weeklySlideChangeMes.__dmxV59Wrapped){
+      const baseWeeklyMes = window.weeklySlideChangeMes;
+      window.weeklySlideChangeMes = weeklySlideChangeMes = function(){
+        const r = baseWeeklyMes.apply(this, arguments);
+        try{ saveState('weekly-slide',''); }catch(e){}
+        return r;
+      };
+      window.weeklySlideChangeMes.__dmxV59Wrapped = true;
+    }
+  }
+
+  function installFinanceiroWrapper(){
+    if(typeof window.dmxOpenFinanceiro === 'function' && !window.dmxOpenFinanceiro.__dmxV57Wrapped){
+      const baseFin = window.dmxOpenFinanceiro;
+      window.dmxOpenFinanceiro = function(el){
+        const r = baseFin.apply(this, arguments);
+        try{ saveState('area-detail', 'Painel Financeiro'); }catch(e){}
+        return r;
+      };
+      window.dmxOpenFinanceiro.__dmxV57Wrapped = true;
+    }
+  }
+
+  installFinanceiroWrapper();
+  installWeeklySlideWrapper();
   installWrappers();
   document.addEventListener('DOMContentLoaded', function(){
-    [60, 350, 900, 2100].forEach(ms => setTimeout(installWrappers, ms));
+    [60, 350, 900, 2100].forEach(ms => setTimeout(function(){ installFinanceiroWrapper(); installWeeklySlideWrapper(); installWrappers(); }, ms));
     // Restauração final somente após os demais patches de permissão/menu estabilizarem.
     setTimeout(restoreState, 2300);
   });
+})();
+</script>
+
+
+<!-- PATCH v58 — Boot silencioso para evitar pisca-pisca no F5 sem perder v57 -->
+<style id="dmx-v58-boot-silencioso-css">
+  body.dmx-boot-silent .main,
+  body.dmx-boot-silent .sidebar { visibility: hidden !important; }
+  #dmx-v58-boot-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    display: none; align-items: center; justify-content: center;
+    background: #0D0D0D; color: #fff; font-family: 'DM Sans', Arial, sans-serif;
+  }
+  body.dmx-boot-silent #dmx-v58-boot-overlay { display: flex; }
+  #dmx-v58-boot-overlay .dmx-v58-card { text-align: center; opacity: .96; }
+  #dmx-v58-boot-overlay .dmx-v58-title {
+    font-family: 'Syne', Arial, sans-serif; font-size: 16px; font-weight: 800; letter-spacing: .2px;
+  }
+  #dmx-v58-boot-overlay .dmx-v58-sub { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,.48); letter-spacing: 1.2px; text-transform: uppercase; }
+  #dmx-v58-boot-overlay .dmx-v58-loader {
+    width: 34px; height: 34px; margin: 0 auto 14px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.16); border-top-color: #0E9E82;
+    animation: dmxV58Spin .8s linear infinite;
+  }
+  @keyframes dmxV58Spin { to { transform: rotate(360deg); } }
+</style>
+<script id="dmx-v58-f5-boot-silencioso">
+(function(){
+  'use strict';
+  if(window.__dmxV58BootSilencioso) return;
+  window.__dmxV58BootSilencioso = true;
+
+  const STATE_KEY = 'dmx_ui_state_v57';
+  const BOOT_MS = 4300;
+  const EXTRA_RESTORE_MS = [4700, 5400];
+  let booting = true;
+  let restoredOnce = false;
+
+  function readState(){ try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}') || {}; } catch(e){ return {}; } }
+  const frozenState = readState();
+
+  function installOverlay(){
+    try{
+      document.body.classList.add('dmx-boot-silent');
+      if(!document.getElementById('dmx-v58-boot-overlay')){
+        const div = document.createElement('div');
+        div.id = 'dmx-v58-boot-overlay';
+        div.innerHTML = '<div class="dmx-v58-card"><div class="dmx-v58-loader"></div><div class="dmx-v58-title">DMX Capital</div><div class="dmx-v58-sub">Carregando visão salva</div></div>';
+        document.body.appendChild(div);
+      }
+    }catch(e){}
+  }
+
+  // Durante o boot, vários patches antigos navegam para páginas provisórias.
+  // Esta trava impede que esses estados intermediários substituam a última tela real do usuário.
+  const originalSetItem = Storage.prototype.setItem;
+  if(!Storage.prototype.setItem.__dmxV58Wrapped){
+    Storage.prototype.setItem = function(key, value){
+      if(booting && key === STATE_KEY){ return; }
+      return originalSetItem.apply(this, arguments);
+    };
+    Storage.prototype.setItem.__dmxV58Wrapped = true;
+  }
+
+  function restoreFrozenState(){
+    try{
+      if(frozenState && (frozenState.currentPage || frozenState.currentArea || frozenState.filters)){
+        originalSetItem.call(localStorage, STATE_KEY, JSON.stringify(frozenState));
+      }
+    }catch(e){}
+  }
+
+  function applySavedRoute(){
+    restoreFrozenState();
+    try{
+      if(typeof window.dmxRestoreUiState === 'function') window.dmxRestoreUiState();
+      else if(typeof window.dmxBootRenderState === 'function') window.dmxBootRenderState();
+      else if(typeof window.renderCurrentPage === 'function') window.renderCurrentPage();
+      restoredOnce = true;
+    }catch(e){ console.warn('v58 restore:', e); }
+  }
+
+  function finishBoot(){
+    applySavedRoute();
+    setTimeout(function(){
+      booting = false;
+      try{ document.body.classList.remove('dmx-boot-silent'); }catch(e){}
+      try{
+        if(restoredOnce && typeof window.dmxSaveUiState === 'function') window.dmxSaveUiState();
+      }catch(e){}
+    }, 160);
+  }
+
+  installOverlay();
+  restoreFrozenState();
+
+  document.addEventListener('DOMContentLoaded', function(){
+    installOverlay();
+    restoreFrozenState();
+    setTimeout(finishBoot, BOOT_MS);
+    EXTRA_RESTORE_MS.forEach(ms => setTimeout(function(){ if(booting) applySavedRoute(); }, ms));
+  });
+
+  setTimeout(function(){
+    if(booting) finishBoot();
+  }, BOOT_MS + 700);
+})();
+</script>
+
+
+<!-- PATCH v59 — Oculta seletor mensal numérico do semanal -->
+<style id="dmx-v59-hide-weekly-month-filter">
+  #weekly-month-filter { display: none !important; }
+</style>
+
+
+<!-- PATCH v60 — KPI Slide: mês único pelo cabeçalho + persistência real no F5/API -->
+<style id="dmx-v60-kpi-slide-mes-unico-css">
+  /* Oculta o seletor de mês interno da página de apresentação do KPI.
+     O mês oficial passa a ser somente o seletor global do cabeçalho. */
+  #slide-mes-sel { display: none !important; }
+</style>
+<script id="dmx-v60-kpi-slide-mes-unico-persistente">
+(function(){
+  'use strict';
+  if(window.__dmxV60KpiSlideMesUnico) return;
+  window.__dmxV60KpiSlideMesUnico = true;
+
+  const KEY = 'dmx_ui_state_v57';
+  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function write(patch){
+    try{
+      const s = Object.assign({}, read(), patch || {}, {updatedAt:new Date().toISOString()});
+      localStorage.setItem(KEY, JSON.stringify(s));
+    }catch(e){}
+  }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function isKpiSlideActive(){ return !!document.querySelector('#page-kpi-slide.active'); }
+  function setGlobalPeriodFromTopbar(){
+    const m = validMonth(document.getElementById('mes-sel')?.value) || validMonth(window.currentMes) || (new Date().getMonth()+1);
+    const a = validYear(document.getElementById('ano-sel')?.value) || validYear(window.currentAno) || (new Date().getFullYear());
+    try{ window.currentMes = currentMes = m; }catch(e){ window.currentMes = m; }
+    try{ window.currentAno = currentAno = a; }catch(e){ window.currentAno = a; }
+    ['area-mes-sel','weekly-month-filter','weekly-slide-mes-sel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=String(m); });
+    ['weekly-year-filter'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=String(a); });
+    return {mes:m, ano:a};
+  }
+  function currentSlideInfo(){
+    let kpiId = '', idx = 0, area = '';
+    try{
+      if(typeof slideKPIList !== 'undefined' && Array.isArray(slideKPIList) && slideKPIList[slideCurrentIdx]){
+        kpiId = String(slideKPIList[slideCurrentIdx].id || '');
+        idx = Number(slideCurrentIdx) || 0;
+        area = String(slideKPIList[slideCurrentIdx].area || '');
+      }
+    }catch(e){}
+    return {kpiId, idx, area};
+  }
+  function saveKpiSlideState(){
+    const p = setGlobalPeriodFromTopbar();
+    const info = currentSlideInfo();
+    const old = read();
+    const filters = Object.assign({}, old.filters || {});
+    filters['mes-sel'] = String(p.mes);
+    filters['ano-sel'] = String(p.ano);
+    if(info.kpiId){
+      write({
+        currentPage: 'kpi-slide',
+        currentArea: info.area || old.currentArea || '',
+        currentMes: p.mes,
+        currentAno: p.ano,
+        kpiSlideKpiId: info.kpiId,
+        kpiSlideIdx: info.idx,
+        filters
+      });
+    } else {
+      write({ currentPage:'kpi-slide', currentMes:p.mes, currentAno:p.ano, filters });
+    }
+  }
+  function decorateSlide(){
+    try{
+      const sel = document.getElementById('slide-mes-sel');
+      if(sel){
+        const box = sel.closest('div');
+        if(box) box.style.display = 'none';
+      }
+    }catch(e){}
+  }
+
+  function installRenderWrapper(){
+    if(typeof window.renderKPISlide === 'function' && !window.renderKPISlide.__dmxV60Wrapped){
+      const base = window.renderKPISlide;
+      window.renderKPISlide = renderKPISlide = function(){
+        setGlobalPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateSlide();
+        setTimeout(decorateSlide, 0);
+        try{ saveKpiSlideState(); }catch(e){}
+        return r;
+      };
+      window.renderKPISlide.__dmxV60Wrapped = true;
+    }
+  }
+  function installOpenWrapper(){
+    if(typeof window.openKPISlide === 'function' && !window.openKPISlide.__dmxV60Wrapped){
+      const base = window.openKPISlide;
+      window.openKPISlide = openKPISlide = function(kpiId, idx){
+        setGlobalPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateSlide();
+        try{ saveKpiSlideState(); write({currentPage:'kpi-slide', kpiSlideKpiId:String(kpiId||''), kpiSlideIdx:Number(idx)||0}); }catch(e){}
+        return r;
+      };
+      window.openKPISlide.__dmxV60Wrapped = true;
+    }
+    if(typeof window.slideNav === 'function' && !window.slideNav.__dmxV60Wrapped){
+      const baseNav = window.slideNav;
+      window.slideNav = slideNav = function(dir){
+        const r = baseNav.apply(this, arguments);
+        try{ saveKpiSlideState(); }catch(e){}
+        return r;
+      };
+      window.slideNav.__dmxV60Wrapped = true;
+    }
+    if(typeof window.slideChangeMes === 'function' && !window.slideChangeMes.__dmxV60Wrapped){
+      window.slideChangeMes = slideChangeMes = function(){
+        setGlobalPeriodFromTopbar();
+        if(typeof window.renderKPISlide === 'function') window.renderKPISlide();
+        try{ saveKpiSlideState(); }catch(e){}
+      };
+      window.slideChangeMes.__dmxV60Wrapped = true;
+    }
+  }
+
+  function restoreKpiSlide(){
+    const s = read();
+    if(s.currentPage !== 'kpi-slide') return false;
+    const m = validMonth(s.currentMes || s.filters?.['mes-sel']);
+    const a = validYear(s.currentAno || s.filters?.['ano-sel']);
+    if(m){ const el=document.getElementById('mes-sel'); if(el) el.value=String(m); try{ window.currentMes=currentMes=m; }catch(e){ window.currentMes=m; } }
+    if(a){ const el=document.getElementById('ano-sel'); if(el) el.value=String(a); try{ window.currentAno=currentAno=a; }catch(e){ window.currentAno=a; } }
+    const id = String(s.kpiSlideKpiId || '').trim();
+    if(!id) return false;
+    try{
+      const k = (typeof kpis !== 'undefined' && Array.isArray(kpis)) ? kpis.find(x => String(x.id) === id) : null;
+      if(k && typeof currentAreaKPIs !== 'undefined'){
+        const area = k.area || s.currentArea || '';
+        window.currentArea = area;
+        currentAreaKPIs = kpis.filter(x => x.area === area);
+        if(!currentAreaKPIs.some(x => String(x.id) === id)) currentAreaKPIs = [k];
+      }
+      let idx = Number(s.kpiSlideIdx);
+      if(!Number.isFinite(idx) || idx < 0){
+        idx = (typeof currentAreaKPIs !== 'undefined' && Array.isArray(currentAreaKPIs)) ? currentAreaKPIs.findIndex(x => String(x.id) === id) : 0;
+      }
+      if(idx < 0) idx = 0;
+      if(typeof window.openKPISlide === 'function'){
+        window.openKPISlide(id, idx);
+        saveKpiSlideState();
+        return true;
+      }
+    }catch(e){ console.warn('v60 restore kpi-slide:', e); }
+    return false;
+  }
+
+  function installRestoreOverrides(){
+    const prevRestore = window.dmxRestoreUiState;
+    window.dmxRestoreUiState = function(){
+      if(restoreKpiSlide()) return true;
+      return typeof prevRestore === 'function' ? prevRestore.apply(this, arguments) : false;
+    };
+    window.dmxBootRenderState = window.dmxRestoreUiState;
+    window.renderCurrentPage = window.dmxRestoreUiState;
+  }
+
+  function installTopbarPeriodBridge(){
+    ['mes-sel','ano-sel'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el || el.__dmxV60PeriodBridge) return;
+      el.addEventListener('change', function(){
+        if(!isKpiSlideActive()) return;
+        setGlobalPeriodFromTopbar();
+        if(typeof window.renderKPISlide === 'function') window.renderKPISlide();
+        try{ saveKpiSlideState(); }catch(e){}
+      }, true);
+      el.__dmxV60PeriodBridge = true;
+    });
+  }
+
+  function boot(){
+    installRenderWrapper();
+    installOpenWrapper();
+    installRestoreOverrides();
+    installTopbarPeriodBridge();
+    decorateSlide();
+  }
+
+  boot();
+  document.addEventListener('DOMContentLoaded', function(){
+    boot();
+    [250,900,1800,2600,3600,5200].forEach(ms => setTimeout(function(){ boot(); restoreKpiSlide(); }, ms));
+  });
+  [400,1200,2400,5000,6500].forEach(ms => setTimeout(function(){ boot(); restoreKpiSlide(); }, ms));
+})();
+</script>
+
+
+
+<!-- PATCH v61 — Weekly Slide: mês único pelo cabeçalho + persistência real no F5/API -->
+<style id="dmx-v61-weekly-slide-mes-unico-css">
+  /* Remove o segundo seletor de mês da apresentação semanal. O período oficial é o cabeçalho global. */
+  #weekly-slide-mes-sel,
+  #weekly-slide-mes-sel + * { display: none !important; }
+  #weekly-slide-mes-sel { width:0 !important; opacity:0 !important; pointer-events:none !important; }
+  #weekly-slide-mes-sel option { display:none !important; }
+</style>
+<script id="dmx-v61-weekly-slide-mes-unico-persistente">
+(function(){
+  'use strict';
+  if(window.__dmxV61WeeklySlideMesUnico) return;
+  window.__dmxV61WeeklySlideMesUnico = true;
+
+  const KEY = 'dmx_ui_state_v57';
+  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
+  function write(patch){ try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, read(), patch || {}, {updatedAt:new Date().toISOString()}))); } catch(e){} }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function isWeeklySlideActive(){ return !!document.querySelector('#page-weekly-slide.active'); }
+  function getTopbarPeriod(){
+    const m = validMonth(document.getElementById('mes-sel')?.value) || validMonth(window.currentMes) || (new Date().getMonth()+1);
+    const a = validYear(document.getElementById('ano-sel')?.value) || validYear(window.currentAno) || (new Date().getFullYear());
+    return {mes:m, ano:a};
+  }
+  function syncWeeklyPeriodFromTopbar(){
+    const p = getTopbarPeriod();
+    try{ window.currentMes = currentMes = p.mes; }catch(e){ window.currentMes = p.mes; }
+    try{ window.currentAno = currentAno = p.ano; }catch(e){ window.currentAno = p.ano; }
+    ['weekly-month-filter','weekly-slide-mes-sel','area-mes-sel','slide-mes-sel'].forEach(id => { const el=document.getElementById(id); if(el) el.value=String(p.mes); });
+    ['weekly-year-filter'].forEach(id => { const el=document.getElementById(id); if(el) el.value=String(p.ano); });
+    return p;
+  }
+  function decorateWeeklySlide(){
+    try{
+      const sel = document.getElementById('weekly-slide-mes-sel');
+      if(sel){
+        const box = sel.closest('div');
+        if(box) box.style.display = 'none';
+      }
+    }catch(e){}
+  }
+  function currentWeeklyId(){
+    try{
+      if(typeof weeklySlideList !== 'undefined' && Array.isArray(weeklySlideList) && weeklySlideList[weeklySlideIdx]){
+        return String(weeklySlideList[weeklySlideIdx].id || '');
+      }
+    }catch(e){}
+    return String(read().weeklyKpiId || '');
+  }
+  function saveWeeklySlideState(){
+    const p = syncWeeklyPeriodFromTopbar();
+    const filters = Object.assign({}, read().filters || {});
+    filters['mes-sel'] = String(p.mes);
+    filters['ano-sel'] = String(p.ano);
+    filters['weekly-month-filter'] = String(p.mes);
+    filters['weekly-year-filter'] = String(p.ano);
+    filters['weekly-slide-mes-sel'] = String(p.mes);
+    write({
+      currentPage: 'weekly-slide',
+      currentArea: '',
+      currentMes: p.mes,
+      currentAno: p.ano,
+      filters,
+      weeklyKpiId: currentWeeklyId(),
+      weeklySlideIdx: (typeof weeklySlideIdx !== 'undefined' ? Number(weeklySlideIdx) || 0 : Number(read().weeklySlideIdx) || 0)
+    });
+  }
+
+  function installCurrentWeeklyPeriodBridge(){
+    if(typeof window.currentWeeklyMes === 'function' && !window.currentWeeklyMes.__dmxV61Wrapped){
+      const baseMes = window.currentWeeklyMes;
+      window.currentWeeklyMes = currentWeeklyMes = function(){
+        if(isWeeklySlideActive()) return syncWeeklyPeriodFromTopbar().mes;
+        return validMonth(document.getElementById('mes-sel')?.value) || validMonth(document.getElementById('weekly-month-filter')?.value) || baseMes.apply(this, arguments);
+      };
+      window.currentWeeklyMes.__dmxV61Wrapped = true;
+    }
+    if(typeof window.currentWeeklyAno === 'function' && !window.currentWeeklyAno.__dmxV61Wrapped){
+      const baseAno = window.currentWeeklyAno;
+      window.currentWeeklyAno = currentWeeklyAno = function(){
+        if(isWeeklySlideActive()) return syncWeeklyPeriodFromTopbar().ano;
+        return validYear(document.getElementById('ano-sel')?.value) || validYear(document.getElementById('weekly-year-filter')?.value) || baseAno.apply(this, arguments);
+      };
+      window.currentWeeklyAno.__dmxV61Wrapped = true;
+    }
+  }
+
+  function installWeeklyRenderWrapper(){
+    if(typeof window.renderWeeklySlide === 'function' && !window.renderWeeklySlide.__dmxV61Wrapped){
+      const base = window.renderWeeklySlide;
+      window.renderWeeklySlide = renderWeeklySlide = function(){
+        syncWeeklyPeriodFromTopbar();
+        const r = base.apply(this, arguments);
+        decorateWeeklySlide();
+        setTimeout(decorateWeeklySlide, 0);
+        try{ saveWeeklySlideState(); }catch(e){}
+        return r;
+      };
+      window.renderWeeklySlide.__dmxV61Wrapped = true;
+    }
+    if(typeof window.openWeeklyKpiDetail === 'function' && !window.openWeeklyKpiDetail.__dmxV61Wrapped){
+      const baseOpen = window.openWeeklyKpiDetail;
+      window.openWeeklyKpiDetail = openWeeklyKpiDetail = function(id){
+        syncWeeklyPeriodFromTopbar();
+        const r = baseOpen.apply(this, arguments);
+        decorateWeeklySlide();
+        try{ saveWeeklySlideState(); write({weeklyKpiId:String(id||currentWeeklyId()||'')}); }catch(e){}
+        return r;
+      };
+      window.openWeeklyKpiDetail.__dmxV61Wrapped = true;
+    }
+    if(typeof window.weeklySlideNav === 'function' && !window.weeklySlideNav.__dmxV61Wrapped){
+      const baseNav = window.weeklySlideNav;
+      window.weeklySlideNav = weeklySlideNav = function(dir){
+        const r = baseNav.apply(this, arguments);
+        try{ saveWeeklySlideState(); }catch(e){}
+        return r;
+      };
+      window.weeklySlideNav.__dmxV61Wrapped = true;
+    }
+    if(typeof window.weeklySlideChangeMes === 'function' && !window.weeklySlideChangeMes.__dmxV61Wrapped){
+      window.weeklySlideChangeMes = weeklySlideChangeMes = function(){
+        syncWeeklyPeriodFromTopbar();
+        if(typeof window.renderWeeklySlide === 'function') window.renderWeeklySlide();
+        try{ saveWeeklySlideState(); }catch(e){}
+      };
+      window.weeklySlideChangeMes.__dmxV61Wrapped = true;
+    }
+  }
+
+  function installTopbarBridge(){
+    ['mes-sel','ano-sel'].forEach(id => {
+      const el = document.getElementById(id);
+      if(!el || el.__dmxV61WeeklyTopbarBridge) return;
+      el.addEventListener('change', function(){
+        if(!isWeeklySlideActive()) return;
+        syncWeeklyPeriodFromTopbar();
+        if(typeof window.renderWeeklySlide === 'function') window.renderWeeklySlide();
+        try{ saveWeeklySlideState(); }catch(e){}
+      }, true);
+      el.__dmxV61WeeklyTopbarBridge = true;
+    });
+  }
+
+  function restoreWeeklySlide(){
+    const s = read();
+    if(s.currentPage !== 'weekly-slide') return false;
+    const m = validMonth(s.currentMes || s.filters?.['mes-sel'] || s.filters?.['weekly-month-filter']);
+    const a = validYear(s.currentAno || s.filters?.['ano-sel'] || s.filters?.['weekly-year-filter']);
+    if(m){ const el=document.getElementById('mes-sel'); if(el) el.value=String(m); }
+    if(a){ const el=document.getElementById('ano-sel'); if(el) el.value=String(a); }
+    syncWeeklyPeriodFromTopbar();
+    const id = String(s.weeklyKpiId || '').trim();
+    try{
+      if(id && typeof window.openWeeklyKpiDetail === 'function'){
+        window.openWeeklyKpiDetail(id);
+        saveWeeklySlideState();
+        return true;
+      }
+      if(typeof window.renderWeeklySlide === 'function'){
+        window.renderWeeklySlide();
+        saveWeeklySlideState();
+        return true;
+      }
+    }catch(e){ console.warn('v61 weekly restore:', e); }
+    return false;
+  }
+
+  function installRestoreBridge(){
+    if(window.dmxRestoreUiState && !window.dmxRestoreUiState.__dmxV61WeeklyWrapped){
+      const prev = window.dmxRestoreUiState;
+      window.dmxRestoreUiState = function(){
+        if(restoreWeeklySlide()) return true;
+        return prev.apply(this, arguments);
+      };
+      window.dmxRestoreUiState.__dmxV61WeeklyWrapped = true;
+      window.dmxBootRenderState = window.dmxRestoreUiState;
+      window.renderCurrentPage = window.dmxRestoreUiState;
+    }
+  }
+
+  function boot(){
+    installCurrentWeeklyPeriodBridge();
+    installWeeklyRenderWrapper();
+    installTopbarBridge();
+    installRestoreBridge();
+    decorateWeeklySlide();
+  }
+  boot();
+  document.addEventListener('DOMContentLoaded', function(){
+    boot();
+    [250,900,1800,3000,4800,6500].forEach(ms => setTimeout(function(){ boot(); if(read().currentPage === 'weekly-slide') restoreWeeklySlide(); }, ms));
+  });
+  [400,1200,2500,5200,7600].forEach(ms => setTimeout(function(){ boot(); if(read().currentPage === 'weekly-slide') restoreWeeklySlide(); }, ms));
+})();
+</script>
+
+
+<script id="dmx-v62-api-sheet-url-corrigida">
+/* v62 — Correção isolada da integração Google Sheets.
+   Problema encontrado: versões de governança/login sobrescreviam dmxGetApiUrl()
+   com uma URL fixa antiga, ignorando a URL salva em localStorage. Isso fazia leitura/gravação
+   bater em deployment/Sheet errado ou antigo. Este patch recoloca a regra correta no final:
+   URL manual salva > URL padrão do código > URL global.
+*/
+(function(){
+  if(window.__dmxV62ApiSheetUrlCorrigida) return;
+  window.__dmxV62ApiSheetUrlCorrigida = true;
+
+  const API_KEY = 'dmx_google_sheets_api_url_v1';
+  const esc = v => String(v || '').trim();
+
+  function manualUrl(){
+    try { return esc(localStorage.getItem(API_KEY)); } catch(e) { return ''; }
+  }
+  function fallbackUrl(){
+    return esc(window.DMX_DEFAULT_API_URL) || esc(window.DMX_API_URL);
+  }
+
+  window.dmxGetApiUrl = function(){
+    return manualUrl() || fallbackUrl();
+  };
+
+  window.dmxSetApiUrl = function(url){
+    try { localStorage.setItem(API_KEY, esc(url)); } catch(e) {}
+  };
+
+  window.dmxApiUrlWithTipo = function(url, tipo){
+    const base = esc(url || window.dmxGetApiUrl()).replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'');
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  };
+
+  async function postViaFetch(tipo, payload){
+    const url = window.dmxGetApiUrl();
+    if(!url){
+      if(typeof showToast === 'function') showToast('⚠️ URL da API Google Sheets não configurada.');
+      return {ok:false, offline:true};
+    }
+    const body = JSON.stringify({ action: tipo, tipo, acao: tipo, payload, data: payload });
+    const resp = await fetch(window.dmxApiUrlWithTipo(url, tipo), {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body,
+      cache: 'no-store'
+    });
+    const txt = await resp.text();
+    let json = null;
+    try { json = txt ? JSON.parse(txt) : null; } catch(e) {}
+    if(!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('HTTP '+resp.status));
+    return json || {ok:true};
+  }
+
+  const previousPost = window.dmxApiPost;
+  window.dmxApiPost = async function(tipo, payload){
+    try{
+      const r = await postViaFetch(tipo, payload);
+      if(r && r.ok !== false) return r;
+    }catch(err){
+      console.warn('v62 POST fetch falhou; tentando método anterior:', err);
+    }
+    if(typeof previousPost === 'function') return previousPost.apply(this, arguments);
+    return {ok:false, error:'POST indisponível'};
+  };
+
+  window.dmxRefreshSheetsNow = async function(){
+    if(typeof dmxCarregarCatalogoDaAPI === 'function') return dmxCarregarCatalogoDaAPI(true);
+    return false;
+  };
+})();
+</script>
+
+
+
+<script id="dmx-v63-sheet-bidirecional-corrigido">
+/* v63 — Correção da sincronização bidirecional Google Sheets.
+   Foco: manter a URL já gravada, aplicar corretamente linhas vindas como array
+   e evitar falso positivo de gravação quando a API não confirma retorno.
+*/
+(function(){
+  if(window.__dmxV63SheetBidirecionalCorrigido) return;
+  window.__dmxV63SheetBidirecionalCorrigido = true;
+
+  const API_KEY = 'dmx_google_sheets_api_url_v1';
+  const DEFAULT_API = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
+  window.DMX_DEFAULT_API_URL = window.DMX_DEFAULT_API_URL || DEFAULT_API;
+  window.DMX_API_URL = window.DMX_API_URL || DEFAULT_API;
+
+  const trim = v => String(v || '').trim();
+  const toast = m => { try { if(typeof showToast === 'function') showToast(m); else console.log(m); } catch(e){} };
+
+  function manualUrl(){ try { return trim(localStorage.getItem(API_KEY)); } catch(e){ return ''; } }
+  function effectiveUrl(){ return manualUrl() || trim(window.DMX_DEFAULT_API_URL) || trim(window.DMX_API_URL) || DEFAULT_API; }
+
+  window.dmxGetApiUrl = function(){ return effectiveUrl(); };
+  window.dmxSetApiUrl = function(url){ try { localStorage.setItem(API_KEY, trim(url)); } catch(e){} };
+  window.dmxApiUrlWithTipo = function(url, tipo){
+    const base = trim(url || effectiveUrl()).replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'');
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  };
+
+  const toNum = (v, def=null) => {
+    if(v === null || v === undefined || v === '') return def;
+    const n = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n : def;
+  };
+
+  function monthlyObject(row){
+    if(!Array.isArray(row)) return row || {};
+    const h = ['id_kpi','area','indicador','ano','mes_num','unidade','sentido','meta','minimo','maximo','peso_ebitda','realizado','status','impacto','comentario'];
+    const o = {};
+    h.forEach((k,i)=>o[k]=row[i]);
+    o.mes = o.mes_num;
+    return o;
+  }
+
+  function weeklyObject(row){
+    if(!Array.isArray(row)) return row || {};
+    const h = ['id_kpi','area','ano','mes_num','etapa','realizado','meta','minimo','maximo','tendencia_fechamento','comentario','atualizado_por','atualizado_em'];
+    const o = {};
+    h.forEach((k,i)=>o[k]=row[i]);
+    o.mes = o.mes_num;
+    o.semana = o.etapa;
+    return o;
+  }
+
+  window.dmxApiToLaunch = function(row){
+    row = monthlyObject(row);
+    const id = trim(row.id_kpi || row.id || row.codigo || row.kpi);
+    if(!id) return null;
+    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : null) || {};
+    const ano = toNum(row.ano, window.currentAno || new Date().getFullYear());
+    const mes = toNum(row.mes_num ?? row.mes, window.currentMes || (new Date().getMonth()+1));
+    const meta = toNum(row.meta, toNum(kpi.meta, 0));
+    const realizado = toNum(row.realizado, null);
+    const sentido = row.sentido || kpi.sentido || 'Maior Melhor';
+    const peso = toNum(row.peso_ebitda, toNum(kpi.peso_ebitda, 0));
+    return {
+      id_kpi: id,
+      area: row.area || kpi.area || 'Sem área',
+      indicador: row.indicador || row.nome_kpi || kpi.indicador || id,
+      ano,
+      mes_num: mes,
+      unidade: row.unidade || kpi.unidade || '%',
+      sentido,
+      meta,
+      minimo: toNum(row.minimo, toNum(kpi.minimo, 0)),
+      maximo: toNum(row.maximo, toNum(kpi.maximo, 0)),
+      peso_ebitda: peso,
+      realizado,
+      status: row.status || (typeof calcStatus === 'function' ? calcStatus(sentido, realizado, meta) : ''),
+      impacto: row.impacto || (typeof calcImpact === 'function' ? calcImpact(sentido, realizado, meta, peso) : ''),
+      comentario: row.comentario || row.justificativa || row.obs || ''
+    };
+  };
+
+  window.dmxApplyMensalRows = function(rows){
+    if(!Array.isArray(rows)) return 0;
+    let count = 0;
+    window.__dmxApplyingSheetsData = true;
+    try{
+      rows.map(window.dmxApiToLaunch).filter(Boolean).forEach(novo => {
+        const i = launches.findIndex(l => String(l.id_kpi) === String(novo.id_kpi) && Number(l.ano) === Number(novo.ano) && Number(l.mes_num) === Number(novo.mes_num));
+        if(i >= 0) launches[i] = Object.assign({}, launches[i], novo);
+        else launches.push(novo);
+        count++;
+      });
+      try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {}
+    } finally {
+      setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0);
+    }
+    return count;
+  };
+
+  window.dmxApiToWeekly = function(row){
+    row = weeklyObject(row);
+    const id = trim(row.id_kpi || row.id || row.codigo || row.kpi);
+    if(!id) return null;
+    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : null) || {};
+    return {
+      id_kpi: id,
+      area: row.area || kpi.area || 'Sem área',
+      ano: toNum(row.ano, window.currentAno || new Date().getFullYear()),
+      mes_num: toNum(row.mes_num ?? row.mes, window.currentMes || (new Date().getMonth()+1)),
+      etapa: toNum(row.etapa ?? row.semana, 1),
+      realizado: toNum(row.realizado, null),
+      meta: toNum(row.meta_semana ?? row.meta, toNum(kpi.meta, null)),
+      minimo: toNum(row.minimo_semana ?? row.minimo, toNum(kpi.minimo, null)),
+      maximo: toNum(row.maximo_semana ?? row.maximo, toNum(kpi.maximo, null)),
+      tendencia_fechamento: toNum(row.tendencia_fechamento, null),
+      comentario: row.comentario || row.justificativa || row.obs || '',
+      atualizado_por: row.atualizado_por || '',
+      atualizado_em: row.atualizado_em || ''
+    };
+  };
+
+  window.dmxApplySemanalRows = function(rows){
+    if(!Array.isArray(rows)) return 0;
+    const mapped = rows.map(window.dmxApiToWeekly).filter(Boolean);
+    if(!mapped.length) return 0;
+    window.__dmxApplyingSheetsData = true;
+    try{
+      if(typeof upsertWeekly === 'function') upsertWeekly(mapped);
+      else localStorage.setItem('dmx_weekly_stage_data_v18_1', JSON.stringify(mapped));
+    } finally {
+      setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0);
+    }
+    return mapped.length;
+  };
+
+  function jsonpWrite(tipo, payload){
+    return new Promise((resolve, reject)=>{
+      const cb = '__dmx_write_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+      const base = window.dmxApiUrlWithTipo(effectiveUrl(), tipo);
+      const params = new URLSearchParams();
+      params.set('callback', cb);
+      params.set('action', tipo);
+      params.set('acao', tipo);
+      params.set('payload', JSON.stringify(payload || {}));
+      params.set('data', JSON.stringify(payload || {}));
+      const script = document.createElement('script');
+      const timer = setTimeout(()=>cleanup(()=>reject(new Error('Timeout ao gravar no Apps Script'))), 25000);
+      function cleanup(done){
+        clearTimeout(timer);
+        try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+        try { script.remove(); } catch(e){}
+        if(done) done();
+      }
+      window[cb] = data => cleanup(()=>resolve(data || {ok:true, via:'jsonp'}));
+      script.onerror = () => cleanup(()=>reject(new Error('JSONP de gravação falhou')));
+      script.src = base + (base.indexOf('?') >= 0 ? '&' : '?') + params.toString();
+      document.head.appendChild(script);
+    });
+  }
+
+  async function fetchWrite(tipo, payload){
+    const body = JSON.stringify({ action: tipo, tipo, acao: tipo, payload: payload || {}, data: payload || {} });
+    const resp = await fetch(window.dmxApiUrlWithTipo(effectiveUrl(), tipo), {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body,
+      cache:'no-store'
+    });
+    const txt = await resp.text();
+    let json = null;
+    try { json = txt ? JSON.parse(txt) : null; } catch(e) {}
+    if(!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('HTTP '+resp.status));
+    return json || {ok:true, via:'post'};
+  }
+
+  window.dmxApiPost = async function(tipo, payload){
+    if(!effectiveUrl()){
+      toast('⚠️ URL da API Google Sheets não configurada.');
+      return {ok:false, offline:true};
+    }
+    let lastErr = null;
+    try{
+      const r = await jsonpWrite(tipo, payload);
+      if(r && r.ok !== false) return r;
+      lastErr = new Error((r && r.error) || 'Apps Script recusou a gravação');
+    }catch(e){ lastErr = e; }
+    try{
+      const r = await fetchWrite(tipo, payload);
+      if(r && r.ok !== false) return r;
+      lastErr = new Error((r && r.error) || 'POST recusado pela API');
+    }catch(e){ lastErr = e; }
+    console.error('Falha ao gravar no Google Sheets:', tipo, payload, lastErr);
+    toast('❌ Não foi possível confirmar gravação no Google Sheets: ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+    return {ok:false, error:String(lastErr && lastErr.message ? lastErr.message : lastErr)};
+  };
+
+  // Garante que, após uma gravação de lançamento/Admin, a próxima leitura traga a Sheet como fonte oficial.
+  window.dmxRefreshSheetsNow = async function(){
+    if(typeof dmxCarregarCatalogoDaAPI === 'function') return dmxCarregarCatalogoDaAPI(true);
+    return false;
+  };
+
+  setTimeout(()=>{
+    try{
+      if(typeof dmxCarregarCatalogoDaAPI === 'function') dmxCarregarCatalogoDaAPI(false);
+    }catch(e){ console.warn('v63: sincronização inicial falhou', e); }
+  }, 600);
+})();
+</script>
+
+
+
+<!-- PATCH v66 — Bloqueio definitivo de alertas de permissão antes do login -->
+<script id="dmx-v66-login-sem-alert-prelogin">
+(function(){
+  if(window.__dmxV66LoginSemAlertPrelogin) return;
+  window.__dmxV66LoginSemAlertPrelogin = true;
+
+  const SESSION_KEYS = ['dmx_session_v41','dmx_session_v48','dmx_session'];
+  const ACCESS_DENIED_RE = /(acesso|permiss[aã]o|liberado|restrito|possui acesso|n[aã]o possui)/i;
+
+  function hasValidSession(){
+    try{
+      return SESSION_KEYS.some(k => {
+        const raw = localStorage.getItem(k);
+        if(!raw) return false;
+        const u = JSON.parse(raw);
+        return !!(u && (u.email || u.nome || u.user || u.perfil || u.permissao));
+      });
+    }catch(e){ return false; }
+  }
+
+  function loginIsVisible(){
+    const o = document.getElementById('dmx-login-overlay');
+    return !!(o && (o.classList.contains('open') || o.style.display === 'flex' || getComputedStyle(o).display !== 'none'));
+  }
+
+  function showLoginSilently(){
+    try{
+      if(typeof window.showLogin === 'function') window.showLogin();
+      const o = document.getElementById('dmx-login-overlay');
+      if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); o.style.display='flex'; }
+      document.body.classList.add('dmx-auth-locked');
+    }catch(e){}
+  }
+
+  const nativeAlert = window.alert.bind(window);
+  window.alert = function(msg){
+    const text = String(msg || '');
+    if(ACCESS_DENIED_RE.test(text) && (!hasValidSession() || loginIsVisible())){
+      console.warn('[DMX v66] Alerta de permissão suprimido no pré-login:', text);
+      showLoginSilently();
+      return;
+    }
+    return nativeAlert(msg);
+  };
+
+  function wrapNavWhenReady(){
+    if(typeof window.nav !== 'function' || window.__dmxV66NavWrapped) return;
+    window.__dmxV66NavWrapped = true;
+    const oldNav = window.nav;
+    window.nav = nav = function(el, areaName){
+      if(!hasValidSession()){
+        showLoginSilently();
+        return;
+      }
+      return oldNav.apply(this, arguments);
+    };
+  }
+
+  wrapNavWhenReady();
+  document.addEventListener('DOMContentLoaded', function(){
+    wrapNavWhenReady();
+    if(!hasValidSession()) showLoginSilently();
+  });
+  setTimeout(wrapNavWhenReady, 300);
+  setTimeout(wrapNavWhenReady, 1000);
+  setTimeout(function(){ if(!hasValidSession()) showLoginSilently(); }, 1200);
 })();
 </script>
 
