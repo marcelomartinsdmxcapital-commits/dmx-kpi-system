@@ -11979,5 +11979,218 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+
+<script id="dmx-v63-sheet-bidirecional-corrigido">
+/* v63 — Correção da sincronização bidirecional Google Sheets.
+   Foco: manter a URL já gravada, aplicar corretamente linhas vindas como array
+   e evitar falso positivo de gravação quando a API não confirma retorno.
+*/
+(function(){
+  if(window.__dmxV63SheetBidirecionalCorrigido) return;
+  window.__dmxV63SheetBidirecionalCorrigido = true;
+
+  const API_KEY = 'dmx_google_sheets_api_url_v1';
+  const DEFAULT_API = 'https://script.google.com/macros/s/AKfycby9Wq7GsNG2v8PGj7j0okmWrniM6boiOueYUpmmNu559dz-6JF3Cc69jxpobF5auFHK/exec';
+  window.DMX_DEFAULT_API_URL = window.DMX_DEFAULT_API_URL || DEFAULT_API;
+  window.DMX_API_URL = window.DMX_API_URL || DEFAULT_API;
+
+  const trim = v => String(v || '').trim();
+  const toast = m => { try { if(typeof showToast === 'function') showToast(m); else console.log(m); } catch(e){} };
+
+  function manualUrl(){ try { return trim(localStorage.getItem(API_KEY)); } catch(e){ return ''; } }
+  function effectiveUrl(){ return manualUrl() || trim(window.DMX_DEFAULT_API_URL) || trim(window.DMX_API_URL) || DEFAULT_API; }
+
+  window.dmxGetApiUrl = function(){ return effectiveUrl(); };
+  window.dmxSetApiUrl = function(url){ try { localStorage.setItem(API_KEY, trim(url)); } catch(e){} };
+  window.dmxApiUrlWithTipo = function(url, tipo){
+    const base = trim(url || effectiveUrl()).replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'');
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  };
+
+  const toNum = (v, def=null) => {
+    if(v === null || v === undefined || v === '') return def;
+    const n = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n : def;
+  };
+
+  function monthlyObject(row){
+    if(!Array.isArray(row)) return row || {};
+    const h = ['id_kpi','area','indicador','ano','mes_num','unidade','sentido','meta','minimo','maximo','peso_ebitda','realizado','status','impacto','comentario'];
+    const o = {};
+    h.forEach((k,i)=>o[k]=row[i]);
+    o.mes = o.mes_num;
+    return o;
+  }
+
+  function weeklyObject(row){
+    if(!Array.isArray(row)) return row || {};
+    const h = ['id_kpi','area','ano','mes_num','etapa','realizado','meta','minimo','maximo','tendencia_fechamento','comentario','atualizado_por','atualizado_em'];
+    const o = {};
+    h.forEach((k,i)=>o[k]=row[i]);
+    o.mes = o.mes_num;
+    o.semana = o.etapa;
+    return o;
+  }
+
+  window.dmxApiToLaunch = function(row){
+    row = monthlyObject(row);
+    const id = trim(row.id_kpi || row.id || row.codigo || row.kpi);
+    if(!id) return null;
+    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : null) || {};
+    const ano = toNum(row.ano, window.currentAno || new Date().getFullYear());
+    const mes = toNum(row.mes_num ?? row.mes, window.currentMes || (new Date().getMonth()+1));
+    const meta = toNum(row.meta, toNum(kpi.meta, 0));
+    const realizado = toNum(row.realizado, null);
+    const sentido = row.sentido || kpi.sentido || 'Maior Melhor';
+    const peso = toNum(row.peso_ebitda, toNum(kpi.peso_ebitda, 0));
+    return {
+      id_kpi: id,
+      area: row.area || kpi.area || 'Sem área',
+      indicador: row.indicador || row.nome_kpi || kpi.indicador || id,
+      ano,
+      mes_num: mes,
+      unidade: row.unidade || kpi.unidade || '%',
+      sentido,
+      meta,
+      minimo: toNum(row.minimo, toNum(kpi.minimo, 0)),
+      maximo: toNum(row.maximo, toNum(kpi.maximo, 0)),
+      peso_ebitda: peso,
+      realizado,
+      status: row.status || (typeof calcStatus === 'function' ? calcStatus(sentido, realizado, meta) : ''),
+      impacto: row.impacto || (typeof calcImpact === 'function' ? calcImpact(sentido, realizado, meta, peso) : ''),
+      comentario: row.comentario || row.justificativa || row.obs || ''
+    };
+  };
+
+  window.dmxApplyMensalRows = function(rows){
+    if(!Array.isArray(rows)) return 0;
+    let count = 0;
+    window.__dmxApplyingSheetsData = true;
+    try{
+      rows.map(window.dmxApiToLaunch).filter(Boolean).forEach(novo => {
+        const i = launches.findIndex(l => String(l.id_kpi) === String(novo.id_kpi) && Number(l.ano) === Number(novo.ano) && Number(l.mes_num) === Number(novo.mes_num));
+        if(i >= 0) launches[i] = Object.assign({}, launches[i], novo);
+        else launches.push(novo);
+        count++;
+      });
+      try { localStorage.setItem('dmx_launches', JSON.stringify(launches)); } catch(e) {}
+    } finally {
+      setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0);
+    }
+    return count;
+  };
+
+  window.dmxApiToWeekly = function(row){
+    row = weeklyObject(row);
+    const id = trim(row.id_kpi || row.id || row.codigo || row.kpi);
+    if(!id) return null;
+    const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : null) || {};
+    return {
+      id_kpi: id,
+      area: row.area || kpi.area || 'Sem área',
+      ano: toNum(row.ano, window.currentAno || new Date().getFullYear()),
+      mes_num: toNum(row.mes_num ?? row.mes, window.currentMes || (new Date().getMonth()+1)),
+      etapa: toNum(row.etapa ?? row.semana, 1),
+      realizado: toNum(row.realizado, null),
+      meta: toNum(row.meta_semana ?? row.meta, toNum(kpi.meta, null)),
+      minimo: toNum(row.minimo_semana ?? row.minimo, toNum(kpi.minimo, null)),
+      maximo: toNum(row.maximo_semana ?? row.maximo, toNum(kpi.maximo, null)),
+      tendencia_fechamento: toNum(row.tendencia_fechamento, null),
+      comentario: row.comentario || row.justificativa || row.obs || '',
+      atualizado_por: row.atualizado_por || '',
+      atualizado_em: row.atualizado_em || ''
+    };
+  };
+
+  window.dmxApplySemanalRows = function(rows){
+    if(!Array.isArray(rows)) return 0;
+    const mapped = rows.map(window.dmxApiToWeekly).filter(Boolean);
+    if(!mapped.length) return 0;
+    window.__dmxApplyingSheetsData = true;
+    try{
+      if(typeof upsertWeekly === 'function') upsertWeekly(mapped);
+      else localStorage.setItem('dmx_weekly_stage_data_v18_1', JSON.stringify(mapped));
+    } finally {
+      setTimeout(()=>{ window.__dmxApplyingSheetsData = false; }, 0);
+    }
+    return mapped.length;
+  };
+
+  function jsonpWrite(tipo, payload){
+    return new Promise((resolve, reject)=>{
+      const cb = '__dmx_write_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+      const base = window.dmxApiUrlWithTipo(effectiveUrl(), tipo);
+      const params = new URLSearchParams();
+      params.set('callback', cb);
+      params.set('action', tipo);
+      params.set('acao', tipo);
+      params.set('payload', JSON.stringify(payload || {}));
+      params.set('data', JSON.stringify(payload || {}));
+      const script = document.createElement('script');
+      const timer = setTimeout(()=>cleanup(()=>reject(new Error('Timeout ao gravar no Apps Script'))), 25000);
+      function cleanup(done){
+        clearTimeout(timer);
+        try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+        try { script.remove(); } catch(e){}
+        if(done) done();
+      }
+      window[cb] = data => cleanup(()=>resolve(data || {ok:true, via:'jsonp'}));
+      script.onerror = () => cleanup(()=>reject(new Error('JSONP de gravação falhou')));
+      script.src = base + (base.indexOf('?') >= 0 ? '&' : '?') + params.toString();
+      document.head.appendChild(script);
+    });
+  }
+
+  async function fetchWrite(tipo, payload){
+    const body = JSON.stringify({ action: tipo, tipo, acao: tipo, payload: payload || {}, data: payload || {} });
+    const resp = await fetch(window.dmxApiUrlWithTipo(effectiveUrl(), tipo), {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body,
+      cache:'no-store'
+    });
+    const txt = await resp.text();
+    let json = null;
+    try { json = txt ? JSON.parse(txt) : null; } catch(e) {}
+    if(!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('HTTP '+resp.status));
+    return json || {ok:true, via:'post'};
+  }
+
+  window.dmxApiPost = async function(tipo, payload){
+    if(!effectiveUrl()){
+      toast('⚠️ URL da API Google Sheets não configurada.');
+      return {ok:false, offline:true};
+    }
+    let lastErr = null;
+    try{
+      const r = await jsonpWrite(tipo, payload);
+      if(r && r.ok !== false) return r;
+      lastErr = new Error((r && r.error) || 'Apps Script recusou a gravação');
+    }catch(e){ lastErr = e; }
+    try{
+      const r = await fetchWrite(tipo, payload);
+      if(r && r.ok !== false) return r;
+      lastErr = new Error((r && r.error) || 'POST recusado pela API');
+    }catch(e){ lastErr = e; }
+    console.error('Falha ao gravar no Google Sheets:', tipo, payload, lastErr);
+    toast('❌ Não foi possível confirmar gravação no Google Sheets: ' + (lastErr && lastErr.message ? lastErr.message : lastErr));
+    return {ok:false, error:String(lastErr && lastErr.message ? lastErr.message : lastErr)};
+  };
+
+  // Garante que, após uma gravação de lançamento/Admin, a próxima leitura traga a Sheet como fonte oficial.
+  window.dmxRefreshSheetsNow = async function(){
+    if(typeof dmxCarregarCatalogoDaAPI === 'function') return dmxCarregarCatalogoDaAPI(true);
+    return false;
+  };
+
+  setTimeout(()=>{
+    try{
+      if(typeof dmxCarregarCatalogoDaAPI === 'function') dmxCarregarCatalogoDaAPI(false);
+    }catch(e){ console.warn('v63: sincronização inicial falhou', e); }
+  }, 600);
+})();
+</script>
+
 </body>
 </html>
