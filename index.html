@@ -12744,5 +12744,150 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<!-- PATCH v70 — Admin enxuto e estável: sem auto-refresh destrutivo -->
+<style id="dmx-v70-admin-lite-css">
+  #page-admin .dmx-admin-hidden-v70{display:none!important;}
+  #page-admin .dmx-admin-lite-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
+  #page-admin .dmx-admin-lite-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  #page-admin .dmx-admin-lite-note{font-size:11px;color:var(--muted);line-height:1.55;margin-top:8px;}
+  #page-admin .dmx-admin-lite-panel{margin-bottom:16px;}
+  @media(max-width:1000px){#page-admin .dmx-admin-lite-grid{grid-template-columns:1fr;}}
+</style>
+<script id="dmx-v70-admin-lite-js">
+(function(){
+  if(window.__dmxAdminLiteV70Installed) return;
+  window.__dmxAdminLiteV70Installed = true;
+
+  const esc = v => String(v ?? '').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  const toast = m => { try{ if(typeof showToast==='function') showToast(m); else console.log(m); }catch(e){} };
+  const apiUrl = () => { try{ return (typeof dmxGetApiUrl==='function' ? dmxGetApiUrl() : (window.DMX_API_URL||'')).trim(); }catch(e){ return ''; } };
+  const isAdminActive = () => !!document.getElementById('page-admin')?.classList.contains('active');
+  const adminEditing = () => {
+    if(!isAdminActive()) return false;
+    const a = document.activeElement;
+    if(!a) return false;
+    return ['INPUT','TEXTAREA','SELECT'].includes(a.tagName) || a.isContentEditable;
+  };
+
+  async function getDebug(){
+    const url = apiUrl();
+    if(!url) return null;
+    try{
+      const r = await fetch(url + (url.includes('?')?'&':'?') + 'action=debug', {method:'GET', cache:'no-store'});
+      return await r.json();
+    }catch(e){ return null; }
+  }
+
+  function sheetRows(dbg, name){
+    const arr = Array.isArray(dbg?.sheets) ? dbg.sheets : [];
+    const found = arr.find(x => String(x.nome||'').toLowerCase() === String(name).toLowerCase());
+    return found ? `${found.linhas || 0} linhas · ${found.colunas || 0} colunas` : 'não confirmada';
+  }
+
+  window.renderAdminDMX = async function(){
+    const host = document.getElementById('admin-root');
+    if(!host) return;
+    window.__dmxAdminRenderingV70 = true;
+    host.innerHTML = '<div class="block-card"><div class="section-title">Administração</div><div class="text-muted text-sm mt-2">Carregando diagnóstico leve...</div></div>';
+
+    const dbg = await getDebug();
+    const url = apiUrl();
+    const planilha = dbg?.spreadsheet || dbg?.spreadsheet_nome || 'não identificada';
+    const versao = dbg?.version || dbg?.versao || 'API';
+
+    host.innerHTML = `
+      <div class="dmx-admin-lite-grid">
+        <div class="kpi-card teal"><div class="card-label">API</div><div class="card-value teal">${url ? 'ON' : 'OFF'}</div><div class="card-sub">${esc(versao)}</div></div>
+        <div class="kpi-card blue"><div class="card-label">Planilha</div><div class="card-value blue" style="font-size:18px;line-height:1.15">${esc(planilha)}</div><div class="card-sub">Fonte oficial conectada</div></div>
+        <div class="kpi-card amber"><div class="card-label">Admin</div><div class="card-value amber">Leve</div><div class="card-sub">Sem auto-refresh destrutivo</div></div>
+      </div>
+
+      <div class="block-card dmx-admin-lite-panel">
+        <div class="section-header"><div><div class="section-title">Base oficial / conexão</div><div class="text-muted text-sm mt-1">Área mantida apenas para conexão, diagnóstico e acesso à base.</div></div></div>
+        <div class="dmx-admin-lite-actions">
+          <button class="btn btn-primary" onclick="dmxOpenSheet && dmxOpenSheet()">↗ Abrir Google Sheets</button>
+          <button class="btn btn-ghost" onclick="configurarApiDMX && configurarApiDMX()">☁ Configurar API</button>
+          <button class="btn btn-ghost" onclick="renderAdminDMX()">↻ Atualizar diagnóstico</button>
+        </div>
+        <div class="dmx-admin-lite-note" style="word-break:break-all"><b>API:</b> ${esc(url || 'não configurada')}</div>
+        <div class="dmx-admin-lite-note">
+          <b>Cadastro_KPIs:</b> ${esc(sheetRows(dbg,'Cadastro_KPIs'))}<br>
+          <b>Dados_Mensais:</b> ${esc(sheetRows(dbg,'Dados_Mensais'))}<br>
+          <b>Dados_Semanais:</b> ${esc(sheetRows(dbg,'Dados_Semanais'))}<br>
+          <b>USUARIOS:</b> ${esc(sheetRows(dbg,'USUARIOS'))}
+        </div>
+      </div>
+
+      <div id="dmx-admin-users-panel" class="dmx-admin-lite-panel"></div>
+
+      <div class="block-card dmx-admin-lite-panel">
+        <div class="section-title">O que foi retirado desta tela</div>
+        <div class="dmx-admin-lite-note">
+          A edição de KPIs fica concentrada no <b>Catálogo de KPIs</b> / Google Sheets. A antiga área de <b>Permissões / Multiusuário</b> foi ocultada porque duplicava o cadastro de usuários e deixava a Admin instável. Logs e consultas pesadas também ficam fora desta tela.
+        </div>
+      </div>
+    `;
+
+    try{
+      if(typeof dmxRenderUserAdminPanel === 'function') await dmxRenderUserAdminPanel();
+      const p = document.querySelector('#dmx-admin-users-panel .section-title');
+      if(p) p.textContent = 'Usuários e acessos';
+    }catch(e){
+      const panel = document.getElementById('dmx-admin-users-panel');
+      if(panel) panel.innerHTML = `<div class="block-card"><div class="section-title">Usuários e acessos</div><div class="text-muted text-sm mt-2">Não foi possível carregar usuários agora: ${esc(e.message||e)}</div></div>`;
+    }
+    window.__dmxAdminRenderingV70 = false;
+  };
+
+  // Evita que sincronizações automáticas reconstruam a Admin enquanto o usuário está digitando.
+  const oldCatalogLoad = window.dmxCarregarCatalogoDaAPI;
+  if(typeof oldCatalogLoad === 'function' && !window.__dmxAdminLiteCatalogGuardV70){
+    window.__dmxAdminLiteCatalogGuardV70 = true;
+    window.dmxCarregarCatalogoDaAPI = async function(manual){
+      if(!manual && adminEditing()) return {ok:true, skipped:'admin_editing'};
+      return oldCatalogLoad.apply(this, arguments);
+    };
+  }
+
+  const oldRenderCurrent = window.renderCurrentPage;
+  if(typeof oldRenderCurrent === 'function' && !window.__dmxAdminLiteRenderGuardV70){
+    window.__dmxAdminLiteRenderGuardV70 = true;
+    window.renderCurrentPage = function(){
+      if(window.currentPage === 'admin'){
+        if(adminEditing()) return;
+        return window.renderAdminDMX();
+      }
+      return oldRenderCurrent.apply(this, arguments);
+    };
+  }
+
+  // Catálogo de KPIs restrito a administrador, como área de manutenção governada.
+  function key(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim(); }
+  function getSession(){ try{return JSON.parse(localStorage.getItem('dmx_session_v41')||'null')}catch(e){return null} }
+  function isAdmin(){ const u=getSession()||window.DMX_CURRENT_USER||{}; return ['ADMIN','ADMINISTRADOR'].includes(key(u.permissao||u.perfilApi||u.perfil||u.cargo)); }
+  const oldNav = window.nav;
+  if(typeof oldNav === 'function' && !window.__dmxAdminLiteNavGuardV70){
+    window.__dmxAdminLiteNavGuardV70 = true;
+    window.nav = nav = function(el){
+      if(el && el.dataset && el.dataset.page === 'kpis' && !isAdmin()){
+        if(typeof showToast==='function') showToast('Catálogo de KPIs restrito ao Administrador.');
+        return;
+      }
+      return oldNav.apply(this, arguments);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){
+      try{
+        const item = document.querySelector('.nav-item[data-page="kpis"]');
+        if(item) item.title = 'Catálogo de KPIs — acesso restrito ao Administrador';
+      }catch(e){}
+    },1200);
+  });
+})();
+</script>
+
 </body>
 </html>
