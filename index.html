@@ -11905,5 +11905,79 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 })();
 </script>
 
+
+<script id="dmx-v62-api-sheet-url-corrigida">
+/* v62 — Correção isolada da integração Google Sheets.
+   Problema encontrado: versões de governança/login sobrescreviam dmxGetApiUrl()
+   com uma URL fixa antiga, ignorando a URL salva em localStorage. Isso fazia leitura/gravação
+   bater em deployment/Sheet errado ou antigo. Este patch recoloca a regra correta no final:
+   URL manual salva > URL padrão do código > URL global.
+*/
+(function(){
+  if(window.__dmxV62ApiSheetUrlCorrigida) return;
+  window.__dmxV62ApiSheetUrlCorrigida = true;
+
+  const API_KEY = 'dmx_google_sheets_api_url_v1';
+  const esc = v => String(v || '').trim();
+
+  function manualUrl(){
+    try { return esc(localStorage.getItem(API_KEY)); } catch(e) { return ''; }
+  }
+  function fallbackUrl(){
+    return esc(window.DMX_DEFAULT_API_URL) || esc(window.DMX_API_URL);
+  }
+
+  window.dmxGetApiUrl = function(){
+    return manualUrl() || fallbackUrl();
+  };
+
+  window.dmxSetApiUrl = function(url){
+    try { localStorage.setItem(API_KEY, esc(url)); } catch(e) {}
+  };
+
+  window.dmxApiUrlWithTipo = function(url, tipo){
+    const base = esc(url || window.dmxGetApiUrl()).replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'');
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  };
+
+  async function postViaFetch(tipo, payload){
+    const url = window.dmxGetApiUrl();
+    if(!url){
+      if(typeof showToast === 'function') showToast('⚠️ URL da API Google Sheets não configurada.');
+      return {ok:false, offline:true};
+    }
+    const body = JSON.stringify({ action: tipo, tipo, acao: tipo, payload, data: payload });
+    const resp = await fetch(window.dmxApiUrlWithTipo(url, tipo), {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body,
+      cache: 'no-store'
+    });
+    const txt = await resp.text();
+    let json = null;
+    try { json = txt ? JSON.parse(txt) : null; } catch(e) {}
+    if(!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('HTTP '+resp.status));
+    return json || {ok:true};
+  }
+
+  const previousPost = window.dmxApiPost;
+  window.dmxApiPost = async function(tipo, payload){
+    try{
+      const r = await postViaFetch(tipo, payload);
+      if(r && r.ok !== false) return r;
+    }catch(err){
+      console.warn('v62 POST fetch falhou; tentando método anterior:', err);
+    }
+    if(typeof previousPost === 'function') return previousPost.apply(this, arguments);
+    return {ok:false, error:'POST indisponível'};
+  };
+
+  window.dmxRefreshSheetsNow = async function(){
+    if(typeof dmxCarregarCatalogoDaAPI === 'function') return dmxCarregarCatalogoDaAPI(true);
+    return false;
+  };
+})();
+</script>
+
 </body>
 </html>
