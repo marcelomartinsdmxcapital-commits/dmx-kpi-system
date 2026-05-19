@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de Performance v48 Governança Completa</title>
+<title>DMX Capital · Sistema de Gestão de Performance v57 F5 Financeiro Corrigido</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -11089,179 +11089,366 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
 
 
-<!-- PATCH v53 — Estado estável no F5 sem contaminação de versões anteriores -->
-<script id="dmx-v53-f5-state-final">
+
+<!-- PATCH v57 — Persistência F5 com rota correta do Painel Financeiro -->
+<script id="dmx-v57-f5-financeiro-rota-corrigida">
 (function(){
   'use strict';
-  if(window.__dmxV53StateFinalInstalled) return;
-  window.__dmxV53StateFinalInstalled = true;
+  if(window.__dmxV57F5FinanceiroRotaCorrigida) return;
+  window.__dmxV57F5FinanceiroRotaCorrigida = true;
 
-  const KEY = 'dmx_ui_state_v54';
+  const KEY = 'dmx_ui_state_v57';
+  const LEGACY_KEYS = ['dmx_ui_state_v56','dmx_ui_state_v54','dmx_ui_state_v49'];
   const DEFAULT_PAGE = 'dashboard';
-  var currentArea = window.currentArea || '';
-  var renderCurrentPage, dmxBootRenderState;
-  const MONTH_IDS = ['mes-sel','area-mes-sel','slide-mes-sel','weekly-month-filter','weekly-slide-mes-sel'];
-  const YEAR_IDS  = ['ano-sel','weekly-year-filter'];
   const FILTER_IDS = [
-    'mes-sel','ano-sel','weekly-area-filter','weekly-month-filter','weekly-year-filter','weekly-entry-step-filter',
-    'kpi-area-filter','kpi-pilar-filter','kpi-status-filter','upd-area-filter','upd-vertente-filter',
-    'plano-area-filter','plano-status-filter','plano-search','indice-area-filter','indice-search','area-mes-sel','slide-mes-sel','weekly-slide-mes-sel','kpi-search','upd-search','watch-search'
+    'mes-sel','ano-sel','area-mes-sel','slide-mes-sel',
+    'weekly-area-filter','weekly-month-filter','weekly-year-filter','weekly-entry-step-filter','weekly-slide-mes-sel',
+    'kpi-area-filter','kpi-pilar-filter','kpi-status-filter','kpi-search',
+    'upd-area-filter','upd-vertente-filter','upd-search',
+    'plano-area-filter','plano-status-filter','plano-search',
+    'indice-area-filter','indice-search','watch-search'
   ];
-  const TITLES = {
-    dashboard:'Painel Executivo', areas:'Visão por Área', diretoria:'Modo Diretoria', financeiro:'Painel Financeiro',
-    kpis:'Catálogo de KPIs', atualizar:'Atualizar Dados do Mês', planos:'Planos de Ação',
-    indice:'Índice de Eficiência', ppr:'Plano PPR', admin:'Admin / Sheets',
-    'semanal-operacional':'Acompanhamento Semanal', 'area-detail':'Área'
-  };
+  const MONTH_IDS = ['mes-sel','area-mes-sel','slide-mes-sel','weekly-month-filter','weekly-slide-mes-sel'];
+  const YEAR_IDS = ['ano-sel','weekly-year-filter'];
 
-  function read(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e){ return {}; } }
-  function write(obj){ try { localStorage.setItem(KEY, JSON.stringify(Object.assign({}, read(), obj || {}, {updatedAt:new Date().toISOString()}))); } catch(e){} }
-  function validMonth(v){ v=Number(v); return v>=1 && v<=12 ? v : null; }
-  function validYear(v){ v=Number(v); return v>=2020 && v<=2100 ? v : null; }
-  function currentMonth(){ return new Date().getMonth()+1; }
+  function readJSON(k){ try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch(e){ return {}; } }
+  function read(){
+    let s = readJSON(KEY);
+    if(!s.currentPage && !s.currentArea){
+      for(const k of LEGACY_KEYS){ const x = readJSON(k); if(x.currentPage || x.currentArea || x.filters){ s = x; break; } }
+    }
+    return s || {};
+  }
+  function write(patch){
+    try{
+      const next = Object.assign({}, read(), patch || {}, {updatedAt:new Date().toISOString()});
+      localStorage.setItem(KEY, JSON.stringify(next));
+    }catch(e){}
+  }
+  function validMonth(v){ v = Number(v); return v >= 1 && v <= 12 ? v : null; }
+  function validYear(v){ v = Number(v); return v >= 2020 && v <= 2100 ? v : null; }
+  function currentMonth(){ return new Date().getMonth() + 1; }
   function currentYear(){ return new Date().getFullYear(); }
-  function normPage(p){ return p==='kpi-slide' ? 'area-detail' : (p==='weekly-slide' ? 'semanal-operacional' : (p || DEFAULT_PAGE)); }
-  function css(v){ try { return CSS.escape(String(v)); } catch(e){ return String(v).replace(/"/g,'\\"'); } }
-  function ensureOption(el,val){
-    if(!el || el.tagName!=='SELECT' || val===undefined || val===null || val==='') return;
-    const v=String(val);
-    if(!Array.from(el.options||[]).some(o=>String(o.value)===v)) el.add(new Option(v,v));
+  function normPage(p){
+    p = String(p || DEFAULT_PAGE);
+    if(p === 'kpi-slide') return 'area-detail';
+    if(p === 'weekly-slide') return 'semanal-operacional';
+    return p;
   }
-  function setValue(id,val){
-    const el=document.getElementById(id); if(!el || val===undefined || val===null || val==='') return false;
-    ensureOption(el,val); el.value=String(val); return true;
+  function cssEscape(v){ try { return CSS.escape(String(v)); } catch(e){ return String(v).replace(/"/g,'\\"'); } }
+  function ensureOption(el, val){
+    if(!el || el.tagName !== 'SELECT' || val === undefined || val === null || val === '') return;
+    const v = String(val);
+    if(!Array.from(el.options || []).some(o => String(o.value) === v)) el.add(new Option(v, v));
   }
-  function savedPeriod(){
-    const s=read(), f=s.filters||{};
-    return {
-      mes: validMonth(f['mes-sel'] || s.currentMes || s.mes) || currentMonth(),
-      ano: validYear(f['ano-sel'] || s.currentAno || s.ano) || currentYear()
-    };
-  }
-  function syncPeriod(mes,ano){
-    const m=validMonth(mes), a=validYear(ano);
-    if(m){ window.currentMes = currentMes = m; MONTH_IDS.forEach(id=>setValue(id,m)); }
-    if(a){ window.currentAno = currentAno = a; YEAR_IDS.forEach(id=>setValue(id,a)); }
-  }
-  function applyFilters(){
-    const s=read(), f=s.filters||{};
-    Object.keys(f).forEach(id=>setValue(id,f[id]));
-    const p=savedPeriod(); syncPeriod(p.mes,p.ano);
+  function setValue(id, val){
+    const el = document.getElementById(id);
+    if(!el || val === undefined || val === null || val === '') return false;
+    ensureOption(el, val);
+    el.value = String(val);
+    return true;
   }
   function collectFilters(){
-    const f=Object.assign({}, read().filters || {});
-    FILTER_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) f[id]=el.value; });
+    const f = Object.assign({}, read().filters || {});
+    FILTER_IDS.forEach(id => { const el = document.getElementById(id); if(el) f[id] = el.value; });
     return f;
   }
-  function saveState(page,area){
-    page=normPage(page || window.currentPage || DEFAULT_PAGE);
-    area=page==='area-detail' ? (area || window.currentArea || '') : '';
-    const p=savedPeriod();
-    write({currentPage:page,currentArea:area,currentMes:p.mes,currentAno:p.ano,filters:collectFilters()});
+  function getPeriodFromFilters(f){
+    f = f || {};
+    return {
+      mes: validMonth(f['mes-sel'] || f['area-mes-sel'] || f['slide-mes-sel'] || f['weekly-month-filter'] || f['weekly-slide-mes-sel'] || read().currentMes || read().mes) || currentMonth(),
+      ano: validYear(f['ano-sel'] || f['weekly-year-filter'] || read().currentAno || read().ano) || currentYear()
+    };
   }
-  window.dmxSaveUiState = function(){ saveState(); };
+  function syncPeriod(mes, ano){
+    const m = validMonth(mes), a = validYear(ano);
+    if(m){ try { window.currentMes = currentMes = m; } catch(e){ window.currentMes = m; } MONTH_IDS.forEach(id => setValue(id, m)); }
+    if(a){ try { window.currentAno = currentAno = a; } catch(e){ window.currentAno = a; } YEAR_IDS.forEach(id => setValue(id, a)); }
+  }
+  function applySavedFilters(){
+    const s = read(), f = s.filters || {};
+    Object.keys(f).forEach(id => setValue(id, f[id]));
+    const p = getPeriodFromFilters(f);
+    syncPeriod(p.mes, p.ano);
+  }
+  function domState(){
+    const active = document.querySelector('.nav-item.active[data-page]');
+    let page = active?.dataset?.page || window.currentPage || DEFAULT_PAGE;
+    let area = active?.dataset?.area || window.currentArea || '';
+    if(page === 'area-detail' && !area){
+      const title = document.getElementById('topbar-title')?.textContent?.trim();
+      if(title && !/Painel Executivo|Visão por Área|Catálogo|Atualizar|Planos|Semanal|Admin|PPR|Índice/i.test(title)) area = title;
+    }
+    return { page: normPage(page), area: area || '' };
+  }
+  function isFinanceArea(area){ return /^(painel financeiro|financeiro|ceo)$/i.test(String(area || '').trim()); }
+  function normalizeState(page, area){
+    page = normPage(page || DEFAULT_PAGE);
+    // Painel Financeiro não possui page própria. Ele usa page-area-detail + renderAreaDetail('Painel Financeiro').
+    // Portanto nunca gravamos/restauramos currentPage='financeiro', pois isso ativa menu sem tela real e gera branco.
+    if(page === 'financeiro') return {page:'area-detail', area:'Painel Financeiro'};
+    area = page === 'area-detail' ? (area || '') : '';
+    if(page === 'area-detail' && isFinanceArea(area)) area = 'Painel Financeiro';
+    return {page, area};
+  }
+  function saveState(page, area){
+    const d = domState();
+    const n = normalizeState(page || d.page, area || d.area);
+    const filters = collectFilters();
+    const p = getPeriodFromFilters(filters);
+    write({ currentPage:n.page, currentArea:n.area, currentMes:p.mes, currentAno:p.ano, filters });
+  }
+  window.dmxSaveUiState = saveState;
 
-  function canUse(page,area){
+  function hasAccess(page, area){
     try{
-      if(page==='area-detail' && area && typeof window.dmxV484CanArea==='function') return window.dmxV484CanArea(area);
-      if(page!=='area-detail' && typeof window.dmxV484CanPage==='function') return window.dmxV484CanPage(page);
+      if(page === 'area-detail' && isFinanceArea(area)) return true;
+      if(page === 'area-detail' && area && typeof window.dmxV484CanArea === 'function') return window.dmxV484CanArea(area);
+      if(page !== 'area-detail' && typeof window.dmxV484CanPage === 'function') return window.dmxV484CanPage(page);
     }catch(e){}
     return true;
   }
-  function findNav(page,area){
-    let el=null;
-    if(page==='area-detail' && area) el=document.querySelector('.nav-item[data-page="area-detail"][data-area="'+css(area)+'"]');
-    if(!el) el=document.querySelector('.nav-item[data-page="'+css(page)+'"]');
-    return el;
+  function findNav(page, area){
+    if(page === 'area-detail' && area){
+      const areaEl = document.querySelector('.nav-item[data-page="area-detail"][data-area="' + cssEscape(area) + '"]');
+      if(areaEl) return areaEl;
+    }
+    return document.querySelector('.nav-item[data-page="' + cssEscape(page) + '"]');
   }
-  function shell(page,area){
-    window.currentPage = currentPage = page;
-    currentArea = (page==='area-detail' ? (area||'') : '');
-    window.currentArea = currentArea;
-    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
-    const el=findNav(page,area); if(el) el.classList.add('active');
-    document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active'); p.style.display=''; });
-    const pageEl=document.getElementById('page-'+page);
-    if(pageEl){ pageEl.classList.add('active'); if(page==='kpi-slide'||page==='weekly-slide') pageEl.style.display='flex'; }
-    const title=document.getElementById('topbar-title');
-    if(title) title.textContent = page==='area-detail' ? (area || 'Área') : (TITLES[page] || page);
+  function callOfficialNavigation(page, area){
+    applySavedFilters();
+    if(page === 'financeiro' || (page === 'area-detail' && isFinanceArea(area))){
+      const el = findNav('financeiro');
+      if(typeof window.dmxOpenFinanceiro === 'function') { window.dmxOpenFinanceiro(el); return true; }
+      page = 'area-detail'; area = 'Painel Financeiro';
+    }
+    const el = findNav(page, area);
+    if(el && typeof window.nav === 'function') { window.nav(el, page === 'area-detail' ? area : undefined); return true; }
+    // Fallback mínimo: só renderiza se não houver item de menu correspondente.
+    try{
+      if(page === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
+      else if(page === 'areas' && typeof renderAreas === 'function') renderAreas();
+      else if(page === 'diretoria' && typeof renderDiretoria === 'function') renderDiretoria();
+      else if(page === 'kpis' && typeof renderKPICatalog === 'function') renderKPICatalog();
+      else if(page === 'atualizar' && typeof renderAtualizar === 'function') renderAtualizar();
+      else if(page === 'planos' && typeof renderPlanos === 'function') renderPlanos();
+      else if(page === 'ppr' && typeof renderPPR === 'function') renderPPR();
+      else if(page === 'indice' && typeof renderIndice === 'function') renderIndice();
+      else if(page === 'semanal-operacional' && typeof renderWeeklyOperational === 'function') renderWeeklyOperational();
+      else if(page === 'area-detail' && area && typeof renderAreaDetail === 'function') renderAreaDetail(area);
+      return true;
+    }catch(e){ console.warn('v56 render fallback:', e); }
+    return false;
   }
-  function call(page,area){
-    if(page==='dashboard' && typeof renderDashboard==='function') renderDashboard();
-    else if(page==='areas' && typeof renderAreas==='function') renderAreas();
-    else if(page==='diretoria' && typeof renderDiretoria==='function') renderDiretoria();
-    else if(page==='financeiro') { if(typeof dmxRenderFinanceiro==='function') dmxRenderFinanceiro(); else if(typeof renderFinanceiro==='function') renderFinanceiro(); }
-    else if(page==='kpis' && typeof renderKPICatalog==='function') renderKPICatalog();
-    else if(page==='atualizar' && typeof renderAtualizar==='function') renderAtualizar();
-    else if(page==='planos' && typeof renderPlanos==='function') renderPlanos();
-    else if(page==='semanal-operacional' && typeof renderWeeklyOperational==='function') renderWeeklyOperational();
-    else if(page==='indice' && typeof renderIndice==='function') renderIndice();
-    else if(page==='ppr' && typeof renderPPR==='function') renderPPR();
-    else if(page==='admin' && typeof renderAdminDMX==='function') renderAdminDMX(true);
-    else if(page==='area-detail' && area && typeof renderAreaDetail==='function') renderAreaDetail(area);
-  }
-  function render(page,area,shouldSave){
-    const s=read();
-    page=normPage(page || s.currentPage || DEFAULT_PAGE);
-    area=page==='area-detail' ? (area || s.currentArea || '') : '';
-    if(!canUse(page,area)) { page=DEFAULT_PAGE; area=''; }
-    applyFilters();
-    shell(page,area);
-    try { call(page,area); } catch(e){ console.warn('v53: falha no render da página', page, e); }
-    if(shouldSave) saveState(page,area);
+  function restoreState(){
+    const s = read();
+    let page = normPage(s.currentPage || DEFAULT_PAGE);
+    let area = page === 'area-detail' ? (s.currentArea || '') : '';
+    if(!hasAccess(page, area)){ page = DEFAULT_PAGE; area = ''; }
+    callOfficialNavigation(page, area);
   }
 
-  renderCurrentPage = window.renderCurrentPage = function(){
-    render(window.currentPage || read().currentPage || DEFAULT_PAGE, window.currentArea || read().currentArea || '', false);
-  };
-  dmxBootRenderState = window.dmxBootRenderState = function(){
-    const s=read();
-    const p=savedPeriod();
-    syncPeriod(p.mes,p.ano);
-    render(s.currentPage || DEFAULT_PAGE, s.currentArea || '', false);
-  };
-  window.nav = nav = function(el,areaName){
-    if(!el || !el.dataset) return;
-    const page=normPage(el.dataset.page);
-    const area=page==='area-detail' ? (areaName || el.dataset.area || '') : '';
-    render(page,area,true);
-  };
-  window.navTo = navTo = function(page){ render(normPage(page),'',true); };
-  window.goToArea = goToArea = function(area){ render('area-detail',area,true); };
+  const original = { nav:null, goToArea:null, navTo:null, onPeriodChange:null };
+  function installWrappers(){
+    if(typeof window.nav === 'function' && !window.nav.__dmxV56Wrapped){
+      original.nav = window.nav;
+      const base = window.nav;
+      window.nav = nav = function(el, areaName){
+        const result = base.apply(this, arguments);
+        try{
+          const page = normPage(el?.dataset?.page || window.currentPage || DEFAULT_PAGE);
+          const area = page === 'area-detail' ? (areaName || el?.dataset?.area || window.currentArea || '') : '';
+          saveState(page, area);
+        }catch(e){}
+        return result;
+      };
+      window.nav.__dmxV56Wrapped = true;
+    }
+    if(typeof window.goToArea === 'function' && !window.goToArea.__dmxV56Wrapped){
+      original.goToArea = window.goToArea;
+      const baseArea = window.goToArea;
+      window.goToArea = goToArea = function(area){ const r = baseArea.apply(this, arguments); try{ saveState('area-detail', area); }catch(e){} return r; };
+      window.goToArea.__dmxV56Wrapped = true;
+    }
+    if(typeof window.navTo === 'function' && !window.navTo.__dmxV56Wrapped){
+      original.navTo = window.navTo;
+      const baseTo = window.navTo;
+      window.navTo = navTo = function(page){ const r = baseTo.apply(this, arguments); try{ saveState(normPage(page), ''); }catch(e){} return r; };
+      window.navTo.__dmxV56Wrapped = true;
+    }
+    const basePeriod = (typeof window.onPeriodChange === 'function') ? window.onPeriodChange : null;
+    if(basePeriod && !basePeriod.__dmxV56Wrapped){
+      window.onPeriodChange = onPeriodChange = function(){
+        syncPeriod(document.getElementById('mes-sel')?.value, document.getElementById('ano-sel')?.value);
+        const r = basePeriod.apply(this, arguments);
+        try { saveState(); } catch(e){}
+        return r;
+      };
+      window.onPeriodChange.__dmxV56Wrapped = true;
+    }
+  }
 
-  window.onPeriodChange = onPeriodChange = function(){
-    syncPeriod(document.getElementById('mes-sel')?.value, document.getElementById('ano-sel')?.value);
-    render(window.currentPage || read().currentPage || DEFAULT_PAGE, window.currentArea || read().currentArea || '', true);
+  window.dmxBootRenderState = function(){
+    applySavedFilters();
+    restoreState();
   };
+  window.renderCurrentPage = function(){
+    applySavedFilters();
+    restoreState();
+  };
+  window.dmxRestoreUiState = restoreState;
+
   if(!localStorage.getItem(KEY)){
-    const p={mes:currentMonth(), ano:currentYear()};
-    write({currentPage:DEFAULT_PAGE,currentArea:'',currentMes:p.mes,currentAno:p.ano,filters:{'mes-sel':String(p.mes),'ano-sel':String(p.ano)}});
-    syncPeriod(p.mes,p.ano);
+    const p = {mes: currentMonth(), ano: currentYear()};
+    write({currentPage:DEFAULT_PAGE, currentArea:'', currentMes:p.mes, currentAno:p.ano, filters:{'mes-sel':String(p.mes),'ano-sel':String(p.ano)}});
+    syncPeriod(p.mes, p.ano);
   } else {
-    const s=read();
-    window.currentPage = currentPage = normPage(s.currentPage || DEFAULT_PAGE);
-    currentArea = (currentPage==='area-detail' ? (s.currentArea || '') : '');
-    window.currentArea = currentArea;
-    const p=savedPeriod(); syncPeriod(p.mes,p.ano);
+    const p = getPeriodFromFilters(read().filters || {});
+    syncPeriod(p.mes, p.ano);
   }
 
-  document.addEventListener('change', function(ev){
-    const el=ev.target; if(!el || !el.id) return;
-    if(el.id==='mes-sel' || el.id==='ano-sel') syncPeriod(document.getElementById('mes-sel')?.value, document.getElementById('ano-sel')?.value);
-    if(el.id==='weekly-month-filter') syncPeriod(el.value, document.getElementById('weekly-year-filter')?.value || document.getElementById('ano-sel')?.value);
-    if(el.id==='weekly-year-filter') syncPeriod(document.getElementById('weekly-month-filter')?.value || document.getElementById('mes-sel')?.value, el.value);
-    if(['area-mes-sel','slide-mes-sel','weekly-slide-mes-sel'].includes(el.id)) syncPeriod(el.value, document.getElementById('ano-sel')?.value);
-    if(FILTER_IDS.includes(el.id)) saveState();
+  document.addEventListener('click', function(ev){
+    const el = ev.target && ev.target.closest ? ev.target.closest('.nav-item[data-page]') : null;
+    if(!el) return;
+    const page = normPage(el.dataset.page);
+    const area = page === 'area-detail' ? (el.dataset.area || '') : '';
+    setTimeout(() => saveState(page, area), 0);
   }, true);
-  document.addEventListener('input', function(ev){ if(ev.target && FILTER_IDS.includes(ev.target.id)) saveState(); }, true);
+  document.addEventListener('change', function(ev){
+    const el = ev.target; if(!el || !el.id) return;
+    if(FILTER_IDS.includes(el.id)) setTimeout(() => saveState(), 0);
+  }, true);
+  document.addEventListener('input', function(ev){
+    const el = ev.target; if(!el || !el.id) return;
+    if(FILTER_IDS.includes(el.id)) setTimeout(() => saveState(), 120);
+  }, true);
+  window.addEventListener('beforeunload', function(){ try{ saveState(); }catch(e){} });
 
-  function reinforce(){
-    window.nav = nav; window.navTo = navTo; window.goToArea = goToArea; window.renderCurrentPage = renderCurrentPage; window.dmxBootRenderState = dmxBootRenderState;
-    const s=read();
-    if((window.currentPage||currentPage) !== normPage(s.currentPage || DEFAULT_PAGE)) render(s.currentPage || DEFAULT_PAGE, s.currentArea || '', false);
+  function installFinanceiroWrapper(){
+    if(typeof window.dmxOpenFinanceiro === 'function' && !window.dmxOpenFinanceiro.__dmxV57Wrapped){
+      const baseFin = window.dmxOpenFinanceiro;
+      window.dmxOpenFinanceiro = function(el){
+        const r = baseFin.apply(this, arguments);
+        try{ saveState('area-detail', 'Painel Financeiro'); }catch(e){}
+        return r;
+      };
+      window.dmxOpenFinanceiro.__dmxV57Wrapped = true;
+    }
   }
-  [0,120,450,950,1700,2800].forEach(ms=>setTimeout(reinforce,ms));
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ renderCurrentPage(); }, 60); setTimeout(reinforce, 800); setTimeout(reinforce, 2200); });
+
+  installFinanceiroWrapper();
+  installWrappers();
+  document.addEventListener('DOMContentLoaded', function(){
+    [60, 350, 900, 2100].forEach(ms => setTimeout(function(){ installFinanceiroWrapper(); installWrappers(); }, ms));
+    // Restauração final somente após os demais patches de permissão/menu estabilizarem.
+    setTimeout(restoreState, 2300);
+  });
+})();
+</script>
+
+
+<!-- PATCH v58 — Boot silencioso para evitar pisca-pisca no F5 sem perder v57 -->
+<style id="dmx-v58-boot-silencioso-css">
+  body.dmx-boot-silent .main,
+  body.dmx-boot-silent .sidebar { visibility: hidden !important; }
+  #dmx-v58-boot-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    display: none; align-items: center; justify-content: center;
+    background: #0D0D0D; color: #fff; font-family: 'DM Sans', Arial, sans-serif;
+  }
+  body.dmx-boot-silent #dmx-v58-boot-overlay { display: flex; }
+  #dmx-v58-boot-overlay .dmx-v58-card { text-align: center; opacity: .96; }
+  #dmx-v58-boot-overlay .dmx-v58-title {
+    font-family: 'Syne', Arial, sans-serif; font-size: 16px; font-weight: 800; letter-spacing: .2px;
+  }
+  #dmx-v58-boot-overlay .dmx-v58-sub { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,.48); letter-spacing: 1.2px; text-transform: uppercase; }
+  #dmx-v58-boot-overlay .dmx-v58-loader {
+    width: 34px; height: 34px; margin: 0 auto 14px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.16); border-top-color: #0E9E82;
+    animation: dmxV58Spin .8s linear infinite;
+  }
+  @keyframes dmxV58Spin { to { transform: rotate(360deg); } }
+</style>
+<script id="dmx-v58-f5-boot-silencioso">
+(function(){
+  'use strict';
+  if(window.__dmxV58BootSilencioso) return;
+  window.__dmxV58BootSilencioso = true;
+
+  const STATE_KEY = 'dmx_ui_state_v57';
+  const BOOT_MS = 4300;
+  const EXTRA_RESTORE_MS = [4700, 5400];
+  let booting = true;
+  let restoredOnce = false;
+
+  function readState(){ try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}') || {}; } catch(e){ return {}; } }
+  const frozenState = readState();
+
+  function installOverlay(){
+    try{
+      document.body.classList.add('dmx-boot-silent');
+      if(!document.getElementById('dmx-v58-boot-overlay')){
+        const div = document.createElement('div');
+        div.id = 'dmx-v58-boot-overlay';
+        div.innerHTML = '<div class="dmx-v58-card"><div class="dmx-v58-loader"></div><div class="dmx-v58-title">DMX Capital</div><div class="dmx-v58-sub">Carregando visão salva</div></div>';
+        document.body.appendChild(div);
+      }
+    }catch(e){}
+  }
+
+  // Durante o boot, vários patches antigos navegam para páginas provisórias.
+  // Esta trava impede que esses estados intermediários substituam a última tela real do usuário.
+  const originalSetItem = Storage.prototype.setItem;
+  if(!Storage.prototype.setItem.__dmxV58Wrapped){
+    Storage.prototype.setItem = function(key, value){
+      if(booting && key === STATE_KEY){ return; }
+      return originalSetItem.apply(this, arguments);
+    };
+    Storage.prototype.setItem.__dmxV58Wrapped = true;
+  }
+
+  function restoreFrozenState(){
+    try{
+      if(frozenState && (frozenState.currentPage || frozenState.currentArea || frozenState.filters)){
+        originalSetItem.call(localStorage, STATE_KEY, JSON.stringify(frozenState));
+      }
+    }catch(e){}
+  }
+
+  function applySavedRoute(){
+    restoreFrozenState();
+    try{
+      if(typeof window.dmxRestoreUiState === 'function') window.dmxRestoreUiState();
+      else if(typeof window.dmxBootRenderState === 'function') window.dmxBootRenderState();
+      else if(typeof window.renderCurrentPage === 'function') window.renderCurrentPage();
+      restoredOnce = true;
+    }catch(e){ console.warn('v58 restore:', e); }
+  }
+
+  function finishBoot(){
+    applySavedRoute();
+    setTimeout(function(){
+      booting = false;
+      try{ document.body.classList.remove('dmx-boot-silent'); }catch(e){}
+      try{
+        if(restoredOnce && typeof window.dmxSaveUiState === 'function') window.dmxSaveUiState();
+      }catch(e){}
+    }, 160);
+  }
+
+  installOverlay();
+  restoreFrozenState();
+
+  document.addEventListener('DOMContentLoaded', function(){
+    installOverlay();
+    restoreFrozenState();
+    setTimeout(finishBoot, BOOT_MS);
+    EXTRA_RESTORE_MS.forEach(ms => setTimeout(function(){ if(booting) applySavedRoute(); }, ms));
+  });
+
+  setTimeout(function(){
+    if(booting) finishBoot();
+  }, BOOT_MS + 700);
 })();
 </script>
 
