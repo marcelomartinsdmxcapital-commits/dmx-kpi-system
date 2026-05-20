@@ -5060,20 +5060,35 @@ function currentWeeklyAno(){ return Number(document.getElementById('weekly-year-
 
 // KPI ids selecionados para uma área (ou todas se __ALL__)
 function selectedForArea(area){
+  const allKpis = window.kpis||kpis||[];
+  // Apenas KPIs atualmente Meta e ativos
+  const isMeta = k => String(k.vertente||'').trim().toLowerCase()==='meta' &&
+                      String(k.ativo||'SIM').trim().toUpperCase()!=='NAO' &&
+                      String(k.ativo||'SIM').trim().toUpperCase()!=='NÃO';
   if(area === '__ALL__'){
-    const allKpis = window.kpis||kpis||[];
     const allAreas = [...new Set(allKpis.map(k=>String(k.area||'').trim()).filter(a=>a&&a.toLowerCase()!=='mensal'))];
     const sel = loadWeeklySelection();
     const ids = [];
     allAreas.forEach(a => {
-      if(Array.isArray(sel[a]) && sel[a].length) ids.push(...sel[a]);
-      else ids.push(...allKpis.filter(k=>k.area===a && String(k.vertente||'').trim().toLowerCase()==='meta').slice(0,4).map(k=>k.id));
+      const metaIds = new Set(allKpis.filter(k=>k.area===a && isMeta(k)).map(k=>k.id));
+      if(Array.isArray(sel[a]) && sel[a].length){
+        // Revalida: mantém apenas os que ainda são Meta
+        ids.push(...sel[a].filter(id => metaIds.has(id)));
+      } else {
+        // Fallback: todos os Meta da área (sem limite arbitrário)
+        ids.push(...metaIds);
+      }
     });
     return [...new Set(ids)];
   }
   const sel = loadWeeklySelection();
-  if(Array.isArray(sel[area]) && sel[area].length) return sel[area];
-  return (window.kpis||kpis||[]).filter(k => k.area === area && String(k.vertente||'').trim().toLowerCase()==='meta').slice(0,4).map(k=>k.id);
+  const metaIds = new Set(allKpis.filter(k=>k.area===area && isMeta(k)).map(k=>k.id));
+  if(Array.isArray(sel[area]) && sel[area].length){
+    const revalidated = sel[area].filter(id => metaIds.has(id));
+    // Se após revalidação ficou vazio, cai no fallback (todos os Meta)
+    if(revalidated.length) return revalidated;
+  }
+  return [...metaIds];
 }
 
 function downloadWeeklyTemplate(){
@@ -5516,7 +5531,17 @@ function openWeeklySelection(){
   const ids = new Set(selectedForArea(area));
   const allKpis = window.kpis || kpis || [];
   const allAreas = [...new Set(allKpis.map(k=>k.area).filter(Boolean))].sort();
-  const grouped = allAreas.map(a => `<div style="margin-bottom:14px"><div style="font-weight:800;margin-bottom:6px">${a}</div>` + allKpis.filter(k=>k.area===a).map(k=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid #F4F6FA"><input type="checkbox" class="weekly-kpi-check" value="${k.id}" ${ids.has(k.id)?'checked':''}><span><span class="font-mono text-muted">${k.id}</span> ${k.indicador}<div class="text-muted text-sm">${k.vertente||''} · ${k.sentido||''}</div></span></label>`).join('') + `</div>`).join('');
+  // Modal mostra apenas KPIs Meta — Controle não participa do acompanhamento semanal por meta
+  const isMeta = k => String(k.vertente||'').trim().toLowerCase()==='meta' &&
+                      String(k.ativo||'SIM').trim().toUpperCase()!=='NAO' &&
+                      String(k.ativo||'SIM').trim().toUpperCase()!=='NÃO';
+  const grouped = allAreas.map(a => {
+    const metaKpis = allKpis.filter(k=>k.area===a && isMeta(k));
+    if(!metaKpis.length) return '';
+    return `<div style="margin-bottom:14px"><div style="font-weight:800;margin-bottom:6px">${a}</div>` +
+      metaKpis.map(k=>`<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid #F4F6FA"><input type="checkbox" class="weekly-kpi-check" value="${k.id}" ${ids.has(k.id)?'checked':''}><span><span class="font-mono text-muted">${k.id}</span> ${k.indicador}<div class="text-muted text-sm">${k.sentido||''} · ${k.unidade||''}</div></span></label>`).join('') +
+    `</div>`;
+  }).join('');
   const modal = document.getElementById('weekly-modal');
   const content = document.getElementById('weekly-modal-content');
   content.innerHTML = `<button class="modal-close" onclick="closeModal('weekly-modal')">✕</button><div class="modal-title">Selecionar KPIs semanais — ${area}</div><p class="text-muted text-sm mt-1 mb-3">Escolha os KPIs críticos que esta área vai acompanhar nas 4 etapas do mês.</p><div style="max-height:520px;overflow:auto">${grouped}</div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn btn-ghost" onclick="closeModal('weekly-modal')">Cancelar</button><button class="btn btn-primary" onclick="saveWeeklySelectionFromModal()">Salvar seleção</button></div>`;
