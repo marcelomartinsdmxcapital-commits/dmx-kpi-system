@@ -1517,10 +1517,11 @@ function fmtAccumType(kpi) {
 
 function fmtVal(v, u) {
   const n = (typeof numOrNull === 'function') ? numOrNull(v) : (v === null || v === undefined || v === '' ? null : Number(v));
-  if (n === null || !Number.isFinite(n)) return '\u2014';
-  if (u === 'R$') return 'R$ ' + n.toLocaleString('pt-BR', {maximumFractionDigits:0});
-  if (u === '%') return n.toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
-  return n.toLocaleString('pt-BR', {maximumFractionDigits:1});
+  if (n === null || !Number.isFinite(n)) return '—';
+  const opt = {minimumFractionDigits:2, maximumFractionDigits:2};
+  if (u === 'R$') return 'R ' + n.toLocaleString('pt-BR', opt);
+  if (u === '%')  return n.toLocaleString('pt-BR', opt) + '%';
+  return n.toLocaleString('pt-BR', opt);
 }
 function fmtImpact(v) {
   if (!v || isNaN(v)) return '\u2014';
@@ -4425,7 +4426,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.calcAting=calcAting=function(sentido,val,meta){ val=nvlNum(val); meta=nvlNum(meta); if(val===null||meta===null||meta===0)return null; return window.dmxIsMaiorMelhor(sentido)?val/meta:meta/(val||0.000001); };
   window.calcStatus=calcStatus=function(sentido,val,meta){ const r=calcAting(sentido,val,meta); if(r===null)return 'N/A'; return r>=1?'VERDE':r>=0.9?'AMARELO':'VERMELHO'; };
   window.resolveRef=resolveRef=function(kpi,mes,ano){ const l=getLaunch(kpi.id,mes,ano); const pick=f=>{ const lv=l?nvlNum(l[f]):null; if(lv!==null)return lv; const kv=nvlNum(kpi[f]); return kv!==null?kv:null; }; return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')}; };
-  window.fmtVal=fmtVal=function(v,u){ const n=nvlNum(v); if(n===null)return '—'; if(u==='R$')return 'R$ '+n.toLocaleString('pt-BR',{maximumFractionDigits:0}); if(u==='%')return n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; return n.toLocaleString('pt-BR',{maximumFractionDigits:1}); };
+  window.fmtVal=fmtVal=function(v,u){ const n=nvlNum(v); if(n===null)return '—'; if(u==='R$')return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); if(u==='%')return n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; return n.toLocaleString('pt-BR',{maximumFractionDigits:1}); };
 })();
 </script>
 
@@ -4494,7 +4495,7 @@ window.addEventListener('DOMContentLoaded', init);
 
   window.fmtVal = fmtVal = function(v,u){
     const n=toNum(v); if(n===null) return '—';
-    if(u==='R$') return 'R$ '+n.toLocaleString('pt-BR',{maximumFractionDigits:0});
+    if(u==='R$') return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     if(u==='%') return n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
     return n.toLocaleString('pt-BR',{maximumFractionDigits:1});
   };
@@ -4984,13 +4985,13 @@ function weeklyNum(v){
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-function weeklyPct(v){ return v===null || v===undefined || Number.isNaN(v) ? '—' : Number(v).toFixed(1).replace('.', ',') + '%'; }
+function weeklyPct(v){ return v===null || v===undefined || Number.isNaN(v) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%'; }
 function weeklyFmt(v, unidade){
   if(v===null || v===undefined || Number.isNaN(Number(v))) return '—';
   const n = Number(v);
-  if(String(unidade||'').includes('R$')) return 'R$ ' + n.toLocaleString('pt-BR', {maximumFractionDigits:0});
-  if(String(unidade||'').includes('%')) return n.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
-  return n.toLocaleString('pt-BR', {maximumFractionDigits:1});
+  if(String(unidade||'').includes('R$')) return 'R ' + n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(String(unidade||'').includes('%')) return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '%';
+  return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function weeklyGetKpi(id){ return (window.kpis||kpis||[]).find(k => String(k.id) === String(id)); }
 function weeklyCalcAting(kpi, real, meta){
@@ -5136,7 +5137,7 @@ const weeklyLabelPlugin = {
     chart.data.datasets.forEach((ds, di)=>{
       if(!['Realizado','Média mensal realizada'].includes(ds.label)) return;
       const meta = chart.getDatasetMeta(di);
-      meta.data.forEach((pt, i)=>{ const v = ds.data[i]; if(v===null || v===undefined || Number.isNaN(v)) return; ctx.fillText(Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1}), pt.x, pt.y - 7); });
+      meta.data.forEach((pt, i)=>{ const v = ds.data[i]; if(v===null || v===undefined || Number.isNaN(v)) return; ctx.fillText(Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), pt.x, pt.y - 7); });
     }); ctx.restore();
   }
 };
@@ -5405,14 +5406,27 @@ function renderWeeklySlide() {
         </div>
         <!-- métricas -->
         ${(()=>{
-          const isAccumKpi = String(kpi.acumulado||kpi.acum||'').toLowerCase().includes('sim')||String(kpi.acumulado||kpi.acum||'').toLowerCase()==='s';
-          const proj = s.real !== null ? (isAccumKpi ? s.real : s.real) * 4 : null;
-          const metaMes = (typeof resolveRef === 'function') ? (resolveRef(kpi,mes,ano).meta ?? s.meta*4) : s.meta*4;
-          const delta = (metaMes !== null && proj !== null) ? (proj - metaMes) : null;
-          const deltaStr = delta === null ? '—' : (delta >= 0 ? '+\u00a0' : '−\u00a0') + weeklyFmt(Math.abs(delta), kpi.unidade);
-          const atStr = s.ating === null ? '—' : (s.ating).toFixed(1) + '%';
+          // Lê lançamentos brutos das 4 etapas diretamente
+          const etapas = [1,2,3,4].map(e => {
+            const r = typeof getWeeklyLaunch==='function' ? getWeeklyLaunch(kpi.id,mes,ano,e) : null;
+            const v = r ? (typeof weeklyNum==='function' ? weeklyNum(r.realizado) : Number(r.realizado)) : null;
+            return (v!==null && Number.isFinite(v)) ? v : null;
+          }).filter(v=>v!==null);
+          const mediaReal = etapas.length ? etapas.reduce((a,b)=>a+b,0)/etapas.length : null;
+
+          // Regra: só multiplica por 4 se acumulado for EXPLICITAMENTE 'soma'
+          // Qualquer outro valor (média, vazio, null) = mantém a média
+          const acumStr = String(kpi.acumulado || kpi.tipo_projecao || kpi.projecao || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+          const isSoma = acumStr === 'soma';
+          const proj = mediaReal !== null ? (isSoma ? mediaReal * 4 : mediaReal) : null;
+
+          const metaMes = (typeof resolveRef==='function') ? (resolveRef(kpi,mes,ano).meta ?? s.meta*4) : s.meta*4;
+          const delta = (metaMes!==null && proj!==null) ? (proj - metaMes) : null;
+          const deltaStr = delta===null ? '—' : (delta>=0?'+\u00a0':'−\u00a0') + weeklyFmt(Math.abs(delta),kpi.unidade);
+          const atStr = s.ating===null ? '—' : (s.ating).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%';
           return `<div class="slide-metrics" style="grid-template-columns:repeat(5,1fr)">
-            <div class="slide-metric"><div class="slide-metric-label">Média Real</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(s.real,kpi.unidade)}</div></div>
+            <div class="slide-metric"><div class="slide-metric-label">Média Real</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(mediaReal,kpi.unidade)}</div></div>
             <div class="slide-metric"><div class="slide-metric-label">Proj. Fechamento</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(proj,kpi.unidade)}</div></div>
             <div class="slide-metric"><div class="slide-metric-label">Meta Mensal</div><div class="slide-metric-val">${weeklyFmt(metaMes,kpi.unidade)}</div></div>
             <div class="slide-metric"><div class="slide-metric-label">Δ (Proj. − Meta)</div><div class="slide-metric-val" style="color:${delta===null?'var(--muted)':delta>=0?'var(--green)':'var(--red)'}">${deltaStr}</div></div>
@@ -10792,9 +10806,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     };
   };
   window.dmxWeeklyProjectionType = function(kpi){
-    const raw = nkey(kpi && (kpi.tipo_projecao || kpi.projecao || kpi.acumulado || kpi.tipo_acumulado || kpi.regra_acumulado));
-    if(raw.includes('SOMA') || raw.includes('ACUM') || raw.includes('VOLUME') || raw.includes('VALOR')) return 'ACUMULADO';
-    return 'MEDIA';
+    // Regra: só é ACUMULADO se o campo acumulado for EXPLICITAMENTE 'soma'
+    // Qualquer outro valor (média, vazio, null) = MEDIA
+    const v = String(kpi && (kpi.acumulado || kpi.tipo_projecao || kpi.projecao || kpi.tipo_acumulado || kpi.regra_acumulado) || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    return v === 'soma' ? 'ACUMULADO' : 'MEDIA';
   };
   window.dmxWeeklyTrend = function(kpi, mes, ano){
     const vals = (typeof WEEKLY_ETAPAS !== 'undefined' ? WEEKLY_ETAPAS : [1,2,3,4]).map(e => {
@@ -13114,14 +13130,22 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!vals.length) return null;
     return vals.reduce((s,v)=>s+Number(v),0) / vals.length;
   }
+  function isSomaKpi(kpi){
+    // Fonte de verdade: campo acumulado da Sheet. Só soma se EXPLICITAMENTE 'soma'.
+    const v = String(kpi && (kpi.acumulado||kpi.tipo_projecao||kpi.projecao||''))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    return v === 'soma';
+  }
   function projection(id, mes, ano){
     const avg = avgReal(id, mes, ano);
-    return avg === null ? null : avg * 4;
+    if(avg === null) return null;
+    const kpi = typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null;
+    return isSomaKpi(kpi) ? avg * 4 : avg;
   }
   window.dmxWeeklyAverageReal = avgReal;
   window.dmxWeeklyProjectedClose = projection;
 
-  // Mantém a tendência/fechamento como projeção, mas separa da média real.
+  // dmxWeeklyTrend: usa projection() que já respeita acumulado
   window.dmxWeeklyTrend = function(kpi, mes, ano){
     if(!kpi) return null;
     return projection(kpi.id, mes, ano);
@@ -13338,10 +13362,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function norm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
   function isAccum(kpi){
+    // Fonte de verdade: campo acumulado da Sheet
     try{ if(typeof dmxWeeklyProjectionType === 'function') return dmxWeeklyProjectionType(kpi) === 'ACUMULADO'; }catch(e){}
-    const t = norm([kpi&&kpi.unidade,kpi&&kpi.tipo_projecao,kpi&&kpi.projecao,kpi&&kpi.acumulado,kpi&&kpi.tipo_acumulado,kpi&&kpi.regra_acumulado,kpi&&kpi.indicador,kpi&&kpi.nome].filter(Boolean).join(' '));
-    if(t.includes('%') || t.includes('percent')) return false;
-    return t.includes('r$') || t.includes('receita') || t.includes('valor') || t.includes('volume') || t.includes('quantidade') || t.includes('numero') || t.includes('número') || t.includes('soma') || t.includes('acumul');
+    const v = String(kpi&&(kpi.acumulado||kpi.tipo_projecao||kpi.projecao||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return v.includes('soma') || v.includes('acumul');
   }
   function ref(kpi, mes, ano){
     try{ if(typeof dmxWeeklyMonthlyRef === 'function') return dmxWeeklyMonthlyRef(kpi, mes, ano) || {}; }catch(e){}
@@ -13380,7 +13404,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           meta.data.forEach((pt,i)=>{
             const val = ds.data[i];
             if(val===null || val===undefined || Number.isNaN(Number(val))) return;
-            ctx.fillText(fmt(val,0), pt.x, pt.y - 12);
+            ctx.fillText(fmt(val,2), pt.x, pt.y - 12);
           });
         }
         if(ds.type === 'bar'){
@@ -13390,7 +13414,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           meta.data.forEach((bar,i)=>{
             const val = ds.data[i];
             if(val===null || val===undefined || Number.isNaN(Number(val))) return;
-            ctx.fillText(fmt(val,0), bar.x, bar.y - 8);
+            ctx.fillText(fmt(val,2), bar.x, bar.y - 8);
           });
         }
       });
@@ -13586,17 +13610,17 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(n === null) return '—';
     const u = norm(kpi&&kpi.unidade);
     const name = norm((kpi&&kpi.nome) || (kpi&&kpi.indicador));
-    if(u.includes('%')) return n.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
+    if(u.includes('%')) return n.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2}) + '%';
     if(u.includes('r$') || u === 'rs' || name.includes('receita') || name.includes('despesa') || name.includes('lucro') || name.includes('ebitda') || name.includes('cota')){
-      return 'R$ ' + n.toLocaleString('pt-BR',{maximumFractionDigits:0});
+      return 'R ' + n.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
     }
-    return n.toLocaleString('pt-BR',{maximumFractionDigits:casas ?? 0});
+    return n.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:casas ?? 2});
   }
   function isAccum(kpi){
+    // Fonte de verdade: campo acumulado da Sheet
     try{ if(typeof dmxWeeklyProjectionType === 'function') return dmxWeeklyProjectionType(kpi) === 'ACUMULADO'; }catch(e){}
-    const t = norm([kpi&&kpi.unidade,kpi&&kpi.tipo_projecao,kpi&&kpi.projecao,kpi&&kpi.acumulado,kpi&&kpi.tipo_acumulado,kpi&&kpi.regra_acumulado,kpi&&kpi.indicador,kpi&&kpi.nome].filter(Boolean).join(' '));
-    if(t.includes('%') || t.includes('percent')) return false;
-    return t.includes('r$') || t.includes('receita') || t.includes('valor') || t.includes('volume') || t.includes('quantidade') || t.includes('numero') || t.includes('número') || t.includes('soma') || t.includes('acumul');
+    const v = String(kpi&&(kpi.acumulado||kpi.tipo_projecao||kpi.projecao||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return v.includes('soma') || v.includes('acumul');
   }
   function ref(kpi, mes, ano){
     try{ if(typeof dmxWeeklyMonthlyRef === 'function') return dmxWeeklyMonthlyRef(kpi, mes, ano) || {}; }catch(e){}
@@ -13663,7 +13687,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           meta.data.forEach((pt,i)=>{
             const val = ds.data[i];
             if(val===null || val===undefined || Number.isNaN(Number(val))) return;
-            ctx.fillText(fmt(val,0), pt.x, pt.y - 12);
+            ctx.fillText(fmt(val,2), pt.x, pt.y - 12);
           });
         }
         if(ds.type === 'bar'){
@@ -13673,7 +13697,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           meta.data.forEach((bar,i)=>{
             const val = ds.data[i];
             if(val===null || val===undefined || Number.isNaN(Number(val))) return;
-            ctx.fillText(fmt(val,0), bar.x, bar.y - 8);
+            ctx.fillText(fmt(val,2), bar.x, bar.y - 8);
           });
         }
       });
@@ -13812,8 +13836,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const real4 = s.map(x=>x?num(x.realizado):null).slice(0,4);
       while(real4.length<4) real4.push(null);
       const media = avg(real4);
-      const acc = isAccum(kpi);
-      const proj = media===null ? null : media*4;
+      // Regra: só multiplica por 4 se acumulado for EXPLICITAMENTE 'soma'
+      const acumStr = String(kpi.acumulado||kpi.tipo_projecao||kpi.projecao||'')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+      const acc = acumStr === 'soma';
+      const proj = media===null ? null : (acc ? media*4 : media);
       const meta = num(r.meta);
       const delta = (meta!==null && proj!==null) ? (proj - meta) : null;
 
