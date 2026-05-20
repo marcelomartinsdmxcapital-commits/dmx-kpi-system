@@ -388,7 +388,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 .slide-kpi-obj { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 
 /* slide metrics row */
-.slide-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.slide-metrics { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; }
 .slide-metric {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
   padding: 13px 14px; text-align: center;
@@ -472,6 +472,135 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
   /* v40: Admin sem logs — mantém a aba Admin inteira e remove somente o bloco pesado de auditoria da tela */
   #dmx-admin-kpi-table-wrap { max-height: 520px; overflow: auto; }
   .dmx-admin-compact-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+</style>
+
+
+
+<style id="dmx-v77-weekly-presentation-polish">
+/* v77 — Modo apresentação semanal mais executivo */
+#page-kpi-slide .slide-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-bottom: 2px !important;
+}
+#page-kpi-slide .slide-metric {
+  background: #fff !important;
+  border: 1px solid #DDE5F4 !important;
+  border-radius: 12px !important;
+  padding: 16px 18px !important;
+  min-height: 108px !important;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.06) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+#page-kpi-slide .slide-metric::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 4px;
+  background: #2563EB;
+}
+/* 5-card monthly: Real | Meta | Delta | Ating | Status */
+#page-kpi-slide .slide-metric:nth-child(1)::before { background: #0E9E82; }
+#page-kpi-slide .slide-metric:nth-child(2)::before { background: #2563EB; }
+#page-kpi-slide .slide-metric:nth-child(3)::before { background: #F59E0B; }
+#page-kpi-slide .slide-metric:nth-child(4)::before { background: #D97706; }
+#page-kpi-slide .slide-metric:nth-child(5)::before { background: #6366F1; }
+#page-kpi-slide .slide-metric-label {
+  color: #647196 !important;
+  font-size: 10px !important;
+  letter-spacing: 1.25px !important;
+  margin-bottom: 8px !important;
+}
+#page-kpi-slide .slide-metric-val {
+  font-size: 25px !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.4px !important;
+}
+/* val colors driven by inline style; keep fallbacks minimal */
+#page-kpi-slide .slide-metric:nth-child(1) .slide-metric-val { color: #0E9E82 !important; }
+#page-kpi-slide .slide-metric:nth-child(2) .slide-metric-val { color: #2563EB !important; }
+#page-kpi-slide .slide-metric:nth-child(4) .slide-metric-val { color: #D97706 !important; }
+
+/* Remove o bloco de detalhe por etapa no modo apresentação, mantendo só os gráficos */
+#page-kpi-slide .slide-history,
+#page-kpi-slide .weekly-detail,
+#page-kpi-slide [data-weekly-detail],
+#page-kpi-slide .weekly-detail-table,
+#page-kpi-slide .detalhe-etapa,
+#page-kpi-slide .weekly-stage-detail {
+  display: none !important;
+}
+#page-kpi-slide .slide-chart-wrap {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px rgba(15,23,42,0.04) !important;
+}
+</style>
+
+
+<style id="dmx-v79-weekly-slide-fix">
+/* v79 — ajustes somente no modo apresentação semanal */
+#page-kpi-slide .slide-metrics{
+  display:grid !important;
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:12px !important;
+  margin-bottom:16px !important;
+}
+#page-kpi-slide .slide-metric{
+  background:#fff !important;
+  border:1px solid #DDE5F4 !important;
+  border-radius:14px !important;
+  min-height:106px !important;
+  padding:16px 18px !important;
+  box-shadow:0 6px 18px rgba(15,23,42,.06) !important;
+  position:relative !important;
+  overflow:hidden !important;
+}
+#page-kpi-slide .slide-metric::before{
+  content:"";
+  position:absolute;
+  top:0;left:0;right:0;
+  height:4px;
+  border-radius:14px 14px 0 0;
+}
+#page-kpi-slide .slide-metric:nth-child(1)::before{background:#0E9E82;}
+#page-kpi-slide .slide-metric:nth-child(2)::before{background:#2563EB;}
+#page-kpi-slide .slide-metric:nth-child(3)::before{background:#F59E0B;}
+#page-kpi-slide .slide-metric:nth-child(4)::before{background:#D97706;}
+#page-kpi-slide .slide-metric:nth-child(5)::before{background:#6366F1;}
+
+#page-kpi-slide .slide-metric-label{
+  color:#647196 !important;
+  font-size:10px !important;
+  letter-spacing:1.2px !important;
+  font-weight:800 !important;
+  margin-bottom:8px !important;
+}
+#page-kpi-slide .slide-metric-val{
+  font-size:27px !important;
+  line-height:1.05 !important;
+  letter-spacing:-.5px !important;
+  font-weight:800 !important;
+}
+#page-kpi-slide .slide-metric:nth-child(1) .slide-metric-val{color:#0E9E82 !important;}
+#page-kpi-slide .slide-metric:nth-child(2) .slide-metric-val{color:#2563EB !important;}
+#page-kpi-slide .slide-metric:nth-child(4) .slide-metric-val{color:#D97706 !important;}
+#page-kpi-slide .dmx-card-sub{
+  font-size:11px;
+  color:#647196;
+  margin-top:7px;
+  font-weight:600;
+}
+
+/* remove a estrutura/tabela de detalhe por etapa que fica entre os dois gráficos */
+#page-kpi-slide .slide-history,
+#page-kpi-slide .weekly-detail,
+#page-kpi-slide .weekly-stage-detail,
+#page-kpi-slide .weekly-detail-table,
+#page-kpi-slide [data-weekly-detail],
+#page-kpi-slide .detalhe-etapa{
+  display:none !important;
+}
 </style>
 
 </head>
@@ -901,12 +1030,31 @@ function dmxPick(row, keys, def='') {
   }
   return def;
 }
+// ── Função global de parse numérico BR (vírgula = decimal, ponto = milhar) ──
+// Usada em TODOS os pontos de entrada de dados do usuário.
+function dmxNumBR(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  let s = String(v).trim();
+  if (!s || ['-','—','na','n/a','null','undefined'].includes(s.toLowerCase())) return null;
+  s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+  if (s.includes(',') && s.includes('.')) {
+    const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+    s = lc > ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+  } else if (s.includes(',')) {
+    s = s.replace(',','.');
+  }
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
 function dmxApiToKpi(row, idx) {
   const num = (v, def=0) => {
     if (v === null || v === undefined || v === '') return def;
-    const s = String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.');
-    const n = Number(s);
-    return Number.isFinite(n) ? n : def;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+    let s = String(v).trim().replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if (s.includes(',') && s.includes('.')) { const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.'); s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,''); }
+    else if (s.includes(',')) { s = s.replace(',','.'); }
+    const n = Number(s); return Number.isFinite(n) ? n : def;
   };
   const id = String(dmxPick(row, ['id','id_kpi','codigo','KPI_ID','ID KPI'], '')).trim() || ('KPI' + String((idx || 0) + 1).padStart(3,'0'));
   const indicador = String(dmxPick(row, ['indicador','nome_kpi','nome','KPI','Nome KPI'], '')).trim() || id;
@@ -951,7 +1099,14 @@ function dmxApiToLaunch(row) {
   if (!id) return null;
   const num = (v, def=null) => {
     if (v === null || v === undefined || v === '') return def;
-    const n = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
+    if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+    let s = String(v).trim();
+    s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if (s.includes(',') && s.includes('.')) {
+      const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+      s = lc > ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+    } else if (s.includes(',')) { s = s.replace(',','.'); }
+    const n = Number(s);
     return Number.isFinite(n) ? n : def;
   };
   const ano = num(row.ano, currentAno);
@@ -1000,8 +1155,11 @@ function dmxApiToWeekly(row) {
   if (!id) return null;
   const num = (v, def=null) => {
     if (v === null || v === undefined || v === '') return def;
-    const n = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
-    return Number.isFinite(n) ? n : def;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+    let s = String(v).trim().replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if (s.includes(',') && s.includes('.')) { const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.'); s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,''); }
+    else if (s.includes(',')) { s = s.replace(',','.'); }
+    const n = Number(s); return Number.isFinite(n) ? n : def;
   };
   const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : {}) || {};
   const ano = num(row.ano, currentAno);
@@ -1903,6 +2061,15 @@ function renderKPISlide() {
 
   if (slideChartInst) { slideChartInst.destroy(); slideChartInst = null; }
 
+  // fmtVal com 2 casas decimais para os cards da apresentação mensal
+  const fmtVal2 = (v, u) => {
+    const n = (typeof numOrNull === 'function') ? numOrNull(v) : (v === null || v === undefined || v === '' ? null : Number(v));
+    if (n === null || !Number.isFinite(n)) return '\u2014';
+    if (u === 'R$') return 'R\u00a0' + n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    if (u === '%') return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '%';
+    return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  };
+
   document.getElementById('slide-content').innerHTML =
     // \u2500\u2500 nav bar \u2500\u2500
     '<div class="slide-nav">' +
@@ -1939,25 +2106,32 @@ function renderKPISlide() {
           '<div class="slide-kpi-title">' + kpi.indicador + '</div>' +
           '<div class="slide-kpi-obj">' + kpi.objetivo + '</div>' +
         '</div>' +
-        // metrics
-        '<div class="slide-metrics">' +
-          '<div class="slide-metric">' +
-            '<div class="slide-metric-label">Status</div>' +
-            '<div style="margin-top:4px">' + pill(st) + '</div>' +
-          '</div>' +
+        // metrics — 5 cards: Real Acum | Meta Mensal | Δ | % Ating | Status
+        '<div class="slide-metrics" style="grid-template-columns:repeat(5,1fr)">' +
           '<div class="slide-metric">' +
             '<div class="slide-metric-label">Realizado Acum.</div>' +
-            '<div class="slide-metric-val" style="color:' + acumStatusColor + '">' + (acumReal !== null ? fmtVal(acumReal, kpi.unidade) : '\u2014') + '</div>' +
-            '<div class="card-sub" style="margin-top:5px;font-size:10.5px">Meta acum.: <strong>' + (acumMeta !== null ? fmtVal(acumMeta, kpi.unidade) : '\u2014') + '</strong></div>' +
+            '<div class="slide-metric-val" style="color:' + acumStatusColor + '">' + (acumReal !== null ? fmtVal2(acumReal, kpi.unidade) : '\u2014') + '</div>' +
+            '<div class="dmx-card-sub">acum. at\u00e9 ' + MES[currentMes] + '</div>' +
           '</div>' +
           '<div class="slide-metric">' +
             '<div class="slide-metric-label">Meta Mensal</div>' +
-            '<div class="slide-metric-val">' + fmtVal(ref.meta, kpi.unidade) + '</div>' +
+            '<div class="slide-metric-val">' + fmtVal2(ref.meta, kpi.unidade) + '</div>' +
+            '<div class="dmx-card-sub">meta acum.: ' + (acumMeta !== null ? fmtVal2(acumMeta, kpi.unidade) : '\u2014') + '</div>' +
           '</div>' +
           '<div class="slide-metric">' +
-            '<div class="slide-metric-label">Atingimento Acum.</div>' +
-            '<div class="slide-metric-val" style="color:' + acumStatusColor + '">' + (acumAt !== null ? Math.round(acumAt * 100) + '%' : '\u2014') + '</div>' +
-            '<div class="card-sub" style="margin-top:5px;font-size:10.5px;color:' + acumGapColor + '">Gap: <strong>' + (acumGap !== null ? fmtVal(acumGap, kpi.unidade) : '\u2014') + '</strong></div>' +
+            '<div class="slide-metric-label">\u0394 (Real \u2212 Meta)</div>' +
+            '<div class="slide-metric-val" style="color:' + acumGapColor + '">' + (acumGap !== null ? (acumGap >= 0 ? '+\u00a0' : '\u2212\u00a0') + fmtVal2(Math.abs(acumGap), kpi.unidade) : '\u2014') + '</div>' +
+            '<div class="dmx-card-sub">acumulado</div>' +
+          '</div>' +
+          '<div class="slide-metric">' +
+            '<div class="slide-metric-label">% Atingimento</div>' +
+            '<div class="slide-metric-val" style="color:' + acumStatusColor + '">' + (acumAt !== null ? (acumAt * 100).toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:2}) + '%' : '\u2014') + '</div>' +
+            '<div class="dmx-card-sub">base acumulada</div>' +
+          '</div>' +
+          '<div class="slide-metric">' +
+            '<div class="slide-metric-label">Status</div>' +
+            '<div style="margin-top:8px">' + pill(acumStatus) + '</div>' +
+            '<div class="dmx-card-sub">' + MES[currentMes] + '/' + currentAno + '</div>' +
           '</div>' +
         '</div>' +
         // chart
@@ -2224,7 +2398,7 @@ function renderAtualizar() {
     const xv  = l ? l.maximo : kpi.maximo;
     const com = l ? (l.comentario || '') : '';
     function inp(pfx, val, w, color) {
-      return '<input class="edit-cell" id="' + pfx + '-' + kpi.id + '" type="number" step="any" value="' + val + '"' +
+      return '<input class="edit-cell" id="' + pfx + '-' + kpi.id + '" type="text" inputmode="decimal" value="' + (val != null && val !== '' ? String(val).replace('.', ',') : '') + '"' +
         ' style="width:' + w + 'px;border-color:' + color + '40;background:' + color + '08"' +
         ' oninput="onCellEdit(\'' + kpi.id + '\')" onkeydown="cellKey(event,\'' + kpi.id + '\',' + idx + ',' + filtered.length + ')">';
     }
@@ -2344,11 +2518,11 @@ function onCellEdit(id) {
   if (!kpi) return;
   if (!pendingUpdates[id]) pendingUpdates[id] = {};
   const raw = inpR ? inpR.value.trim() : '';
-  pendingUpdates[id].realizado  = raw === '' ? null : parseFloat(raw);
+  pendingUpdates[id].realizado  = raw === '' ? null : dmxNumBR(raw);
   pendingUpdates[id].comentario = com ? com.value : '';
-  if (inpM && inpM.value.trim() !== '') pendingUpdates[id].meta   = parseFloat(inpM.value);
-  if (inpN && inpN.value.trim() !== '') pendingUpdates[id].minimo = parseFloat(inpN.value);
-  if (inpX && inpX.value.trim() !== '') pendingUpdates[id].maximo = parseFloat(inpX.value);
+  if (inpM && inpM.value.trim() !== '') pendingUpdates[id].meta   = dmxNumBR(inpM.value);
+  if (inpN && inpN.value.trim() !== '') pendingUpdates[id].minimo = dmxNumBR(inpN.value);
+  if (inpX && inpX.value.trim() !== '') pendingUpdates[id].maximo = dmxNumBR(inpX.value);
   if (raw !== '' && inpR) inpR.classList.add('changed');
   const effMeta = pendingUpdates[id].meta !== undefined ? pendingUpdates[id].meta : kpi.meta;
   const rv2 = pendingUpdates[id].realizado;
@@ -2436,14 +2610,14 @@ function openEditLancamento(id_kpi, mes, ano) {
       '<span style="margin-left:auto">' + pill(l ? l.status : 'N/A') + '</span>' +
     '</div>' +
     formField('Valor Realizado',
-      '<input class="filter-input" id="lf-real" type="number" step="0.01" value="' + (l ? (l.realizado ?? '') : '') + '" style="width:100%;font-size:18px;font-weight:700;text-align:center" autofocus>') +
+      '<input class="filter-input" id="lf-real" type="text" inputmode="decimal" value="' + (l ? (l.realizado ?? '') : '') + '" style="width:100%;font-size:18px;font-weight:700;text-align:center" autofocus>') +
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:2px">' +
       formField('<span style="color:#2563EB;font-size:10px;font-weight:700">META</span>',
-        '<input class="filter-input" id="lf-meta" type="number" step="0.01" value="' + ref.meta + '" style="width:100%;border-color:#2563EB55;background:#EFF6FF">') +
+        '<input class="filter-input" id="lf-meta" type="text" inputmode="decimal" value="' + ref.meta + '" style="width:100%;border-color:#2563EB55;background:#EFF6FF">') +
       formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00CDNIMO</span>',
-        '<input class="filter-input" id="lf-min" type="number" step="0.01" value="' + ref.minimo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
+        '<input class="filter-input" id="lf-min" type="text" inputmode="decimal" value="' + ref.minimo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
       formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00C1XIMO</span>',
-        '<input class="filter-input" id="lf-max" type="number" step="0.01" value="' + ref.maximo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
+        '<input class="filter-input" id="lf-max" type="text" inputmode="decimal" value="' + ref.maximo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
     '</div>' +
     '<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px">' +
       formField('\uD83D\uDCDD Comentário / Justificativa',
@@ -2465,7 +2639,7 @@ function openNewLancamento() {
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
     formField('M\u00EAs','<select class="filter-input" id="lf-mes" style="width:100%">'+mesOpts+'</select>')+
     formField('Ano','<input class="filter-input" id="lf-ano" type="number" value="'+currentAno+'" style="width:100%">')+'</div>'+
-    formField('Valor Realizado','<input class="filter-input" id="lf-real" type="number" step="0.01" style="width:100%">') +
+    formField('Valor Realizado','<input class="filter-input" id="lf-real" type="text" inputmode="decimal" style="width:100%">') +
     formField('Coment\u00E1rio','<textarea class="filter-input" id="lf-com" style="width:100%;height:55px"></textarea>');
   document.getElementById('lanc-modal').classList.add('open');
 }
@@ -2477,14 +2651,14 @@ function saveLancamento() {
   const kpi = getKPI(id_kpi);
   if (!kpi) return;
   const realRaw = document.getElementById('lf-real')?.value.trim() ?? '';
-  const real    = realRaw === '' ? null : parseFloat(realRaw);
-  const metaRaw = parseFloat(document.getElementById('lf-meta')?.value);
-  const minRaw  = parseFloat(document.getElementById('lf-min')?.value);
-  const maxRaw  = parseFloat(document.getElementById('lf-max')?.value);
+  const real    = realRaw === '' ? null : dmxNumBR(realRaw);
+  const metaRaw = dmxNumBR(document.getElementById('lf-meta')?.value);
+  const minRaw  = dmxNumBR(document.getElementById('lf-min')?.value);
+  const maxRaw  = dmxNumBR(document.getElementById('lf-max')?.value);
   const obs     = document.getElementById('lf-obs')?.value ?? '';
-  const newMeta = isNaN(metaRaw) ? kpi.meta   : metaRaw;
-  const newMin  = isNaN(minRaw)  ? kpi.minimo : minRaw;
-  const newMax  = isNaN(maxRaw)  ? kpi.maximo : maxRaw;
+  const newMeta = metaRaw === null ? kpi.meta   : metaRaw;
+  const newMin  = minRaw  === null ? kpi.minimo : minRaw;
+  const newMax  = maxRaw  === null ? kpi.maximo : maxRaw;
   // Persist observation to localStorage
   try { localStorage.setItem(obsKey(id_kpi, mes, ano), obs); } catch(e) {}
   const newSt  = calcStatus(kpi.sentido, real, newMeta);
@@ -2516,7 +2690,7 @@ function _saveNewLancamento() {
   const kpi = getKPI(id);
   if (!kpi) return;
   const realRaw = document.getElementById('lf-real')?.value.trim() ?? '';
-  const real    = realRaw === '' ? null : parseFloat(realRaw);
+  const real    = realRaw === '' ? null : dmxNumBR(realRaw);
   const com     = document.getElementById('lf-com')?.value ?? '';
   const newSt   = calcStatus(kpi.sentido, real, kpi.meta);
   const newImp  = calcImpact(kpi.sentido, real, kpi.meta, kpi.peso_ebitda);
@@ -5215,23 +5389,25 @@ function renderWeeklySlide() {
           <div class="slide-kpi-obj">${kpi.objetivo||kpi.formula||''}</div>
         </div>
         <!-- métricas -->
-        <div class="slide-metrics" style="grid-template-columns:repeat(5,1fr)">
-          <div class="slide-metric"><div class="slide-metric-label">Média Real.</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(s.real,kpi.unidade)}</div></div>
-          <div class="slide-metric"><div class="slide-metric-label">Meta média</div><div class="slide-metric-val">${weeklyFmt(s.meta,kpi.unidade)}</div></div>
-          <div class="slide-metric"><div class="slide-metric-label">Atingimento</div><div class="slide-metric-val" style="color:${stC}">${weeklyPct(s.ating)}</div></div>
-          ${isMaiorMelhor(kpi.sentido)
-            ? `<div class="slide-metric"><div class="slide-metric-label">Mínimo ref.</div><div class="slide-metric-val" style="font-size:16px;color:var(--muted)">${weeklyFmt(getWeeklyLaunch(kpi.id,mes,ano,1)?.minimo??null,kpi.unidade)}</div></div>`
-            : `<div class="slide-metric"><div class="slide-metric-label">Máximo ref.</div><div class="slide-metric-val" style="font-size:16px;color:var(--muted)">${weeklyFmt(getWeeklyLaunch(kpi.id,mes,ano,1)?.maximo??null,kpi.unidade)}</div></div>`}
-        </div>
+        ${(()=>{
+          const isAccumKpi = String(kpi.acumulado||kpi.acum||'').toLowerCase().includes('sim')||String(kpi.acumulado||kpi.acum||'').toLowerCase()==='s';
+          const proj = s.real !== null ? (isAccumKpi ? s.real : s.real) * 4 : null;
+          const metaMes = (typeof resolveRef === 'function') ? (resolveRef(kpi,mes,ano).meta ?? s.meta*4) : s.meta*4;
+          const delta = (metaMes !== null && proj !== null) ? (proj - metaMes) : null;
+          const deltaStr = delta === null ? '—' : (delta >= 0 ? '+\u00a0' : '−\u00a0') + weeklyFmt(Math.abs(delta), kpi.unidade);
+          const atStr = s.ating === null ? '—' : (s.ating).toFixed(1) + '%';
+          return `<div class="slide-metrics" style="grid-template-columns:repeat(5,1fr)">
+            <div class="slide-metric"><div class="slide-metric-label">Média Real</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(s.real,kpi.unidade)}</div></div>
+            <div class="slide-metric"><div class="slide-metric-label">Proj. Fechamento</div><div class="slide-metric-val" style="color:${stC}">${weeklyFmt(proj,kpi.unidade)}</div></div>
+            <div class="slide-metric"><div class="slide-metric-label">Meta Mensal</div><div class="slide-metric-val">${weeklyFmt(metaMes,kpi.unidade)}</div></div>
+            <div class="slide-metric"><div class="slide-metric-label">Δ (Proj. − Meta)</div><div class="slide-metric-val" style="color:${delta===null?'var(--muted)':delta>=0?'var(--green)':'var(--red)'}">${deltaStr}</div></div>
+            <div class="slide-metric"><div class="slide-metric-label">% Atingimento</div><div class="slide-metric-val" style="color:${stC}">${atStr}</div></div>
+          </div>`;
+        })()}
         <!-- gráfico semanal (4 etapas) -->
         <div class="slide-chart-wrap">
           <div class="slide-chart-title">Etapas do mês · Realizado vs Meta + Média realizada · ${WEEKLY_MESES_LABEL[mes-1]}/${ano}</div>
           <div style="height:210px"><canvas id="weekly-slide-chart"></canvas></div>
-        </div>
-        <!-- tabela de etapas -->
-        <div class="slide-history">
-          <div class="slide-history-title">Detalhe por Etapa · ${WEEKLY_MESES_LABEL[mes-1]}/${ano}</div>
-          ${etapaRows}
         </div>
         <!-- gráfico mensal anual -->
         <div class="slide-chart-wrap" style="border-top:2px solid var(--border)">
@@ -5286,44 +5462,28 @@ function renderWeeklySlide() {
     }
   }, 0);
 
-  // ── Gráfico mensal anual (mesmo do slide mensal, reutiliza buildKPIChart via canvas dedicado) ──
+  // ── Gráfico mensal anual: usa a MESMA função/escala dos gráficos mensais dos cards/áreas ──
+  // Isso evita o eixo diferente no modo apresentação semanal.
   setTimeout(() => {
     const canvas = document.getElementById('weekly-monthly-bg-chart');
-    if (!canvas || typeof resolveRef !== 'function') return;
-    const months   = Array.from({length: 12}, (_, i) => i + 1);
-    const realized = months.map(m => { const x = getLaunch(kpi.id, m, ano); return x ? x.realizado : null; });
-    const acumuladoFinal = (typeof calcAccumValue==='function') ? calcAccumValue(kpi, mes, ano, 'realizado') : null;
-    const accumLabel = (kpi.acumulado||'média').toLowerCase().includes('soma') ? 'Acumulado (soma)' : 'Acumulado (média)';
-    const chartLabels = (typeof MES !== 'undefined') ? MES.slice(1).concat(['Acumulado']) : months.map(m=>String(m)).concat(['Acumulado']);
-    const slideRefs = months.map(m => resolveRef(kpi, m, ano));
-    const ds = [
-      { label:'Realizado', type:'line', yAxisID:'y', data:realized.concat([null]),
-        borderColor:'#0E9E82', backgroundColor:'rgba(14,158,130,0.08)', borderWidth:2.5,
-        tension:0.4, fill:false, pointRadius:3, spanGaps:true },
-      { label:accumLabel, type:'bar', yAxisID:'y1', data:Array(12).fill(null).concat([acumuladoFinal]),
-        backgroundColor:'rgba(245,158,11,0.85)', borderColor:'rgba(245,158,11,1)', borderWidth:1 },
-      { label:'Meta', type:'line', yAxisID:'y', data:slideRefs.map(r=>r.meta).concat([null]),
-        borderColor:'#1D4ED8', borderWidth:1.5, borderDash:[6,4], tension:0, pointRadius:0 },
-      { label:'Mín', type:'line', yAxisID:'y', data:slideRefs.map(r=>r.minimo).concat([null]),
-        borderColor:'#DC2626', borderWidth:1, borderDash:[3,3], tension:0, pointRadius:0, fill:false },
-      { label:'Máx', type:'line', yAxisID:'y', data:slideRefs.map(r=>r.maximo).concat([null]),
-        borderColor:'#DC2626', borderWidth:1, borderDash:[3,3], tension:0, pointRadius:0, fill:false }
-    ];
-    new Chart(canvas.getContext('2d'), {
-      type:'line', data:{ labels:chartLabels, datasets:ds },
-      options:{
-        responsive:true, maintainAspectRatio:false, animation:{ duration:300 },
-        scales:{
-          x:{ grid:{display:false}, ticks:{color:'#6B7A99', font:{size:9}}, border:{color:'#E2E8F0'} },
-          y:{ position:'left', grid:{color:'#F4F6FA'}, ticks:{color:'#6B7A99', font:{size:9}, maxTicksLimit:4}, border:{display:false} },
-          y1:{ position:'right', grid:{drawOnChartArea:false}, ticks:{color:'#D97706', font:{size:9}, maxTicksLimit:4}, border:{display:false} }
-        },
-        plugins:{
-          legend:{ display:true, labels:{color:'#6B7A99', font:{size:9}, boxWidth:8, padding:8} },
-          tooltip:{ callbacks:{ label:ctx => ctx.dataset.label+': '+(ctx.raw!==null?ctx.raw:'—') } }
-        }
+    if (!canvas || typeof buildKPIChart !== 'function') return;
+    try {
+      if (typeof areaCharts !== 'undefined' && areaCharts['weekly-monthly-bg']) {
+        areaCharts['weekly-monthly-bg'].destroy();
+        delete areaCharts['weekly-monthly-bg'];
       }
-    });
+      if (typeof Chart !== 'undefined') {
+        const oldChart = Chart.getChart(canvas);
+        if (oldChart) oldChart.destroy();
+      }
+      buildKPIChart(kpi, canvas, 200);
+      if (typeof areaCharts !== 'undefined' && areaCharts[kpi.id]) {
+        areaCharts['weekly-monthly-bg'] = areaCharts[kpi.id];
+        delete areaCharts[kpi.id];
+      }
+    } catch(e) {
+      console.warn('Falha ao renderizar gráfico mensal no modo semanal:', e);
+    }
   }, 40);
 }
 
@@ -6099,8 +6259,11 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
 
   function n(v, def=null){
     if(v === null || v === undefined || v === '') return def;
-    const x = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
-    return Number.isFinite(x) ? x : def;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : def;
+    let s = String(v).trim().replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if (s.includes(',') && s.includes('.')) { const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.'); s = lc>ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,''); }
+    else if (s.includes(',')) { s = s.replace(',','.'); }
+    const n = Number(s); return Number.isFinite(n) ? n : def;
   }
   function getUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
   function withTipo(tipo){ return typeof dmxApiUrlWithTipo === 'function' ? dmxApiUrlWithTipo(getUrl(), tipo) : getUrl() + (getUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo); }
@@ -6829,7 +6992,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   const API_KEY = 'dmx_google_sheets_api_url_v1';
   const esc = (v)=>String(v ?? '').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
-  const num = (v,def=0)=>{ if(v===null||v===undefined||v==='') return def; const n=Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.')); return Number.isFinite(n)?n:def; };
+  const num = (v,def=0)=>{ if(v===null||v===undefined||v==='') return def; if(typeof v==='number') return Number.isFinite(v)?v:def; let s=String(v).trim().replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,''); if(s.includes(',')&&s.includes('.')){const lc=s.lastIndexOf(','),ld=s.lastIndexOf('.');s=lc>ld?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');}else if(s.includes(','))s=s.replace(',','.'); const n=Number(s); return Number.isFinite(n)?n:def; };
   const toast = (m)=>{ if(typeof showToast==='function') showToast(m); else console.log(m); };
 
   const DMX_CARGOS_PADRAO_LOCAL = ['Administrador','CEO','Diretoria','Gerência','Liderança','Analista','Assistente'];
@@ -12010,7 +12173,14 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   const toNum = (v, def=null) => {
     if(v === null || v === undefined || v === '') return def;
-    const n = Number(String(v).replace('R$','').replace('%','').replace(/\s/g,'').replace(/\./g,'').replace(',','.'));
+    if(typeof v === 'number') return Number.isFinite(v) ? v : def;
+    let s = String(v).trim();
+    s = s.replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if(s.includes(',') && s.includes('.')){
+      const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+      s = lc > ld ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+    } else if(s.includes(',')) { s = s.replace(',','.'); }
+    const n = Number(s);
     return Number.isFinite(n) ? n : def;
   };
 
@@ -12888,6 +13058,1221 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   });
 })();
 </script>
+
+
+
+<!-- PATCH v71 — Semanal: média correta das etapas lançadas + barra de perspectiva de fechamento -->
+<script id="dmx-v71-weekly-average-projection-js">
+(function(){
+  if(window.__dmxV71WeeklyAverageProjection) return;
+  window.__dmxV71WeeklyAverageProjection = true;
+
+  function esc(v){ return String(v ?? '').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m])); }
+  function num(v){
+    if(typeof weeklyNum === 'function') return weeklyNum(v);
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'string') v = v.replace(/R\$/g,'').replace(/%/g,'').replace(/\./g,'').replace(',', '.').trim();
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmt(v, unidade){ return typeof weeklyFmt === 'function' ? weeklyFmt(v, unidade) : (v==null?'—':String(v)); }
+  function pct(v){ return typeof weeklyPct === 'function' ? weeklyPct(v) : (v==null?'—':Number(v).toFixed(1)+'%'); }
+  function getSeries(id, mes, ano){
+    if(typeof getWeeklySeries === 'function') return getWeeklySeries(id, mes, ano) || [];
+    const etapas = typeof WEEKLY_ETAPAS !== 'undefined' ? WEEKLY_ETAPAS : [1,2,3,4];
+    return etapas.map(e => typeof getWeeklyLaunch === 'function' ? getWeeklyLaunch(id, mes, ano, e) : null);
+  }
+  function avgReal(id, mes, ano){
+    const vals = getSeries(id, mes, ano)
+      .map(r => r ? num(r.realizado) : null)
+      .filter(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
+    if(!vals.length) return null;
+    return vals.reduce((s,v)=>s+Number(v),0) / vals.length;
+  }
+  function projection(id, mes, ano){
+    const avg = avgReal(id, mes, ano);
+    return avg === null ? null : avg * 4;
+  }
+  window.dmxWeeklyAverageReal = avgReal;
+  window.dmxWeeklyProjectedClose = projection;
+
+  // Mantém a tendência/fechamento como projeção, mas separa da média real.
+  window.dmxWeeklyTrend = function(kpi, mes, ano){
+    if(!kpi) return null;
+    return projection(kpi.id, mes, ano);
+  };
+
+  if(typeof weeklySummary === 'function'){
+    window.weeklySummary = weeklySummary = function(id, mes, ano){
+      const k = typeof weeklyGetKpi === 'function' ? weeklyGetKpi(id) : null;
+      const realAvg = avgReal(id, mes, ano);
+      const fechamento = projection(id, mes, ano);
+      const ref = typeof window.dmxWeeklyMonthlyRef === 'function' ? window.dmxWeeklyMonthlyRef(k, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(k, mes, ano) : {});
+      const at = typeof weeklyCalcAting === 'function' ? weeklyCalcAting(k, fechamento, ref && ref.meta) : null;
+      const st = typeof weeklyStatusByPct === 'function' ? weeklyStatusByPct(at) : {label:'—',cls:'NA'};
+      return {kpi:k, real:realAvg, fechamento:fechamento, meta:ref && ref.meta, minimo:ref && ref.minimo, maximo:ref && ref.maximo, ating:at, status:st};
+    };
+  }
+
+  if(typeof weeklyKpiCard === 'function'){
+    window.weeklyKpiCard = weeklyKpiCard = function(kpi, mes, ano){
+      const s = weeklySummary(kpi.id, mes, ano);
+      return `<div class="kpi-chart-card"><div class="kpi-card-top"><div><div class="kpi-card-id">${esc(kpi.id)}</div><div class="kpi-card-name">${esc(kpi.indicador)}</div><div class="text-muted text-sm mt-1">${esc(kpi.area)} · ${esc(kpi.vertente||'')}</div></div><span class="status-pill ${s.status.cls}">${esc(s.status.label)}</span></div><div class="kpi-card-nums" style="grid-template-columns:repeat(4,1fr)"><div class="kpi-num-cell"><div class="kpi-num-label">Média Real.</div><div class="kpi-num-value">${fmt(s.real,kpi.unidade)}</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Proj. Fech.</div><div class="kpi-num-value">${fmt(s.fechamento,kpi.unidade)}</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Meta Mês</div><div class="kpi-num-value">${fmt(s.meta,kpi.unidade)}</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Ating. Proj.</div><div class="kpi-num-value">${pct(s.ating)}</div></div></div><div class="kpi-card-chart" style="height:170px"><canvas id="weekly-mini-${esc(kpi.id)}-${mes}-${ano}"></canvas></div><div class="kpi-card-footer" onclick="openWeeklyKpiDetail('${esc(kpi.id)}')">Ver análise semanal completa →</div></div>`;
+    };
+  }
+
+  if(typeof makeWeeklyChart === 'function'){
+    window.makeWeeklyChart = makeWeeklyChart = function(canvas, kpi, mes, ano, full){
+      const labels = ['Semana 1','Semana 2','Semana 3','Semana 4','Média','Proj. Fech.'];
+      const series = getSeries(kpi.id, mes, ano);
+      const ref = typeof window.dmxWeeklyMonthlyRef === 'function' ? window.dmxWeeklyMonthlyRef(kpi, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(kpi, mes, ano) : {});
+      const real = series.map(r => r ? num(r.realizado) : null).concat([null,null]);
+      const meta = [ref.meta, ref.meta, ref.meta, ref.meta, ref.meta, ref.meta];
+      const min  = [ref.minimo, ref.minimo, ref.minimo, ref.minimo, null, null];
+      const max  = [ref.maximo, ref.maximo, ref.maximo, ref.maximo, null, null];
+      const avg = avgReal(kpi.id, mes, ano);
+      const proj = projection(kpi.id, mes, ano);
+      const avgBar = [null,null,null,null,avg,null];
+      const projBar = [null,null,null,null,null,proj];
+      const ctx = canvas.getContext('2d');
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+      const maior = String(kpi && kpi.sentido || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('maior');
+      const datasets = [
+        {label:'Realizado', data:real, borderWidth:2.5, tension:.25, pointRadius:full?4:2, yAxisID:'y'},
+        {label:'Meta', data:meta, borderWidth:1.5, borderDash:[4,4], tension:.2, pointRadius:0, yAxisID:'y'},
+        maior ? {label:'Mínimo', data:min, borderWidth:1, borderDash:[3,5], tension:.2, pointRadius:0, yAxisID:'y'} : {label:'Máximo', data:max, borderWidth:1, borderDash:[3,5], tension:.2, pointRadius:0, yAxisID:'y'},
+        {label:'Média realizada', data:avgBar, type:'bar', yAxisID:'y', borderWidth:0, barPercentage:.55, categoryPercentage:.55},
+        {label:'Perspectiva fechamento', data:projBar, type:'bar', yAxisID:'y', borderWidth:0, barPercentage:.55, categoryPercentage:.55}
+      ];
+      weeklyCharts[canvas.id] = new Chart(ctx, {
+        type:'line',
+        data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend:{display:!!full,labels:{boxWidth:10,font:{size:11}}},tooltip:{enabled:true}},
+          scales:{x:{grid:{display:false},ticks:{font:{size:full?11:9}}},y:{beginAtZero:false,position:'left',ticks:{font:{size:full?11:9}}}}
+        },
+        plugins:(full && typeof weeklyLabelPlugin!=='undefined')?[weeklyLabelPlugin]:[]
+      });
+    };
+  }
+
+  // Atualiza a tabela inferior para mostrar média e perspectiva sem recalcular errado.
+  const prevRender = typeof renderWeeklyOperational === 'function' ? renderWeeklyOperational : null;
+  if(prevRender && !window.__dmxV71WeeklyRenderGuard){
+    window.__dmxV71WeeklyRenderGuard = true;
+    window.renderWeeklyOperational = renderWeeklyOperational = function(){
+      prevRender.apply(this, arguments);
+      try{
+        const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno();
+        const stepEl = document.getElementById('weekly-entry-step-filter');
+        const etapa = Math.min(4, Math.max(1, Number(stepEl && stepEl.value ? stepEl.value : 1))) || 1;
+        const ids = selectedForArea(area);
+        const kpiList = ids.map(weeklyGetKpi).filter(Boolean);
+        const tb = document.querySelector('#weekly-table tbody');
+        if(!tb) return;
+        tb.innerHTML = kpiList.map(k=>{
+          const canEdit = typeof dmxCanEditWeeklyKPI === 'function' ? dmxCanEditWeeklyKPI(k) : true;
+          const ref = typeof window.dmxWeeklyMonthlyRef === 'function' ? window.dmxWeeklyMonthlyRef(k, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(k, mes, ano) : {});
+          const r = getWeeklyLaunch(k.id, mes, ano, etapa);
+          const real = r ? num(r.realizado) : null;
+          const at = weeklyCalcAting(k, real, ref.meta);
+          const st = weeklyStatusByPct(at);
+          const media = avgReal(k.id, mes, ano);
+          const fech = projection(k.id, mes, ano);
+          const fechAt = weeklyCalcAting(k, fech, ref.meta);
+          const fechSt = weeklyStatusByPct(fechAt);
+          const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+(real===null?'':String(real).replace('.',','))+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : fmt(real,k.unidade);
+          const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+fmt(ref.meta,k.unidade)+'</td><td>'+fmt(ref.minimo,k.unidade)+'</td><td>'+fmt(ref.maximo,k.unidade)+'</td><td>'+pct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+fmt(fech,k.unidade)+' <span class="status-pill '+fechSt.cls+'" style="font-size:9px;margin-left:4px">Proj.</span><div class="text-muted text-sm">Média: '+fmt(media,k.unidade)+'</div></td><td>'+obs+'</td></tr>';
+        }).join('');
+      }catch(e){ console.warn('[DMX v71] Falha ao aplicar tabela semanal:', e); }
+    };
+  }
+
+  try{ if(window.currentPage === 'semanal-operacional' && typeof renderWeeklyOperational === 'function') setTimeout(renderWeeklyOperational, 50); }catch(e){}
+})();
+</script>
+
+
+
+<!-- PATCH v72 — Semanal: meta/min/max semanalizados no gráfico + visual limpo sem barras extras -->
+<script id="dmx-v72-weekly-target-clean-chart-js">
+(function(){
+  if(window.__dmxV72WeeklyTargetCleanChart) return;
+  window.__dmxV72WeeklyTargetCleanChart = true;
+
+  function safeNum(v){
+    if(typeof weeklyNum === 'function') return weeklyNum(v);
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'string') v = v.replace(/R\$/g,'').replace(/%/g,'').replace(/\./g,'').replace(',', '.').trim();
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function getSeriesSafe(id, mes, ano){
+    if(typeof getWeeklySeries === 'function') return getWeeklySeries(id, mes, ano) || [];
+    const etapas = typeof WEEKLY_ETAPAS !== 'undefined' ? WEEKLY_ETAPAS : [1,2,3,4];
+    return etapas.map(e => typeof getWeeklyLaunch === 'function' ? getWeeklyLaunch(id, mes, ano, e) : null);
+  }
+  function isAccumulatedWeeklyKpi(kpi){
+    try{
+      if(typeof dmxWeeklyProjectionType === 'function') return dmxWeeklyProjectionType(kpi) === 'ACUMULADO';
+    }catch(e){}
+    const txt = String((kpi && [kpi.unidade,kpi.tipo_projecao,kpi.projecao,kpi.acumulado,kpi.tipo_acumulado,kpi.regra_acumulado,kpi.indicador].filter(Boolean).join(' ')) || '').toLowerCase();
+    if(txt.includes('%') || txt.includes('percent')) return false;
+    return txt.includes('r$') || txt.includes('valor') || txt.includes('receita') || txt.includes('quantidade') || txt.includes('volume') || txt.includes('número') || txt.includes('numero') || txt.includes('soma') || txt.includes('acumul');
+  }
+  function weeklyize(kpi, value){
+    const n = safeNum(value);
+    if(n === null || n === undefined || !Number.isFinite(Number(n))) return null;
+    return isAccumulatedWeeklyKpi(kpi) ? Number(n) / 4 : Number(n);
+  }
+  function calcWeeklyRef(kpi, mes, ano){
+    const ref = typeof window.dmxWeeklyMonthlyRef === 'function'
+      ? window.dmxWeeklyMonthlyRef(kpi, mes, ano)
+      : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(kpi, mes, ano) : {});
+    return {
+      mensal: ref || {},
+      meta: weeklyize(kpi, ref && ref.meta),
+      minimo: weeklyize(kpi, ref && ref.minimo),
+      maximo: weeklyize(kpi, ref && ref.maximo)
+    };
+  }
+
+  // Sobrescreve apenas o desenho do gráfico semanal. Cards continuam mostrando Meta Mês cheia.
+  if(typeof makeWeeklyChart === 'function'){
+    window.makeWeeklyChart = makeWeeklyChart = function(canvas, kpi, mes, ano, full){
+      const labels = ['Semana 1','Semana 2','Semana 3','Semana 4'];
+      const series = getSeriesSafe(kpi.id, mes, ano);
+      const ref = calcWeeklyRef(kpi, mes, ano);
+      const real = series.map(r => r ? safeNum(r.realizado) : null).slice(0,4);
+      while(real.length < 4) real.push(null);
+
+      const meta = [ref.meta, ref.meta, ref.meta, ref.meta];
+      const min  = [ref.minimo, ref.minimo, ref.minimo, ref.minimo];
+      const max  = [ref.maximo, ref.maximo, ref.maximo, ref.maximo];
+      const ctx = canvas.getContext('2d');
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+
+      const maior = String(kpi && kpi.sentido || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes('maior');
+      const datasets = [
+        {label:'Realizado semanal', data:real, borderWidth:2.5, tension:.25, pointRadius:full?4:2, yAxisID:'y'},
+        {label:isAccumulatedWeeklyKpi(kpi)?'Meta semanal (Meta mês ÷ 4)':'Meta', data:meta, borderWidth:1.4, borderDash:[5,5], tension:0, pointRadius:0, yAxisID:'y'},
+        maior
+          ? {label:isAccumulatedWeeklyKpi(kpi)?'Mínimo semanal':'Mínimo', data:min, borderWidth:1, borderDash:[3,5], tension:0, pointRadius:0, yAxisID:'y'}
+          : {label:isAccumulatedWeeklyKpi(kpi)?'Máximo semanal':'Máximo', data:max, borderWidth:1, borderDash:[3,5], tension:0, pointRadius:0, yAxisID:'y'}
+      ];
+
+      weeklyCharts[canvas.id] = new Chart(ctx, {
+        type:'line',
+        data:{labels,datasets},
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          animation:false,
+          plugins:{
+            legend:{display:!!full,labels:{boxWidth:10,font:{size:11}}},
+            tooltip:{enabled:true}
+          },
+          scales:{
+            x:{grid:{display:false},ticks:{font:{size:full?11:9}}},
+            y:{beginAtZero:false,position:'left',ticks:{font:{size:full?11:9}}}
+          }
+        },
+        plugins:(full && typeof weeklyLabelPlugin!=='undefined')?[weeklyLabelPlugin]:[]
+      });
+    };
+  }
+
+  try{
+    if(window.currentPage === 'semanal-operacional' && typeof renderWeeklyOperational === 'function'){
+      setTimeout(renderWeeklyOperational, 50);
+    }
+  }catch(e){}
+})();
+</script>
+
+
+
+
+<script id="dmx-v77-weekly-presentation-polish">
+/* v77 — Semanal apresentação:
+   - Cards mais bonitos e alinhados
+   - Remove detalhe por etapa
+   - Rótulo de dados na linha semanal
+   - Barras finais verde/azul mais vivas e juntas
+*/
+(function(){
+  function n(v){
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).replace(/R\$/g,'').replace(/%/g,'').trim();
+    if(s.includes(',') && s.includes('.')) s = s.replace(/\./g,'').replace(',', '.');
+    else if(s.includes(',')) s = s.replace(',', '.');
+    const x = Number(s);
+    return Number.isFinite(x) ? x : null;
+  }
+  function norm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); }
+  function isAccum(kpi){
+    try{ if(typeof dmxWeeklyProjectionType === 'function') return dmxWeeklyProjectionType(kpi) === 'ACUMULADO'; }catch(e){}
+    const t = norm([kpi&&kpi.unidade,kpi&&kpi.tipo_projecao,kpi&&kpi.projecao,kpi&&kpi.acumulado,kpi&&kpi.tipo_acumulado,kpi&&kpi.regra_acumulado,kpi&&kpi.indicador,kpi&&kpi.nome].filter(Boolean).join(' '));
+    if(t.includes('%') || t.includes('percent')) return false;
+    return t.includes('r$') || t.includes('receita') || t.includes('valor') || t.includes('volume') || t.includes('quantidade') || t.includes('numero') || t.includes('número') || t.includes('soma') || t.includes('acumul');
+  }
+  function ref(kpi, mes, ano){
+    try{ if(typeof dmxWeeklyMonthlyRef === 'function') return dmxWeeklyMonthlyRef(kpi, mes, ano) || {}; }catch(e){}
+    try{ if(typeof weeklyResolveRef === 'function') return weeklyResolveRef(kpi, mes, ano) || {}; }catch(e){}
+    try{ if(typeof resolveRef === 'function') return resolveRef(kpi, mes, ano) || {}; }catch(e){}
+    return {meta:kpi&&(kpi.meta||kpi.meta_mes||kpi.meta_mensal), minimo:kpi&&(kpi.minimo||kpi.min||kpi.min_mes), maximo:kpi&&(kpi.maximo||kpi.max||kpi.max_mes)};
+  }
+  function series(kpiId, mes, ano){
+    try{ if(typeof getWeeklySeries === 'function') return getWeeklySeries(kpiId, mes, ano) || []; }catch(e){}
+    const out=[]; for(let etapa=1; etapa<=4; etapa++){ try{ out.push(typeof getWeeklyLaunch==='function'?getWeeklyLaunch(kpiId,mes,ano,etapa):null); }catch(e){ out.push(null); } }
+    return out;
+  }
+  function weeklyVal(kpi, val){ const x=n(val); return x===null?null:(isAccum(kpi)?x/4:x); }
+  function avg(vals){ const a=vals.map(n).filter(v=>v!==null); return a.length?a.reduce((p,c)=>p+c,0)/a.length:null; }
+  function fmt(v, max=0){ try{return Number(v).toLocaleString('pt-BR',{maximumFractionDigits:max});}catch(e){return v;} }
+  function fmtMoneyMaybe(v, kpi){
+    const x = n(v); if(x===null) return '—';
+    const unit = norm(kpi&&kpi.unidade);
+    if(unit.includes('r$') || unit.includes('rs') || norm(kpi&&kpi.nome).includes('receita') || norm(kpi&&kpi.nome).includes('despesa') || norm(kpi&&kpi.nome).includes('ebitda')) return 'R$ ' + fmt(x,0);
+    if(unit.includes('%')) return fmt(x,1) + '%';
+    return fmt(x,0);
+  }
+
+  const labelsPlugin = {
+    id:'dmxWeeklyValueLabelsV77',
+    afterDatasetsDraw(chart){
+      const ctx = chart.ctx;
+      ctx.save();
+      chart.data.datasets.forEach((ds, di)=>{
+        const meta = chart.getDatasetMeta(di);
+        if(!meta || meta.hidden) return;
+        if(ds.label === 'Realizado semanal'){
+          ctx.font = '700 11px DM Sans, Arial';
+          ctx.fillStyle = '#1A2340';
+          ctx.textAlign = 'center';
+          meta.data.forEach((pt,i)=>{
+            const val = ds.data[i];
+            if(val===null || val===undefined || Number.isNaN(Number(val))) return;
+            ctx.fillText(fmt(val,0), pt.x, pt.y - 12);
+          });
+        }
+        if(ds.type === 'bar'){
+          ctx.font = '800 11px DM Sans, Arial';
+          ctx.fillStyle = '#111827';
+          ctx.textAlign = 'center';
+          meta.data.forEach((bar,i)=>{
+            const val = ds.data[i];
+            if(val===null || val===undefined || Number.isNaN(Number(val))) return;
+            ctx.fillText(fmt(val,0), bar.x, bar.y - 8);
+          });
+        }
+      });
+      ctx.restore();
+    }
+  };
+
+  window.makeWeeklyChart = makeWeeklyChart = function(canvas, kpi, mes, ano, full){
+    const labels = ['Semana 1','Semana 2','Semana 3','Semana 4','Fechamento'];
+    const s = series(kpi.id, mes, ano);
+    const r = ref(kpi, mes, ano);
+    const acc = isAccum(kpi);
+
+    const real4 = s.map(x=>x?n(x.realizado):null).slice(0,4);
+    while(real4.length<4) real4.push(null);
+
+    const media = avg(real4);
+    const proj = media===null?null:(acc?media*4:media);
+    const metaMes = n(r.meta);
+    const metaSem = weeklyVal(kpi, r.meta);
+    const minSem = weeklyVal(kpi, r.minimo);
+    const maxSem = weeklyVal(kpi, r.maximo);
+    const maior = norm(kpi&&kpi.sentido).includes('maior');
+    const refLine = maior ? minSem : maxSem;
+
+    const ctx = canvas.getContext('2d');
+    try{
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+      const old = Chart.getChart(canvas); if(old) old.destroy();
+    }catch(e){}
+    if(!window.weeklyCharts) window.weeklyCharts = {};
+
+    const datasets = [
+      {
+        label:'Realizado semanal',
+        data: real4.concat([null]),
+        borderColor:'#2F8CFF',
+        backgroundColor:'#2F8CFF',
+        pointBackgroundColor:'#fff',
+        pointBorderColor:'#2F8CFF',
+        pointBorderWidth:2.5,
+        borderWidth:2.5,
+        tension:.25,
+        pointRadius:full?4:2,
+        yAxisID:'y',
+        order:1
+      },
+      {
+        label: acc ? 'Meta semanal (Meta mês ÷ 4)' : 'Meta',
+        data:[metaSem,metaSem,metaSem,metaSem,null],
+        borderColor:'#FF4F92',
+        backgroundColor:'#FF4F92',
+        borderWidth:1.5,
+        borderDash:[6,5],
+        pointRadius:0,
+        yAxisID:'y',
+        order:2
+      }
+    ];
+    if(refLine!==null){
+      datasets.push({
+        label: maior ? (acc?'Mínimo semanal':'Mínimo') : (acc?'Máximo semanal':'Máximo'),
+        data:[refLine,refLine,refLine,refLine,null],
+        borderColor:'#F59E0B',
+        backgroundColor:'#F59E0B',
+        borderWidth:1.2,
+        borderDash:[3,5],
+        pointRadius:0,
+        yAxisID:'y',
+        order:3
+      });
+    }
+
+    datasets.push(
+      {
+        label:'Proj. fechamento',
+        data:[null,null,null,null,proj],
+        type:'bar',
+        yAxisID:'y1',
+        backgroundColor:'#10B981',
+        borderColor:'#059669',
+        borderWidth:0,
+        barThickness: full ? 44 : 36,
+        maxBarThickness: full ? 56 : 44,
+        categoryPercentage:1.0,
+        barPercentage:1.0,
+        order:10
+      },
+      {
+        label:'Meta mensal',
+        data:[null,null,null,null,metaMes],
+        type:'bar',
+        yAxisID:'y1',
+        backgroundColor:'#2F7BFF',
+        borderColor:'#1D4ED8',
+        borderWidth:0,
+        barThickness: full ? 44 : 36,
+        maxBarThickness: full ? 56 : 44,
+        categoryPercentage:1.0,
+        barPercentage:1.0,
+        order:11
+      }
+    );
+
+    weeklyCharts[canvas.id] = new Chart(ctx,{
+      type:'line',
+      data:{labels,datasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{display:!!full,labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{enabled:true}
+        },
+        scales:{
+          x:{stacked:false,grid:{display:false},ticks:{font:{size:full?11:9}}},
+          y:{beginAtZero:false,position:'left',ticks:{font:{size:full?11:9},callback:v=>fmt(v,1)}},
+          y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{font:{size:full?11:9},callback:v=>fmt(v,0)}}
+        }
+      },
+      plugins: full ? [labelsPlugin] : [labelsPlugin]
+    });
+  };
+
+  function polishWeeklySlideCards(){
+    try{
+      if(window.currentPage !== 'kpi-slide') return;
+      const metrics = document.querySelectorAll('#page-kpi-slide .slide-metric');
+      if(!metrics || metrics.length < 4) return;
+      const labels = ['MÉDIA REAL.','META MÊS','ATINGIMENTO','PROJ. FECHAMENTO','MÉDIA SEMANAL'];
+      metrics.forEach((m,i)=>{
+        const lab = m.querySelector('.slide-metric-label');
+        if(lab && labels[i]) lab.textContent = labels[i];
+      });
+    }catch(e){}
+  }
+
+  function removeWeeklyDetailBlock(){
+    try{
+      const titles = Array.from(document.querySelectorAll('#page-kpi-slide .slide-history-title, #page-kpi-slide .section-title, #page-kpi-slide h3, #page-kpi-slide h4'));
+      titles.forEach(t=>{
+        const tx = norm(t.textContent);
+        if(tx.includes('detalhe por etapa') || tx.includes('etapas do mes') || tx.includes('lançamento semanal')){
+          const card = t.closest('.slide-history, .block-card, .slide-chart-wrap, section, div');
+          if(card && !card.querySelector('canvas')) card.style.display = 'none';
+        }
+      });
+      document.querySelectorAll('#page-kpi-slide .slide-history').forEach(el=>el.style.display='none');
+    }catch(e){}
+  }
+
+  const mo = new MutationObserver(()=>{ polishWeeklySlideCards(); removeWeeklyDetailBlock(); });
+  try{ mo.observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  setTimeout(()=>{ polishWeeklySlideCards(); removeWeeklyDetailBlock(); },120);
+
+  try{
+    if(window.currentPage === 'semanal-operacional' && typeof renderWeeklyOperational === 'function') setTimeout(renderWeeklyOperational,80);
+    if(window.currentPage === 'kpi-slide' && typeof renderKpiSlide === 'function') setTimeout(renderKpiSlide,100);
+  }catch(e){}
+})();
+</script>
+
+
+<script id="dmx-v79-weekly-slide-fix">
+/* v79 — Refeito a partir da v77:
+   1) Mantém barras do gráfico semanal;
+   2) Reestrutura cards: Média Real | Proj. Fechamento | Meta Mensal | Δ Meta | % Atingimento;
+   3) Remove estrutura de detalhe por etapa entre gráfico semanal e mensal;
+   4) Mantém rótulos no realizado semanal e barras finais verde/azul.
+*/
+(function(){
+  function norm(s){
+    return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  }
+  function num(v){
+    if(v === null || v === undefined || v === '') return null;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v).replace(/R\$/g,'').replace(/%/g,'').trim();
+    if(s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',', '.');
+    else if(s.includes(',')) s = s.replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmt(v, casas){
+    const n = num(v);
+    if(n === null) return '—';
+    return n.toLocaleString('pt-BR',{maximumFractionDigits:casas ?? 0});
+  }
+  function fmtKpi(v,kpi,casas){
+    const n = num(v);
+    if(n === null) return '—';
+    const u = norm(kpi&&kpi.unidade);
+    const name = norm((kpi&&kpi.nome) || (kpi&&kpi.indicador));
+    if(u.includes('%')) return n.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
+    if(u.includes('r$') || u === 'rs' || name.includes('receita') || name.includes('despesa') || name.includes('lucro') || name.includes('ebitda') || name.includes('cota')){
+      return 'R$ ' + n.toLocaleString('pt-BR',{maximumFractionDigits:0});
+    }
+    return n.toLocaleString('pt-BR',{maximumFractionDigits:casas ?? 0});
+  }
+  function isAccum(kpi){
+    try{ if(typeof dmxWeeklyProjectionType === 'function') return dmxWeeklyProjectionType(kpi) === 'ACUMULADO'; }catch(e){}
+    const t = norm([kpi&&kpi.unidade,kpi&&kpi.tipo_projecao,kpi&&kpi.projecao,kpi&&kpi.acumulado,kpi&&kpi.tipo_acumulado,kpi&&kpi.regra_acumulado,kpi&&kpi.indicador,kpi&&kpi.nome].filter(Boolean).join(' '));
+    if(t.includes('%') || t.includes('percent')) return false;
+    return t.includes('r$') || t.includes('receita') || t.includes('valor') || t.includes('volume') || t.includes('quantidade') || t.includes('numero') || t.includes('número') || t.includes('soma') || t.includes('acumul');
+  }
+  function ref(kpi, mes, ano){
+    try{ if(typeof dmxWeeklyMonthlyRef === 'function') return dmxWeeklyMonthlyRef(kpi, mes, ano) || {}; }catch(e){}
+    try{ if(typeof weeklyResolveRef === 'function') return weeklyResolveRef(kpi, mes, ano) || {}; }catch(e){}
+    try{ if(typeof resolveRef === 'function') return resolveRef(kpi, mes, ano) || {}; }catch(e){}
+    return {meta:kpi&&(kpi.meta||kpi.meta_mes||kpi.meta_mensal), minimo:kpi&&(kpi.minimo||kpi.min||kpi.min_mes), maximo:kpi&&(kpi.maximo||kpi.max||kpi.max_mes)};
+  }
+  function series(kpiId, mes, ano){
+    try{ if(typeof getWeeklySeries === 'function') return getWeeklySeries(kpiId, mes, ano) || []; }catch(e){}
+    const out=[];
+    for(let etapa=1; etapa<=4; etapa++){
+      try{ out.push(typeof getWeeklyLaunch === 'function' ? getWeeklyLaunch(kpiId,mes,ano,etapa) : null); }
+      catch(e){ out.push(null); }
+    }
+    return out;
+  }
+  function avg(vals){
+    const arr = vals.map(num).filter(v=>v!==null);
+    return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+  }
+  function weeklyVal(kpi,val){
+    const n = num(val);
+    return n===null ? null : (isAccum(kpi) ? n/4 : n);
+  }
+  function currentSlideContext(){
+    let kpi = null, mes = window.currentMonth || window.mesAtual || window.selectedMonth, ano = window.currentYear || window.anoAtual || window.selectedYear;
+    try{
+      if(window.slideKpis && window.slideKpis.length){
+        const idx = Number(window.currentSlideIndex || window.slideIndex || 0);
+        kpi = window.slideKpis[idx] || window.slideKpis[0];
+      }
+    }catch(e){}
+    try{
+      if(!kpi && window.currentKpi) kpi = window.currentKpi;
+    }catch(e){}
+    try{
+      const idTxt = document.querySelector('#page-kpi-slide .slide-kpi-id')?.textContent || '';
+      const m = idTxt.match(/KPI\d+/i);
+      if(!kpi && m && Array.isArray(window.kpis)) kpi = window.kpis.find(x=>String(x.id||'').toUpperCase()===m[0].toUpperCase());
+    }catch(e){}
+    try{
+      if(!kpi && Array.isArray(window.kpis)){
+        const title = document.querySelector('#page-kpi-slide .slide-kpi-title')?.textContent || '';
+        kpi = window.kpis.find(x => norm(x.nome||x.indicador) === norm(title));
+      }
+    }catch(e){}
+    mes = num(mes) || num(document.querySelector('#month-select')?.value) || num(document.querySelector('#top-month-select')?.value) || new Date().getMonth()+1;
+    ano = num(ano) || num(document.querySelector('#year-select')?.value) || num(document.querySelector('#top-year-select')?.value) || new Date().getFullYear();
+    return {kpi,mes,ano};
+  }
+
+  const labelsPlugin = {
+    id:'dmxWeeklyLabelsV79',
+    afterDatasetsDraw(chart){
+      const ctx = chart.ctx;
+      ctx.save();
+      chart.data.datasets.forEach((ds, di)=>{
+        const meta = chart.getDatasetMeta(di);
+        if(!meta || meta.hidden) return;
+        if(ds.label === 'Realizado semanal'){
+          ctx.font = '800 11px DM Sans, Arial';
+          ctx.fillStyle = '#1A2340';
+          ctx.textAlign = 'center';
+          meta.data.forEach((pt,i)=>{
+            const val = ds.data[i];
+            if(val===null || val===undefined || Number.isNaN(Number(val))) return;
+            ctx.fillText(fmt(val,0), pt.x, pt.y - 12);
+          });
+        }
+        if(ds.type === 'bar'){
+          ctx.font = '800 11px DM Sans, Arial';
+          ctx.fillStyle = '#111827';
+          ctx.textAlign = 'center';
+          meta.data.forEach((bar,i)=>{
+            const val = ds.data[i];
+            if(val===null || val===undefined || Number.isNaN(Number(val))) return;
+            ctx.fillText(fmt(val,0), bar.x, bar.y - 8);
+          });
+        }
+      });
+      ctx.restore();
+    }
+  };
+
+  window.makeWeeklyChart = makeWeeklyChart = function(canvas,kpi,mes,ano,full){
+    const labels = ['Semana 1','Semana 2','Semana 3','Semana 4','Fechamento'];
+    const s = series(kpi.id,mes,ano);
+    const r = ref(kpi,mes,ano);
+    const acc = isAccum(kpi);
+
+    const real4 = s.map(x=>x?num(x.realizado):null).slice(0,4);
+    while(real4.length<4) real4.push(null);
+
+    const media = avg(real4);
+    const proj = media===null ? null : (acc ? media*4 : media);
+    const metaMes = num(r.meta);
+    const metaSem = weeklyVal(kpi,r.meta);
+    const minSem = weeklyVal(kpi,r.minimo);
+    const maxSem = weeklyVal(kpi,r.maximo);
+    const maior = norm(kpi&&kpi.sentido).includes('maior');
+    const refLine = maior ? minSem : maxSem;
+
+    const ctx = canvas.getContext('2d');
+    try{
+      if(window.weeklyCharts && weeklyCharts[canvas.id]) weeklyCharts[canvas.id].destroy();
+      const old = Chart.getChart(canvas); if(old) old.destroy();
+    }catch(e){}
+    if(!window.weeklyCharts) window.weeklyCharts = {};
+
+    const datasets = [
+      {
+        label:'Realizado semanal',
+        data:real4.concat([null]),
+        borderColor:'#2F8CFF',
+        backgroundColor:'#2F8CFF',
+        pointBackgroundColor:'#fff',
+        pointBorderColor:'#2F8CFF',
+        pointBorderWidth:2.5,
+        borderWidth:2.5,
+        tension:.25,
+        pointRadius:full?4:2,
+        yAxisID:'y',
+        order:1
+      },
+      {
+        label: acc ? 'Meta semanal (Meta mês ÷ 4)' : 'Meta',
+        data:[metaSem,metaSem,metaSem,metaSem,null],
+        borderColor:'#FF4F92',
+        backgroundColor:'#FF4F92',
+        borderWidth:1.5,
+        borderDash:[6,5],
+        pointRadius:0,
+        yAxisID:'y',
+        order:2
+      }
+    ];
+    if(refLine!==null){
+      datasets.push({
+        label: maior ? (acc?'Mínimo semanal':'Mínimo') : (acc?'Máximo semanal':'Máximo'),
+        data:[refLine,refLine,refLine,refLine,null],
+        borderColor:'#F59E0B',
+        backgroundColor:'#F59E0B',
+        borderWidth:1.2,
+        borderDash:[3,5],
+        pointRadius:0,
+        yAxisID:'y',
+        order:3
+      });
+    }
+    datasets.push(
+      {
+        label:'Proj. fechamento',
+        data:[null,null,null,null,proj],
+        type:'bar',
+        yAxisID:'y1',
+        backgroundColor:'#10B981',
+        borderColor:'#059669',
+        borderWidth:0,
+        barThickness:full?42:36,
+        maxBarThickness:full?54:44,
+        categoryPercentage:1,
+        barPercentage:1,
+        order:10
+      },
+      {
+        label:'Meta mensal',
+        data:[null,null,null,null,metaMes],
+        type:'bar',
+        yAxisID:'y1',
+        backgroundColor:'#2563EB',
+        borderColor:'#1D4ED8',
+        borderWidth:0,
+        barThickness:full?42:36,
+        maxBarThickness:full?54:44,
+        categoryPercentage:1,
+        barPercentage:1,
+        order:11
+      }
+    );
+
+    weeklyCharts[canvas.id] = new Chart(ctx,{
+      type:'line',
+      data:{labels,datasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        animation:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{display:!!full,labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{enabled:true}
+        },
+        scales:{
+          x:{stacked:false,grid:{display:false},ticks:{font:{size:full?11:9}}},
+          y:{beginAtZero:false,position:'left',ticks:{font:{size:full?11:9},callback:v=>fmt(v,1)}},
+          y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{font:{size:full?11:9},callback:v=>fmt(v,0)}}
+        }
+      },
+      plugins:[labelsPlugin]
+    });
+  };
+
+  function rebuildCards(){
+    try{
+      if(window.currentPage !== 'kpi-slide') return;
+      const wrap = document.querySelector('#page-kpi-slide .slide-metrics');
+      if(!wrap) return;
+      const {kpi,mes,ano} = currentSlideContext();
+      if(!kpi) return;
+
+      const s = series(kpi.id,mes,ano);
+      const r = ref(kpi,mes,ano);
+      const real4 = s.map(x=>x?num(x.realizado):null).slice(0,4);
+      while(real4.length<4) real4.push(null);
+      const media = avg(real4);
+      const acc = isAccum(kpi);
+      const proj = media===null ? null : media*4;
+      const meta = num(r.meta);
+      const delta = (meta!==null && proj!==null) ? (proj - meta) : null;
+
+      let ating = null;
+      if(meta!==null && meta!==0 && proj!==null){
+        const menor = norm(kpi&&kpi.sentido).includes('menor');
+        ating = menor ? (meta/proj*100) : (proj/meta*100);
+      }
+
+      const cards = [
+        {label:'MÉDIA REAL', value:fmtKpi(media,kpi), sub:'média das etapas lançadas'},
+        {label:'PROJ. FECHAMENTO', value:fmtKpi(proj,kpi), sub:'média × 4 etapas'},
+        {label:'META MENSAL', value:fmtKpi(meta,kpi), sub:`${String(mes).padStart(2,'0')}/${ano}`},
+        {label:'Δ META', value:delta===null?'—':((delta>=0?'+ ':'- ') + fmtKpi(Math.abs(delta),kpi)), sub:'projeção - meta mensal'},
+        {label:'% ATINGIMENTO', value:ating===null?'—':fmt(ating,1)+'%', sub:'sobre a projeção'}
+      ];
+
+      wrap.innerHTML = cards.map(c=>`
+        <div class="slide-metric">
+          <div class="slide-metric-label">${c.label}</div>
+          <div class="slide-metric-val">${c.value}</div>
+          <div class="dmx-card-sub">${c.sub}</div>
+        </div>
+      `).join('');
+    }catch(e){ console.warn('v79 cards',e); }
+  }
+
+  function removeBetweenGraphsBlock(){
+    try{
+      if(window.currentPage !== 'kpi-slide') return;
+      document.querySelectorAll('#page-kpi-slide .slide-history, #page-kpi-slide .weekly-detail, #page-kpi-slide .weekly-stage-detail, #page-kpi-slide .weekly-detail-table, #page-kpi-slide [data-weekly-detail], #page-kpi-slide .detalhe-etapa').forEach(el=>el.remove());
+      Array.from(document.querySelectorAll('#page-kpi-slide .slide-chart-wrap, #page-kpi-slide .block-card, #page-kpi-slide section, #page-kpi-slide div')).forEach(el=>{
+        const t = norm(el.textContent || '');
+        if((t.includes('detalhe por etapa') || t.includes('semana 1') && t.includes('semana 2') && t.includes('semana 3') && t.includes('semana 4')) && !el.querySelector('canvas')){
+          el.remove();
+        }
+      });
+    }catch(e){}
+  }
+
+  const obs = new MutationObserver(()=>{ rebuildCards(); removeBetweenGraphsBlock(); });
+  window.addEventListener('load',()=>{
+    setTimeout(()=>{rebuildCards(); removeBetweenGraphsBlock();},200);
+    setTimeout(()=>{rebuildCards(); removeBetweenGraphsBlock();},1000);
+    try{ obs.observe(document.body,{childList:true,subtree:true}); }catch(e){}
+  });
+
+  setTimeout(()=>{rebuildCards(); removeBetweenGraphsBlock();},500);
+  setTimeout(()=>{rebuildCards(); removeBetweenGraphsBlock();},1800);
+})();
+</script>
+
+
+<style id="dmx-v80-final-cards">
+/* remove detalhe entre gráficos */
+#page-kpi-slide .slide-history,
+#page-kpi-slide .weekly-detail,
+#page-kpi-slide .weekly-stage-detail,
+#page-kpi-slide .weekly-detail-table,
+#page-kpi-slide .detail-by-stage,
+#page-kpi-slide .detail-card,
+#page-kpi-slide .history-card{
+ display:none !important;
+}
+
+/* cards novos */
+#page-kpi-slide .slide-metrics{
+ display:grid !important;
+ grid-template-columns:repeat(5,1fr) !important;
+ gap:12px !important;
+}
+
+#page-kpi-slide .slide-metric{
+ min-height:110px !important;
+ border-radius:14px !important;
+ border:1px solid #E4E9F4 !important;
+ box-shadow:0 4px 14px rgba(15,23,42,.06) !important;
+}
+
+#page-kpi-slide .slide-metric:nth-child(1){border-top:4px solid #10B981 !important;}
+#page-kpi-slide .slide-metric:nth-child(2){border-top:4px solid #0EA5E9 !important;}
+#page-kpi-slide .slide-metric:nth-child(3){border-top:4px solid #2563EB !important;}
+#page-kpi-slide .slide-metric:nth-child(4){border-top:4px solid #F59E0B !important;}
+#page-kpi-slide .slide-metric:nth-child(5){border-top:4px solid #EF4444 !important;}
+</style>
+
+<script id="dmx-v80-final-cards">
+(function(){
+
+function norm(s){
+ return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+}
+
+function toNum(v){
+ if(v===null||v===undefined) return 0;
+ let s=String(v).replace(/R\\$/g,'').replace(/%/g,'').trim();
+ if(s.includes('.') && s.includes(',')) s=s.replace(/\\./g,'').replace(',','.');
+ else if(s.includes(',')) s=s.replace(',','.');
+ return Number(s)||0;
+}
+
+function rebuild(){
+ try{
+   if(window.currentPage !== 'kpi-slide') return;
+
+   // remove bloco detalhe etapa
+   document.querySelectorAll('#page-kpi-slide .slide-history, #page-kpi-slide .weekly-detail, #page-kpi-slide .weekly-stage-detail, #page-kpi-slide .weekly-detail-table, #page-kpi-slide .detail-by-stage').forEach(el=>el.remove());
+
+   const wrap=document.querySelector('#page-kpi-slide .slide-metrics');
+   if(!wrap) return;
+
+   const cards=[...wrap.querySelectorAll('.slide-metric')];
+   if(cards.length < 4) return;
+
+   const mediaTxt = cards[0]?.querySelector('.slide-metric-val')?.innerText || '—';
+   const metaTxt = cards[1]?.querySelector('.slide-metric-val')?.innerText || '—';
+   const atingTxt = cards[2]?.querySelector('.slide-metric-val')?.innerText || '—';
+
+   // projeção do gráfico
+   let projTxt='—';
+   try{
+      const labels=[...document.querySelectorAll('#page-kpi-slide canvas + *')];
+   }catch(e){}
+
+   // tenta pegar pelo gráfico
+   const chart = Object.values(window.weeklyCharts||{})[0];
+   if(chart){
+      const ds = chart.data.datasets.find(x=>String(x.label||'').includes('Proj.'));
+      if(ds && ds.data){
+         const v = ds.data[4];
+         if(v!==null && v!==undefined){
+            projTxt = String(v).includes('.') ? 
+               'R$ ' + Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0})
+               : 'R$ ' + Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+         }
+      }
+   }
+
+   const metaNum=toNum(metaTxt);
+   const projNum=toNum(projTxt);
+
+   let delta='—';
+   if(metaNum && projNum){
+      const dif=projNum-metaNum;
+      delta=(dif>=0?'Δ ':'▼ ') + 'R$ ' + Math.abs(dif).toLocaleString('pt-BR',{maximumFractionDigits:0});
+   }
+
+   wrap.innerHTML=`
+      <div class="slide-metric">
+        <div class="slide-metric-label">MÉDIA REAL</div>
+        <div class="slide-metric-val">${mediaTxt}</div>
+      </div>
+
+      <div class="slide-metric">
+        <div class="slide-metric-label">PROJ. FECHAMENTO</div>
+        <div class="slide-metric-val">${projTxt}</div>
+      </div>
+
+      <div class="slide-metric">
+        <div class="slide-metric-label">META MENSAL</div>
+        <div class="slide-metric-val">${metaTxt}</div>
+      </div>
+
+      <div class="slide-metric">
+        <div class="slide-metric-label">Δ META</div>
+        <div class="slide-metric-val">${delta}</div>
+      </div>
+
+      <div class="slide-metric">
+        <div class="slide-metric-label">% ATINGIMENTO</div>
+        <div class="slide-metric-val">${atingTxt}</div>
+      </div>
+   `;
+
+ }catch(e){
+   console.log(e);
+ }
+}
+
+window.addEventListener('load', ()=>{
+  setTimeout(rebuild,700);
+  setTimeout(rebuild,1800);
+  setTimeout(rebuild,3500);
+});
+
+const obs=new MutationObserver(()=>rebuild());
+setTimeout(()=>{
+ try{obs.observe(document.body,{childList:true,subtree:true});}catch(e){}
+},1200);
+
+})();
+</script>
+<!-- PATCH v16 — PPR: config movida para Admin, aba PPR vira visão + seletor de semestre -->
+<script>
+(function(){
+  if(window.__dmxPprV16) return;
+  window.__dmxPprV16 = true;
+
+  function pct(v){ return v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; }
+  function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function getPPRCfg(){ try{ return JSON.parse(localStorage.getItem('dmx_ppr_config_v15')||'{}'); }catch(e){ return {}; } }
+  function setPPRCfg(c){ localStorage.setItem('dmx_ppr_config_v15', JSON.stringify(c||{})); }
+  function kpisAll(){ return window.kpis||[]; }
+  function kpiById(id){ return kpisAll().find(k=>String(k.id)===String(id)); }
+  function metaKpis(){ return kpisAll().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta'); }
+
+  // ── SEMESTRE ───────────────────────────────────────────────────────────────
+  const SEMS = {
+    1:{label:'1º Semestre',short:'Jan–Jun',ini:1,fim:6,meses:['Jan','Fev','Mar','Abr','Mai','Jun']},
+    2:{label:'2º Semestre',short:'Jul–Dez',ini:7,fim:12,meses:['Jul','Ago','Set','Out','Nov','Dez']},
+  };
+  function currentSem(){ return SEMS[Number(document.getElementById('ppr-sem-sel')?.value||1)]||SEMS[1]; }
+
+  function semAting(kpiId, ano, ini, fim){
+    try{
+      const k = kpiById(kpiId); if(!k) return null;
+      const ls = (typeof launches!=='undefined'?launches:[]).filter(
+        l=>String(l.id_kpi)===String(kpiId)&&Number(l.ano)===Number(ano)&&
+           Number(l.mes_num)>=ini&&Number(l.mes_num)<=fim&&l.realizado!=null
+      );
+      if(!ls.length) return null;
+      const isS = String(k.acumulado||'').toLowerCase().includes('soma');
+      const sum = f=>ls.map(l=>Number(l[f])||0).reduce((a,b)=>a+b,0);
+      const real = isS ? sum('realizado') : sum('realizado')/ls.length;
+      const metaVals = ls.filter(l=>l.meta!=null&&Number(l.meta)!==0);
+      if(!metaVals.length) return null;
+      const meta = isS ? sum('meta') : sum('meta')/ls.length;
+      if(!meta) return null;
+      const at = typeof calcAting==='function'?calcAting(k.sentido,real,meta):real/meta;
+      return at==null?null:at*100;
+    }catch(e){ return null; }
+  }
+
+  function semIndice(area, ano, fim){
+    try{
+      if(typeof window.dmxIndiceArea!=='function') return null;
+      const r = window.dmxIndiceArea(area, fim, ano);
+      return r?r.indiceAcum:null;
+    }catch(e){ return null; }
+  }
+
+  function calcPprSem(area, ano, ini, fim){
+    try{
+      const cfg = getPPRCfg();
+      const vs = [
+        {v:semAting(cfg.kpi1,ano,ini,fim), p:Number(cfg.peso1||0)},
+        {v:semAting(cfg.kpi2,ano,ini,fim), p:Number(cfg.peso2||0)},
+        {v:semAting(cfg.kpi3,ano,ini,fim), p:Number(cfg.peso3||0)},
+        {v:semIndice(area,ano,fim),        p:Number(cfg.pesoArea||0)},
+      ];
+      let s=0,w=0;
+      vs.forEach(x=>{ if(x.v!=null&&isFinite(x.v)&&x.p>0){s+=x.v*x.p/100;w+=x.p;} });
+      return w?s:null;
+    }catch(e){ return null; }
+  }
+
+  // ── PATCH renderPPR: substitui o bloco de configuração por visão somente-leitura ──
+  function patchRenderPPR(){
+    const orig = window.renderPPR;
+    if(typeof orig!=='function'||orig.__v16patched) return;
+    window.renderPPR = function(){
+      const r = orig.apply(this, arguments);
+      setTimeout(transformPPRPage, 60);
+      return r;
+    };
+    window.renderPPR.__v16patched = true;
+  }
+
+  function transformPPRPage(){
+    const page = document.getElementById('page-ppr');
+    if(!page) return;
+
+    // ── Substitui bloco de configuração por visão somente-leitura ──────────
+    const cfg = getPPRCfg();
+    const configBlock = page.querySelector('.block-card');
+    if(configBlock && !configBlock.dataset.v16ro){
+      configBlock.dataset.v16ro = '1';
+      const k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3);
+      const row = (label, kpi, peso) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:12px;color:var(--muted)">${label}</span>
+          <div style="text-align:right">
+            <span style="font-weight:700;font-size:13px">${esc(kpi?kpi.indicador:'—')}</span>
+            ${kpi?`<span class="tag tag-area" style="margin-left:6px">${esc(kpi.area)}</span>`:''}
+            <span style="font-size:11px;color:var(--muted);margin-left:8px">peso ${pct(peso)}</span>
+          </div>
+        </div>`;
+      configBlock.innerHTML =
+        `<div class="section-header" style="margin-bottom:10px">
+          <div>
+            <div class="section-title">Composição do PPR</div>
+            <div class="text-muted text-sm mt-1">Configuração gerenciada pelo Administrador na aba <strong>Admin / Sheets</strong>.</div>
+          </div>
+        </div>` +
+        row('KPI Global 1', k1, cfg.peso1) +
+        row('KPI Global 2', k2, cfg.peso2) +
+        row('KPI Global 3', k3, cfg.peso3) +
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
+          <span style="font-size:12px;color:var(--muted)">Índice PPR da Área</span>
+          <span style="font-size:11px;color:var(--muted)">automático · peso ${pct(cfg.pesoArea)}</span>
+        </div>`;
+    }
+
+    // ── Injeta seletor de semestre se ainda não existe ──────────────────────
+    if(!document.getElementById('ppr-sem-bar')){
+      const bar = document.createElement('div');
+      bar.id = 'ppr-sem-bar';
+      bar.style.cssText = 'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px';
+      bar.innerHTML =
+        '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#0369A1">📅 Período PPR</span>'+
+        '<select id="ppr-sem-sel" class="filter-input" style="width:200px;margin:0" onchange="window.dmxPprSemestre()">'+
+          '<option value="1">1º Semestre — Jan a Jun</option>'+
+          '<option value="2">2º Semestre — Jul a Dez</option>'+
+        '</select>'+
+        '<div id="ppr-sem-out" style="font-size:12px;color:var(--muted);flex:1">← Selecione o semestre</div>';
+      // Insere após o configBlock e antes dos cards
+      const cards = document.getElementById('ppr-cards');
+      if(cards) page.insertBefore(bar, cards);
+      else page.appendChild(bar);
+    }
+  }
+
+  // ── Calcula e exibe resultado do semestre ──────────────────────────────────
+  window.dmxPprSemestre = function(){
+    const sem = currentSem();
+    const ano = Number(window.currentAno||2026);
+    const out = document.getElementById('ppr-sem-out');
+    if(!out) return;
+
+    const areaList = (typeof areas485==='function' ? areas485() :
+      [...new Set(kpisAll().map(k=>k.area).filter(Boolean))].sort()
+    ).filter(a=>!['CEO','Painel Financeiro'].includes(String(a||'').trim()));
+
+    const finais = areaList.map(a=>({a, v:calcPprSem(a,ano,sem.ini,sem.fim)})).filter(x=>x.v!=null);
+    if(!finais.length){ out.textContent='Sem dados lançados para esse semestre.'; return; }
+
+    const media  = finais.reduce((s,x)=>s+x.v,0)/finais.length;
+    const best   = finais.slice().sort((a,b)=>b.v-a.v)[0];
+    const worst  = finais.slice().sort((a,b)=>a.v-b.v)[0];
+
+    out.innerHTML =
+      `<strong>${sem.label} (${sem.short})</strong> &nbsp;·&nbsp; `+
+      `Global: <strong style="color:var(--teal)">${pct(media)}</strong> &nbsp;·&nbsp; `+
+      `Melhor: <strong style="color:var(--green)">${esc(best.a)} ${pct(best.v)}</strong> &nbsp;·&nbsp; `+
+      `Atenção: <strong style="color:var(--red)">${esc(worst.a)} ${pct(worst.v)}</strong>`;
+  };
+
+  // ── PAINEL DE CONFIG PPR NA ABA ADMIN ─────────────────────────────────────
+  function buildPPRAdminPanel(){
+    const cfg = getPPRCfg();
+    const opts = '<option value="">— Selecione um KPI global —</option>'+
+      metaKpis().map(k=>`<option value="${esc(k.id)}">${esc(k.id)} · ${esc(k.area)} · ${esc(k.indicador)}</option>`).join('');
+
+    function selRow(label, kpiId, pesoId, pesoVal){
+      return `
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">
+          <div>
+            <div class="card-label">${label}</div>
+            <select class="filter-input" id="${kpiId}" style="width:100%">${opts}</select>
+          </div>
+          <div>
+            <div class="card-label">Peso (%)</div>
+            <input class="filter-input" id="${pesoId}" type="text" inputmode="decimal" value="${pesoVal}" style="width:100%">
+          </div>
+        </div>`;
+    }
+
+    return `
+      <div id="dmx-ppr-admin-panel" style="margin-top:24px">
+        <div class="section-header" style="margin-bottom:12px">
+          <div>
+            <div class="section-title">⚙️ Configuração do Plano PPR</div>
+            <div class="text-muted text-sm mt-1">
+              Defina os 3 KPIs globais e os pesos. Soma deve fechar 100%.
+              Esta configuração vale para toda a empresa.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="window.dmxSalvarPPRAdmin()">Salvar Configuração PPR</button>
+        </div>
+        ${selRow('KPI Global 1','ppr-adm-kpi1','ppr-adm-p1',cfg.peso1??20)}
+        ${selRow('KPI Global 2','ppr-adm-kpi2','ppr-adm-p2',cfg.peso2??20)}
+        ${selRow('KPI Global 3','ppr-adm-kpi3','ppr-adm-p3',cfg.peso3??20)}
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">
+          <div>
+            <div class="card-label">Índice PPR da Área</div>
+            <div class="filter-input" style="background:#F8FAFC;color:var(--muted)">Automático por área</div>
+          </div>
+          <div>
+            <div class="card-label">Peso (%)</div>
+            <input class="filter-input" id="ppr-adm-parea" type="text" inputmode="decimal" value="${cfg.pesoArea??40}" style="width:100%">
+          </div>
+        </div>
+        <div id="ppr-adm-validacao" class="text-sm text-muted" style="margin-top:6px"></div>
+      </div>`;
+  }
+
+  function fillPPRAdminSelects(){
+    const cfg = getPPRCfg();
+    ['1','2','3'].forEach(i=>{
+      const el = document.getElementById('ppr-adm-kpi'+i);
+      if(el) el.value = cfg['kpi'+i]||'';
+    });
+    // validação ao vivo
+    ['ppr-adm-kpi1','ppr-adm-kpi2','ppr-adm-kpi3','ppr-adm-p1','ppr-adm-p2','ppr-adm-p3','ppr-adm-parea']
+      .forEach(id=>{
+        const el=document.getElementById(id);
+        if(el&&!el.dataset.pprAdmBound){
+          el.dataset.pprAdmBound='1';
+          el.addEventListener('input', updatePPRAdminValidacao);
+        }
+      });
+    updatePPRAdminValidacao();
+  }
+
+  function updatePPRAdminValidacao(){
+    const v = document.getElementById('ppr-adm-validacao'); if(!v) return;
+    const total = ['ppr-adm-p1','ppr-adm-p2','ppr-adm-p3','ppr-adm-parea']
+      .reduce((s,id)=>s+Number(dmxNumBR(document.getElementById(id)?.value)||0),0);
+    v.innerHTML = Math.abs(total-100)<0.01
+      ? '<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>'
+      : `<span style="color:var(--red);font-weight:700">⚠ Pesos somam ${pct(total)}. Ajuste para 100%.</span>`;
+  }
+
+  window.dmxSalvarPPRAdmin = function(){
+    const cfg = {
+      kpi1:    document.getElementById('ppr-adm-kpi1')?.value||'',
+      peso1:   Number(dmxNumBR(document.getElementById('ppr-adm-p1')?.value)||0),
+      kpi2:    document.getElementById('ppr-adm-kpi2')?.value||'',
+      peso2:   Number(dmxNumBR(document.getElementById('ppr-adm-p2')?.value)||0),
+      kpi3:    document.getElementById('ppr-adm-kpi3')?.value||'',
+      peso3:   Number(dmxNumBR(document.getElementById('ppr-adm-p3')?.value)||0),
+      pesoArea:Number(dmxNumBR(document.getElementById('ppr-adm-parea')?.value)||0),
+    };
+    setPPRCfg(cfg);
+    if(typeof showToast==='function') showToast('✓ Configuração PPR salva');
+    // Atualiza aba PPR se estiver aberta
+    if(document.getElementById('page-ppr')?.classList.contains('active') && typeof renderPPR==='function'){
+      renderPPR();
+    }
+  };
+
+  // ── Injeta painel PPR na aba Admin via wrap de renderAdminDMX ──────────────
+  function patchAdminRender(){
+    const orig = window.renderAdminDMX;
+    if(typeof orig!=='function'||orig.__v16pprAdmin) return;
+    window.renderAdminDMX = async function(){
+      const r = await orig.apply(this, arguments);
+      setTimeout(()=>{
+        const host = document.getElementById('admin-root');
+        if(!host) return;
+        let panel = document.getElementById('dmx-ppr-admin-panel');
+        if(!panel){
+          const wrap = document.createElement('div');
+          wrap.innerHTML = buildPPRAdminPanel();
+          host.appendChild(wrap);
+          panel = document.getElementById('dmx-ppr-admin-panel');
+        } else {
+          const wrap = panel.parentElement||panel;
+          wrap.innerHTML = buildPPRAdminPanel();
+        }
+        fillPPRAdminSelects();
+      }, 80);
+      return r;
+    };
+    window.renderAdminDMX.__v16pprAdmin = true;
+    // Re-renderiza se admin já estiver ativo
+    if(document.getElementById('page-admin')?.classList.contains('active')){
+      window.renderAdminDMX(true);
+    }
+  }
+
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+  [100, 600, 1500].forEach(ms=>setTimeout(()=>{
+    patchRenderPPR();
+    patchAdminRender();
+    if(document.getElementById('page-ppr')?.classList.contains('active')) transformPPRPage();
+  }, ms));
+
+})();
+</script>
+
+</body>
+</html>
+
 
 </body>
 </html>
