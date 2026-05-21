@@ -773,7 +773,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           <select class="filter-input" id="weekly-area-filter" onchange="renderWeeklyOperational()"><option value="__ALL__">Todos os setores</option></select>
           <select class="filter-input" id="weekly-month-filter" onchange="renderWeeklyOperational()"></select>
           <select class="filter-input" id="weekly-year-filter" onchange="renderWeeklyOperational()"><option value="2026">2026</option></select>
-          <button class="btn btn-primary btn-sm" onclick="openWeeklySelection()">Selecionar KPIs</button>
+          <button class="btn btn-ghost btn-sm" onclick="openWeeklyExtraKpis()" title="Adicionar KPIs de Controle para acompanhamento neste mês">+ KPI extra</button>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('weekly-entry-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">Lançar Realizados</button>
         </div>
       </div>
@@ -800,7 +800,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           <button class="btn btn-primary btn-sm" onclick="dmxSaveWeeklySelectedStepAll()">💾 Salvar lançamentos da etapa</button>
         </div>
       </div>
-      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table class="data-table" id="weekly-table"><thead><tr><th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Tendência fech.</th><th>Comentário</th></tr></thead><tbody></tbody></table></div>
     </div>
 
   </div>
@@ -4902,7 +4902,7 @@ window.addEventListener('DOMContentLoaded', init);
 <!-- PATCH v15 — Plano de Participação nos Resultados (PPR) -->
 <script>
 (function(){
-  const PPR_KEY = 'dmx_ppr_config_v15';
+  const PPR_KEY = 'dmx_ppr_config_v1'; // alinhado com a aba PPR principal
   const MESES_PPR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   function n(v){ const x = Number(String(v ?? '').replace(',','.')); return Number.isFinite(x) ? x : null; }
   function pct(v){ return v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%'; }
@@ -4975,6 +4975,8 @@ window.addEventListener('DOMContentLoaded', init);
 /* Módulo Semanal Operacional — integrado nativamente (v18.2) */
 const WEEKLY_DATA_KEY = 'dmx_weekly_stage_data_v18_1';
 const WEEKLY_SELECTION_KEY = 'dmx_weekly_kpi_selection_v18_1';
+// Limpa seleção manual antiga — Meta KPIs agora são sempre automáticos
+try{ localStorage.removeItem(WEEKLY_SELECTION_KEY); }catch(e){}
 const WEEKLY_ETAPAS = [1,2,3,4];
 const WEEKLY_MESES_LABEL = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const weeklyCharts = {};
@@ -4994,6 +4996,20 @@ function weeklyFmt(v, unidade){
   return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function weeklyGetKpi(id){ return (window.kpis||kpis||[]).find(k => String(k.id) === String(id)); }
+// Resolve KPI para exibição numa área — aplica overlay de área se for compartilhado como Meta
+function weeklyGetKpiForArea(id, area){
+  const base = weeklyGetKpi(id);
+  if(!base || !area || area === '__ALL__') return base;
+  if(base.area === area) return base; // KPI nativo da área
+  // Verifica se é compartilhado como Meta para esta área
+  if(typeof dmxLoadShares === 'function'){
+    const sh = (dmxLoadShares()[id]||{});
+    if((sh.meta_areas||[]).includes(area)){
+      return Object.assign({}, base, {area, vertente:'Meta', _sharedFrom:base.area});
+    }
+  }
+  return base;
+}
 function weeklyCalcAting(kpi, real, meta){
   real = weeklyNum(real); meta = weeklyNum(meta);
   if(real===null || meta===null || meta===0) return null;
@@ -5062,34 +5078,42 @@ function currentWeeklyAno(){ return Number(document.getElementById('weekly-year-
 // KPI ids selecionados para uma área (ou todas se __ALL__)
 function selectedForArea(area){
   const allKpis = window.kpis||kpis||[];
-  // Apenas KPIs atualmente Meta e ativos
   const isMeta = k => String(k.vertente||'').trim().toLowerCase()==='meta' &&
                       String(k.ativo||'SIM').trim().toUpperCase()!=='NAO' &&
                       String(k.ativo||'SIM').trim().toUpperCase()!=='NÃO';
+
+  const mes = typeof currentWeeklyMes==='function' ? currentWeeklyMes() : (window.currentMes||new Date().getMonth()+1);
+  const ano = typeof currentWeeklyAno==='function' ? currentWeeklyAno() : (window.currentAno||new Date().getFullYear());
+
+  // Resolve KPIs efetivos de uma área: próprios de Meta + compartilhados como Meta
+  function metaIdsForArea(a){
+    // Próprios
+    const ids = allKpis.filter(k=>k.area===a && isMeta(k)).map(k=>k.id);
+    // Compartilhados como Meta para esta área via dmxLoadShares
+    if(typeof dmxLoadShares === 'function'){
+      const shares = dmxLoadShares();
+      allKpis.forEach(k => {
+        if(k.area === a) return; // já é da área
+        const sh = shares[k.id]||{};
+        if((sh.meta_areas||[]).includes(a)) ids.push(k.id);
+      });
+    }
+    return [...new Set(ids)];
+  }
+
   if(area === '__ALL__'){
     const allAreas = [...new Set(allKpis.map(k=>String(k.area||'').trim()).filter(a=>a&&a.toLowerCase()!=='mensal'))];
-    const sel = loadWeeklySelection();
     const ids = [];
     allAreas.forEach(a => {
-      const metaIds = new Set(allKpis.filter(k=>k.area===a && isMeta(k)).map(k=>k.id));
-      if(Array.isArray(sel[a]) && sel[a].length){
-        // Revalida: mantém apenas os que ainda são Meta
-        ids.push(...sel[a].filter(id => metaIds.has(id)));
-      } else {
-        // Fallback: todos os Meta da área (sem limite arbitrário)
-        ids.push(...metaIds);
-      }
+      ids.push(...metaIdsForArea(a));
+      if(typeof loadWeeklyExtra==='function') ids.push(...loadWeeklyExtra(a, mes, ano));
     });
     return [...new Set(ids)];
   }
-  const sel = loadWeeklySelection();
-  const metaIds = new Set(allKpis.filter(k=>k.area===area && isMeta(k)).map(k=>k.id));
-  if(Array.isArray(sel[area]) && sel[area].length){
-    const revalidated = sel[area].filter(id => metaIds.has(id));
-    // Se após revalidação ficou vazio, cai no fallback (todos os Meta)
-    if(revalidated.length) return revalidated;
-  }
-  return [...metaIds];
+
+  const base = metaIdsForArea(area);
+  const extras = typeof loadWeeklyExtra==='function' ? loadWeeklyExtra(area, mes, ano) : [];
+  return [...new Set([...base, ...extras])];
 }
 
 function downloadWeeklyTemplate(){
@@ -5222,7 +5246,7 @@ function renderWeeklyOperational(){
   fillWeeklyFilters();
   const area = currentWeeklyArea(), mes = currentWeeklyMes(), ano = currentWeeklyAno(), etapaSel = currentWeeklyEtapa();
   const ids = selectedForArea(area);
-  const kpiList = ids.map(weeklyGetKpi).filter(Boolean).filter(k=>{
+  const kpiList = ids.map(id => weeklyGetKpiForArea(id, area)).filter(Boolean).filter(k=>{
     try{ return typeof dmxGovCanAccessKPI === 'function' ? dmxGovCanAccessKPI(k.id) : true; }catch(e){ return true; }
   });
   const summaries = kpiList.map(k=>weeklySummary(k.id,mes,ano));
@@ -5241,7 +5265,8 @@ function renderWeeklyOperational(){
       const r = getWeeklyLaunch(k.id,mes,ano,etapaSel);
       const ref = weeklyResolveRef(k, mes, ano) || {};
       const real = r ? weeklyNum(r.realizado) : null;
-      const at = weeklyCalcAting(k, real, ref.meta);
+      const mediaAcum = typeof weeklyAverage==='function' ? weeklyAverage(k.id,mes,ano,'realizado') : real;
+      const at = weeklyCalcAting(k, mediaAcum, ref.meta);
       const st = weeklyStatusByPct(at);
       const trend = weeklyCalcTrend(k.id, mes, ano);
       const canEdit = weeklyCanEditKpi(k);
@@ -5254,7 +5279,7 @@ function renderWeeklyOperational(){
       const actionCell = canEdit
         ? `<button class="btn btn-primary btn-sm" onclick="saveWeeklyEntry('${weeklyEsc(k.id)}',${etapaSel})">Salvar</button>`
         : '<span class="text-muted text-sm">Somente leitura</span>';
-      return `<tr><td><span class="font-mono text-muted">${weeklyEsc(k.id)}</span> ${weeklyEsc(k.indicador)}</td><td><strong>Etapa ${etapaSel}</strong></td><td>${realCell}</td><td>${weeklyFmt(ref.meta,k.unidade)}</td><td>${weeklyFmt(ref.minimo,k.unidade)}</td><td>${weeklyFmt(ref.maximo,k.unidade)}</td><td>${weeklyPct(at)}</td><td><span class="status-pill ${st.cls}">${st.label}</span></td><td>${weeklyFmt(trend,k.unidade)}</td><td>${obsCell}</td><td>${actionCell}</td></tr>`;
+      return `<tr><td><span class="font-mono text-muted">${weeklyEsc(k.id)}</span> ${weeklyEsc(k.indicador)}</td><td><strong>Etapa ${etapaSel}</strong></td><td>${realCell}</td><td>${weeklyFmt(ref.meta,k.unidade)}</td><td>${weeklyFmt(ref.minimo,k.unidade)}</td><td>${weeklyFmt(ref.maximo,k.unidade)}</td><td>${weeklyPct(at)}</td><td>${weeklyFmt(trend,k.unidade)}</td><td>${obsCell}</td><td>${actionCell}</td></tr>`;
     }).join('');
   }
 }
@@ -5574,6 +5599,110 @@ function saveWeeklySelectionFromModal(){
   closeModal('weekly-modal');
   renderWeeklyOperational();
   if(typeof showToast==='function') showToast('✓ KPIs semanais atualizados');
+}
+
+// ── KPIs Extra (Controle) por mês ─────────────────────────────────────────────
+function weeklyExtraKey(area, mes, ano){
+  return 'dmx_weekly_extra_' + String(area||'').replace(/\s/g,'_') + '_' + ano + '_' + mes;
+}
+function loadWeeklyExtra(area, mes, ano){
+  try{ return JSON.parse(localStorage.getItem(weeklyExtraKey(area,mes,ano))||'[]')||[]; }catch(e){ return []; }
+}
+function saveWeeklyExtra(area, mes, ano, ids){
+  localStorage.setItem(weeklyExtraKey(area,mes,ano), JSON.stringify(ids||[]));
+}
+
+function openWeeklyExtraKpis(){
+  const area = currentWeeklyArea();
+  const mes  = currentWeeklyMes();
+  const ano  = currentWeeklyAno();
+  const allKpis = window.kpis || kpis || [];
+  const isControle = k => String(k.vertente||'').trim().toLowerCase()==='controle' &&
+                          String(k.ativo||'SIM').trim().toUpperCase()!=='NAO';
+
+  // KPIs de controle da área (ou de todas se __ALL__)
+  const pool = area === '__ALL__'
+    ? allKpis.filter(k => isControle(k))
+    : allKpis.filter(k => k.area === area && isControle(k));
+
+  if(!pool.length){
+    if(typeof showToast==='function') showToast('Nenhum KPI de Controle disponível para esta área.');
+    return;
+  }
+
+  const extras = new Set(loadWeeklyExtra(area, mes, ano));
+  const MES_NOME = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Agrupa por área para exibição
+  const byArea = {};
+  pool.forEach(k => {
+    if(!byArea[k.area]) byArea[k.area] = [];
+    byArea[k.area].push(k);
+  });
+
+  const grouped = Object.entries(byArea).map(([a, kpis]) =>
+    `<div style="margin-bottom:14px">
+      <div style="font-weight:800;margin-bottom:6px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">${a}</div>` +
+      kpis.map(k =>
+        `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid #F4F6FA;cursor:pointer">
+          <input type="checkbox" class="weekly-extra-check" value="${k.id}" ${extras.has(k.id)?'checked':''}>
+          <span>
+            <span class="font-mono text-muted" style="font-size:11px">${k.id}</span>
+            <strong style="margin-left:4px">${k.indicador}</strong>
+            <div class="text-muted text-sm">${k.sentido||''} · ${k.unidade||''}</div>
+          </span>
+        </label>`
+      ).join('') +
+    `</div>`
+  ).join('');
+
+  const modal = document.getElementById('weekly-modal');
+  const content = document.getElementById('weekly-modal-content');
+  content.innerHTML = `
+    <button class="modal-close" onclick="closeModal('weekly-modal')">✕</button>
+    <div class="modal-title">KPIs extras — ${area === '__ALL__' ? 'Todas as áreas' : area}</div>
+    <p class="text-muted text-sm mt-1 mb-3">
+      Selecione KPIs de <strong>Controle</strong> para acompanhar em
+      <strong>${MES_NOME[mes]}/${ano}</strong>.
+      Os KPIs de Meta são fixos e não aparecem aqui.<br>
+      Esta seleção vale apenas para este mês — nos meses seguintes começa limpa.
+    </p>
+    <div style="max-height:480px;overflow:auto">${grouped}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost btn-sm" style="color:var(--red)"
+        onclick="saveWeeklyExtraFromModal(true)">Limpar extras deste mês</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal('weekly-modal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveWeeklyExtraFromModal(false)">Salvar</button>
+      </div>
+    </div>`;
+  modal.classList.add('open');
+}
+
+function saveWeeklyExtraFromModal(clear){
+  const area = currentWeeklyArea();
+  const mes  = currentWeeklyMes();
+  const ano  = currentWeeklyAno();
+  const ids  = clear ? [] : [...document.querySelectorAll('.weekly-extra-check:checked')].map(i=>i.value);
+
+  if(area === '__ALL__'){
+    // Salva agrupado por área de cada KPI
+    const allKpis = window.kpis || kpis || [];
+    const byArea = {};
+    ids.forEach(id => {
+      const k = allKpis.find(k=>k.id===id);
+      if(k){ (byArea[k.area]||(byArea[k.area]=[])).push(id); }
+    });
+    const allAreas = [...new Set(allKpis.map(k=>k.area).filter(Boolean))];
+    allAreas.forEach(a => saveWeeklyExtra(a, mes, ano, byArea[a]||[]));
+  } else {
+    saveWeeklyExtra(area, mes, ano, ids);
+  }
+
+  closeModal('weekly-modal');
+  renderWeeklyOperational();
+  if(typeof showToast==='function')
+    showToast(clear ? '✓ KPIs extras removidos' : `✓ ${ids.length} KPI(s) extra(s) salvos para este mês`);
 }
 function weeklyCsvParse(text){
   const lines = String(text||'').split(/\r?\n/).filter(l=>l.trim());
@@ -10928,7 +11057,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const table = document.getElementById('weekly-table');
       if(table){
         const head = table.querySelector('thead tr');
-        if(head) head.innerHTML = '<th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Status</th><th>Tendência fech.</th><th>Comentário</th>';
+        if(head) head.innerHTML = '<th>KPI</th><th>Etapa selecionada</th><th>Realizado</th><th>Meta mês</th><th>Mín.</th><th>Máx.</th><th>Ating.</th><th>Tendência fech.</th><th>Comentário</th>';
       }
       const tb = document.querySelector('#weekly-table tbody');
       if(tb){
@@ -10941,7 +11070,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           const trendSt = weeklyStatusByPct(trendAt);
           const r = getWeeklyLaunch(k.id,mes,ano,e);
           const real = r ? weeklyNum(r.realizado) : null;
-          const at = weeklyCalcAting(k, real, ref.meta);
+          const mediaAcum = typeof weeklyAverage==='function' ? weeklyAverage(k.id,mes,ano,'realizado') : real;
+          const at = weeklyCalcAting(k, mediaAcum, ref.meta);
           const st = weeklyStatusByPct(at);
           const realCell = canEdit
             ? `<input id="weekly-real-${esc(k.id)}-${e}" class="edit-cell" type="number" step="0.01" value="${real ?? ''}" style="width:96px" oninput="this.dataset.weeklyDirty='1'">`
@@ -10957,7 +11087,6 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
             <td>${weeklyFmt(ref.minimo,k.unidade)}</td>
             <td>${weeklyFmt(ref.maximo,k.unidade)}</td>
             <td>${weeklyPct(at)}</td>
-            <td><span class="status-pill ${st.cls}">${st.label}</span></td>
             <td>${weeklyFmt(trend,k.unidade)} <span class="status-pill ${trendSt.cls}" style="font-size:9px;margin-left:4px">${trendSt.label}</span></td>
             <td>${obsCell}</td>
           </tr>`;
@@ -12636,7 +12765,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           const trendSt = typeof weeklyStatusByPct === 'function' ? weeklyStatusByPct(trendAt) : {cls:'NA',label:'—'};
           const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+fmtInput(real)+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : weeklyFmt(real,k.unidade);
           const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
-          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
         }).join('');
       }catch(e){ console.warn('[DMX v67] Falha ao reaplicar tabela semanal:', e); }
     };
@@ -12819,14 +12948,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           const ref = window.dmxWeeklyMonthlyRef(k, mes, ano);
           const r = getWeeklyLaunch(k.id, mes, ano, etapa);
           const real = r ? parseBR(r.realizado) : null;
-          const at = weeklyCalcAting(k, real, ref.meta);
+          const mediaAcum = typeof avgReal==='function' ? avgReal(k.id,mes,ano) : (typeof weeklyAverage==='function' ? weeklyAverage(k.id,mes,ano,'realizado') : real);
+          const at = weeklyCalcAting(k, mediaAcum, ref.meta);
           const st = weeklyStatusByPct(at);
           const trend = typeof dmxWeeklyTrend === 'function' ? dmxWeeklyTrend(k, mes, ano) : weeklyCalcTrend(k.id, mes, ano);
           const trendAt = weeklyCalcAting(k, trend, ref.meta);
           const trendSt = weeklyStatusByPct(trendAt);
           const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+fmtInput(real)+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : weeklyFmt(real,k.unidade);
           const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
-          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+weeklyFmt(ref.meta,k.unidade)+'</td><td>'+weeklyFmt(ref.minimo,k.unidade)+'</td><td>'+weeklyFmt(ref.maximo,k.unidade)+'</td><td>'+weeklyPct(at)+'</td><td>'+weeklyFmt(trend,k.unidade)+' <span class="status-pill '+trendSt.cls+'" style="font-size:9px;margin-left:4px">'+trendSt.label+'</span></td><td>'+obs+'</td></tr>';
         }).join('');
       }catch(e){ console.warn('[DMX v68] Falha ao renderizar tabela semanal final:', e); }
     };
@@ -13158,6 +13288,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const fechamento = projection(id, mes, ano);
       const ref = typeof window.dmxWeeklyMonthlyRef === 'function' ? window.dmxWeeklyMonthlyRef(k, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(k, mes, ano) : {});
       const at = typeof weeklyCalcAting === 'function' ? weeklyCalcAting(k, fechamento, ref && ref.meta) : null;
+      // Status do card baseado na PROJEÇÃO DE FECHAMENTO
       const st = typeof weeklyStatusByPct === 'function' ? weeklyStatusByPct(at) : {label:'—',cls:'NA'};
       return {kpi:k, real:realAvg, fechamento:fechamento, meta:ref && ref.meta, minimo:ref && ref.minimo, maximo:ref && ref.maximo, ating:at, status:st};
     };
@@ -13224,15 +13355,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           const ref = typeof window.dmxWeeklyMonthlyRef === 'function' ? window.dmxWeeklyMonthlyRef(k, mes, ano) : (typeof weeklyResolveRef === 'function' ? weeklyResolveRef(k, mes, ano) : {});
           const r = getWeeklyLaunch(k.id, mes, ano, etapa);
           const real = r ? num(r.realizado) : null;
-          const at = weeklyCalcAting(k, real, ref.meta);
-          const st = weeklyStatusByPct(at);
+          // Status baseado na MÉDIA REAL acumulada vs meta mensal (igual ao card)
           const media = avgReal(k.id, mes, ano);
+          const at = weeklyCalcAting(k, media, ref.meta);
+          const st = weeklyStatusByPct(at);
           const fech = projection(k.id, mes, ano);
           const fechAt = weeklyCalcAting(k, fech, ref.meta);
           const fechSt = weeklyStatusByPct(fechAt);
           const input = canEdit ? '<input id="weekly-real-'+esc(k.id)+'-'+etapa+'" class="edit-cell" type="text" inputmode="decimal" autocomplete="off" value="'+(real===null?'':String(real).replace('.',','))+'" placeholder="Realizado" style="width:96px" oninput="this.dataset.weeklyDirty=\'1\'">' : fmt(real,k.unidade);
           const obs = canEdit ? '<textarea id="weekly-obs-'+esc(k.id)+'-'+etapa+'" class="filter-input" style="min-width:220px;width:100%;min-height:38px;padding:5px 8px" oninput="this.dataset.weeklyDirty=\'1\'">'+esc(r && r.comentario ? r.comentario : '')+'</textarea>' : '<span style="white-space:pre-wrap">'+esc(r && r.comentario ? r.comentario : '')+'</span>';
-          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+fmt(ref.meta,k.unidade)+'</td><td>'+fmt(ref.minimo,k.unidade)+'</td><td>'+fmt(ref.maximo,k.unidade)+'</td><td>'+pct(at)+'</td><td><span class="status-pill '+st.cls+'">'+st.label+'</span></td><td>'+fmt(fech,k.unidade)+' <span class="status-pill '+fechSt.cls+'" style="font-size:9px;margin-left:4px">Proj.</span><div class="text-muted text-sm">Média: '+fmt(media,k.unidade)+'</div></td><td>'+obs+'</td></tr>';
+          return '<tr><td><span class="font-mono text-muted">'+esc(k.id)+'</span> '+esc(k.indicador)+'<div class="text-muted text-sm">'+esc(k.area||'')+'</div></td><td><strong>Etapa '+etapa+'</strong></td><td>'+input+'</td><td>'+fmt(ref.meta,k.unidade)+'</td><td>'+fmt(ref.minimo,k.unidade)+'</td><td>'+fmt(ref.maximo,k.unidade)+'</td><td>'+pct(at)+'</td><td>'+fmt(fech,k.unidade)+' <span class="status-pill '+fechSt.cls+'" style="font-size:9px;margin-left:4px">Proj.</span><div class="text-muted text-sm">Média: '+fmt(media,k.unidade)+'</div></td><td>'+obs+'</td></tr>';
         }).join('');
       }catch(e){ console.warn('[DMX v71] Falha ao aplicar tabela semanal:', e); }
     };
@@ -14041,8 +14173,10 @@ setTimeout(()=>{
 
   function pct(v){ return v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; }
   function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function getPPRCfg(){ try{ return JSON.parse(localStorage.getItem('dmx_ppr_config_v15')||'{}'); }catch(e){ return {}; } }
-  function setPPRCfg(c){ localStorage.setItem('dmx_ppr_config_v15', JSON.stringify(c||{})); }
+  // Usa a mesma chave que a aba PPR original lê
+  const PPR_CFG_KEY = 'dmx_ppr_config_v1';
+  function getPPRCfg(){ try{ return JSON.parse(localStorage.getItem(PPR_CFG_KEY)||'{}'); }catch(e){ return {}; } }
+  function setPPRCfg(c){ localStorage.setItem(PPR_CFG_KEY, JSON.stringify(c||{})); }
   function kpisAll(){ return window.kpis||[]; }
   function kpiById(id){ return kpisAll().find(k=>String(k.id)===String(id)); }
   function metaKpis(){ return kpisAll().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta'); }
@@ -14322,9 +14456,317 @@ setTimeout(()=>{
 })();
 </script>
 
-</body>
-</html>
+<!-- PATCH v17 — Projeção semanal por peso de etapa (dias úteis automático) -->
+<script>
+(function(){
+  if(window.__dmxWeeklyProjV17) return;
+  window.__dmxWeeklyProjV17 = true;
 
+  // ── Constantes das etapas ──────────────────────────────────────────────────
+  // ── Calcula etapas reais do mês (seg–dom, mín 3 du por etapa) ─────────────
+  function calcEtapasMes(ano, mes){
+    const ult = new Date(ano, mes, 0).getDate();
+
+    function du(d1, d2){
+      let n = 0;
+      for(let d = d1; d <= d2; d++){
+        const dow = new Date(ano, mes-1, d).getDay(); // 0=dom,1=seg,...,6=sab
+        if(dow >= 1 && dow <= 5) n++;
+      }
+      return n;
+    }
+
+    // Primeiro dia da semana (seg) que contém o dia 1
+    const primDow = new Date(ano, mes-1, 1).getDay(); // 0=dom
+    // Ajusta: seg=0 offset. Dom(0)->recua 6, Seg(1)->0, Ter(2)->1 ...
+    const offset = primDow === 0 ? 6 : primDow - 1;
+    let iniSem = 1 - offset; // pode ser <= 0
+
+    const semanas = [];
+    while(iniSem <= ult){
+      const fimSem = iniSem + 6;
+      const iniM = Math.max(iniSem, 1);
+      const fimM = Math.min(fimSem, ult);
+      if(iniM <= ult) semanas.push({ini:iniM, fim:fimM, du:du(iniM,fimM)});
+      iniSem += 7;
+    }
+
+    // Acopla semanas com < 3 du à vizinha mais próxima
+    let i = 0;
+    while(i < semanas.length){
+      if(semanas[i].du < 3){
+        if(i === 0 && semanas.length > 1){
+          semanas[1].ini = semanas[0].ini;
+          semanas[1].du += semanas[0].du;
+          semanas.splice(0,1);
+          // não incrementa i
+        } else if(i === semanas.length - 1){
+          semanas[i-1].fim = semanas[i].fim;
+          semanas[i-1].du += semanas[i].du;
+          semanas.splice(i,1);
+          i--;
+        } else {
+          semanas[i+1].ini = semanas[i].ini;
+          semanas[i+1].du += semanas[i].du;
+          semanas.splice(i,1);
+        }
+      } else { i++; }
+    }
+
+    const totDu = semanas.reduce((s,x)=>s+x.du,0)||1;
+    return semanas.map((s,idx)=>({e:idx+1, ini:s.ini, fim:s.fim, du:s.du, peso:s.du/totDu}));
+  }
+  window.dmxCalcEtapasMes = calcEtapasMes;
+
+  // ── Storage ────────────────────────────────────────────────────────────────
+  const STORAGE_KEY = 'dmx_weekly_etapa_pesos_v1';
+  function loadCfg(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); }catch(e){ return {}; } }
+  function saveCfg(c){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(c)); }catch(e){} }
+
+
+  // ── Pesos automáticos — delega para calcEtapasMes ────────────────────────
+  function calcPesosAuto(ano, mes){ return calcEtapasMes(ano, mes); }
+  window.dmxCalcPesosAutoEtapa = calcPesosAuto;
+
+  // ── Resolve pesos (manual > automático) ───────────────────────────────────
+  window.dmxGetEtapaPesos = function(area, ano, mes){
+    const cfg = loadCfg();
+    const key = String(area||'__global__');
+    // tenta chave da área, depois global
+    for(const k of [key,'__global__']){
+      const m = cfg[k];
+      if(m && Array.isArray(m.pesos) && m.pesos.length===4){
+        const soma = m.pesos.reduce((s,p)=>s+Number(p),0);
+        if(Math.abs(soma-1)<0.02) return m.pesos.map((p,i)=>({e:i+1,peso:Number(p)}));
+      }
+    }
+    return calcPesosAuto(ano,mes);
+  };
+
+  // ── Engine de projeção ────────────────────────────────────────────────────
+  window.dmxCalcProjecaoSemanal = function(kpiId, area, ano, mes){
+    const kpi = (window.kpis||[]).find(k=>String(k.id)===String(kpiId));
+    if(!kpi) return null;
+    const isSoma = String(kpi.acumulado||'').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'').toLowerCase().trim() === 'soma';
+    const pesos = window.dmxGetEtapaPesos(area||kpi.area, ano, mes);
+    const lc = pesos.map(({e,peso})=>{
+      const r = typeof getWeeklyLaunch==='function' ? getWeeklyLaunch(kpiId,mes,ano,e) : null;
+      const v = r&&r.realizado!=null ? (typeof weeklyNum==='function'?weeklyNum(r.realizado):Number(r.realizado)) : null;
+      return {e, peso, real:(v!==null&&Number.isFinite(v))?v:null};
+    }).filter(x=>x.real!==null);
+    // nEtapas = total de etapas do mês (pode ser 3, 4 ou 5)
+    const nEtapas = pesos.length;
+    if(!lc.length) return null;
+    const pesoAcum = lc.reduce((s,x)=>s+x.peso,0);
+    if(pesoAcum<=0) return null;
+    if(isSoma){
+      return lc.reduce((s,x)=>s+x.real,0) / pesoAcum;
+    } else {
+      // média: projeção é a própria média (pesos não alteram KPI de média)
+      return lc.reduce((s,x)=>s+x.real,0) / lc.length;
+    }
+  };
+
+  // ── Patch das funções de projeção existentes ──────────────────────────────
+  function patchProjections(){
+    // dmxWeeklyTrend
+    if(window.dmxWeeklyTrend && !window.dmxWeeklyTrend.__v17){
+      window.dmxWeeklyTrend = function(kpi,mes,ano){
+        if(!kpi) return null;
+        const r = window.dmxCalcProjecaoSemanal(kpi.id,kpi.area,ano,mes);
+        if(r!==null) return r;
+        // fallback: média simples
+        const vals=[1,2,3,4].map(e=>{
+          const l=typeof getWeeklyLaunch==='function'?getWeeklyLaunch(kpi.id,mes,ano,e):null;
+          const v=l&&l.realizado!=null?Number(l.realizado):null;
+          return v!==null&&Number.isFinite(v)?v:null;
+        }).filter(v=>v!==null);
+        return vals.length?vals.reduce((s,v)=>s+v,0)/vals.length:null;
+      };
+      window.dmxWeeklyTrend.__v17=true;
+    }
+    // dmxWeeklyProjectedClose
+    if(window.dmxWeeklyProjectedClose && !window.dmxWeeklyProjectedClose.__v17){
+      const orig=window.dmxWeeklyProjectedClose;
+      window.dmxWeeklyProjectedClose=function(id,mes,ano){
+        const kpi=(window.kpis||[]).find(k=>String(k.id)===String(id));
+        const r=window.dmxCalcProjecaoSemanal(id,kpi&&kpi.area,ano,mes);
+        return r!==null?r:orig(id,mes,ano);
+      };
+      window.dmxWeeklyProjectedClose.__v17=true;
+    }
+    // weeklySummary
+    if(typeof weeklySummary==='function'&&!weeklySummary.__v17){
+      const orig=weeklySummary;
+      window.weeklySummary=weeklySummary=function(id,mes,ano){
+        const s=orig(id,mes,ano);
+        const kpi=s&&s.kpi;
+        const proj=window.dmxCalcProjecaoSemanal(id,kpi&&kpi.area,ano,mes);
+        if(proj!==null&&s){
+          s.fechamento=proj;
+          try{
+            const ref=typeof window.dmxWeeklyMonthlyRef==='function'
+              ?window.dmxWeeklyMonthlyRef(kpi,mes,ano)
+              :(typeof weeklyResolveRef==='function'?weeklyResolveRef(kpi,mes,ano):{});
+            const at=typeof weeklyCalcAting==='function'?weeklyCalcAting(kpi,proj,ref&&ref.meta):null;
+            s.ating=at;
+            s.status=typeof weeklyStatusByPct==='function'?weeklyStatusByPct(at):s.status;
+          }catch(e){}
+        }
+        return s;
+      };
+      weeklySummary.__v17=true;
+    }
+  }
+
+  // ── Painel Admin ──────────────────────────────────────────────────────────
+  function buildPanel(){
+    const areas=['__global__',...new Set((window.kpis||[]).map(k=>k.area).filter(Boolean))].sort((a,b)=>a==='__global__'?-1:a.localeCompare(b));
+    const opts=areas.map(a=>`<option value="${a}">${a==='__global__'?'🌐 Global (todas as áreas)':a}</option>`).join('');
+    const ano0=window.currentAno||new Date().getFullYear();
+    const mes0=window.currentMes||(new Date().getMonth()+1);
+    const etAuto=calcPesosAuto(ano0,mes0);
+    const etRanges=etAuto.map(({e,ini,fim})=>({e,r:`${ini}–${fim}`}));
+    return `<div id="dmx-etapa-pesos-panel" style="margin-top:28px">
+      <div class="section-header" style="margin-bottom:12px">
+        <div>
+          <div class="section-title">⚖️ Pesos das Etapas · Projeção Semanal</div>
+          <div class="text-muted text-sm mt-1">Por padrão o sistema usa dias úteis automáticos. Sobrescreva por área se necessário.</div>
+        </div>
+      </div>
+      <div id="etapa-auto-preview" style="margin-bottom:14px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;font-size:12px">
+        <strong>Pesos automáticos — mês atual:</strong>
+        <span id="etapa-auto-vals" style="margin-left:8px;color:var(--muted)">calculando…</span>
+      </div>
+      <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+        <div><div class="card-label">Área</div>
+          <select id="etapa-area-sel" class="filter-input" style="width:200px" onchange="window.dmxLoadEtapaPesoArea()">${opts}</select>
+        </div>
+        <div><div class="card-label">Modo</div>
+          <select id="etapa-modo-sel" class="filter-input" style="width:200px" onchange="window.dmxToggleEtapaModo()">
+            <option value="auto">Automático (dias úteis)</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+      </div>
+      <div id="etapa-manual-block" style="display:none">
+        <div style="display:grid;grid-template-columns:repeat(${etRanges.length},1fr);gap:8px">
+          ${etRanges.map(({e,r})=>`<div><div class="card-label">Etapa ${e} <span style="font-size:10px;color:var(--muted)">(dias ${r})</span></div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <input class="filter-input" id="etapa-peso-${e}" type="text" inputmode="decimal"
+                style="width:100%" placeholder="ex: 25" oninput="window.dmxValidaEtapaPesos()">
+              <span style="font-size:12px">%</span>
+            </div></div>`).join('')}
+        </div>
+        <div id="etapa-pesos-val" style="margin-top:8px;font-size:12px"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="window.dmxSalvarEtapaPesos()">Salvar</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.dmxResetEtapaPesos()">Restaurar automático</button>
+        <span id="etapa-saved-ok" style="font-size:12px;color:var(--green);display:none">✓ Salvo</span>
+      </div>
+    </div>`;
+  }
+
+  function fillAutoPreview(){
+    const el=document.getElementById('etapa-auto-vals');
+    if(!el) return;
+    const ano=window.currentAno||new Date().getFullYear();
+    const mes=window.currentMes||(new Date().getMonth()+1);
+    const p=calcPesosAuto(ano,mes);
+    el.innerHTML=p.map(({e,du,peso})=>`<strong>E${e}</strong>&nbsp;${(peso*100).toFixed(1)}%&nbsp;<span style="color:var(--muted)">(${du}du)</span>`).join('&nbsp;·&nbsp;');
+  }
+
+  window.dmxLoadEtapaPesoArea=function(){
+    const area=document.getElementById('etapa-area-sel')?.value||'__global__';
+    const cfg=loadCfg();
+    // tenta área, depois global
+    let manual=cfg[area];
+    const mSel=document.getElementById('etapa-modo-sel');
+    if(manual&&Array.isArray(manual.pesos)){
+      if(mSel) mSel.value='manual';
+      [1,2,3,4].forEach((e,i)=>{
+        const inp=document.getElementById(`etapa-peso-${e}`);
+        if(inp) inp.value=((manual.pesos[i]||0)*100).toLocaleString('pt-BR',{maximumFractionDigits:2});
+      });
+    } else {
+      if(mSel) mSel.value='auto';
+    }
+    window.dmxToggleEtapaModo();
+    window.dmxValidaEtapaPesos();
+  };
+
+  window.dmxToggleEtapaModo=function(){
+    const modo=document.getElementById('etapa-modo-sel')?.value;
+    const b=document.getElementById('etapa-manual-block');
+    if(b) b.style.display=modo==='manual'?'block':'none';
+  };
+
+  window.dmxValidaEtapaPesos=function(){
+    const v=document.getElementById('etapa-pesos-val');
+    if(!v) return true;
+    // detecta quantos inputs existem (3, 4 ou 5)
+    const ids=[...document.querySelectorAll('[id^="etapa-peso-"]')].map(el=>el.id);
+    const soma=ids.reduce((s,id)=>s+Number(String(document.getElementById(id)?.value||'0').replace(',','.')),0);
+    const ok=Math.abs(soma-100)<0.5;
+    v.innerHTML=ok?'<span style="color:var(--green);font-weight:700">✓ Soma = 100%</span>'
+      :`<span style="color:var(--red);font-weight:700">⚠ Soma: ${soma.toFixed(1)}% (precisa ser 100%)</span>`;
+    return ok;
+  };
+
+  window.dmxSalvarEtapaPesos=function(){
+    const modo=document.getElementById('etapa-modo-sel')?.value;
+    const area=document.getElementById('etapa-area-sel')?.value||'__global__';
+    const cfg=loadCfg();
+    if(modo==='auto'){ delete cfg[area]; }
+    else {
+      if(!window.dmxValidaEtapaPesos()) return;
+      const ids=[...document.querySelectorAll('[id^="etapa-peso-"]')].map(el=>el.id);
+      cfg[area]={pesos:ids.map(id=>Number(String(document.getElementById(id)?.value||'0').replace(',','.'))/100)};
+    }
+    saveCfg(cfg);
+    const ok=document.getElementById('etapa-saved-ok');
+    if(ok){ok.style.display='inline';setTimeout(()=>ok.style.display='none',2000);}
+    if(typeof showToast==='function') showToast('✓ Pesos das etapas salvos');
+  };
+
+  window.dmxResetEtapaPesos=function(){
+    const area=document.getElementById('etapa-area-sel')?.value||'__global__';
+    const cfg=loadCfg(); delete cfg[area]; saveCfg(cfg);
+    const mSel=document.getElementById('etapa-modo-sel');
+    if(mSel) mSel.value='auto';
+    window.dmxToggleEtapaModo();
+    if(typeof showToast==='function') showToast('✓ Restaurado para automático');
+  };
+
+  function patchAdmin(){
+    const orig=window.renderAdminDMX;
+    if(typeof orig!=='function'||orig.__v17etapas) return;
+    window.renderAdminDMX=async function(){
+      const r=await orig.apply(this,arguments);
+      setTimeout(()=>{
+        const host=document.getElementById('admin-root');
+        if(!host) return;
+        if(!document.getElementById('dmx-etapa-pesos-panel')){
+          const w=document.createElement('div');
+          w.innerHTML=buildPanel();
+          host.appendChild(w);
+        }
+        fillAutoPreview();
+        window.dmxLoadEtapaPesoArea();
+      },100);
+      return r;
+    };
+    // preserva flags anteriores
+    Object.assign(window.renderAdminDMX, orig, {__v17etapas:true});
+    if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true);
+  }
+
+  [200,800,2000].forEach(ms=>setTimeout(()=>{ patchProjections(); patchAdmin(); },ms));
+
+})();
+</script>
 
 </body>
 </html>
