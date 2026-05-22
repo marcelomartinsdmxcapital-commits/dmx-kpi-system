@@ -1317,7 +1317,7 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
     buildFilters();
     if (typeof fillWeeklyFilters === 'function') fillWeeklyFilters();
     if (typeof renderCurrentPage === 'function') renderCurrentPage(); else renderDashboard();
-    if (typeof renderAdminDMX === 'function' && document.getElementById('page-admin')?.classList.contains('active')) renderAdminDMX(true);
+    // Admin não re-renderiza automaticamente na sincronização — evita instabilidade
     dmxApiStatus.connected = true;
     dmxApiStatus.lastError = null;
     dmxApiStatus.source = qtdKpisAplicados > 0 ? 'google_sheets' : 'fallback_local';
@@ -6920,7 +6920,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       const ret = oldNav.apply(this, arguments);
       if(el && el.dataset && el.dataset.page === 'admin'){
         const t=document.getElementById('topbar-title'); if(t) t.textContent='Administração / Google Sheets';
-        renderAdminDMX();
+        if(typeof refreshAdmin485==='function') refreshAdmin485(); else renderAdminDMX();
       }
       return ret;
     };
@@ -7425,9 +7425,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       return ret;
     };
     if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true);
-    // Re-render defensivo: alguns carregamentos da API atualizam window.kpis depois da primeira renderização.
-    setTimeout(()=>{ if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true); }, 800);
-    setTimeout(()=>{ if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true); }, 1800);
+    // Re-renders defensivos removidos — causavam instabilidade (recarregamento constante)
   }
 
   // Atualizar Dados: meta/mínimo/máximo ficam travados; salvamento operacional usa cadastro como referência.
@@ -8234,7 +8232,17 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(o){ o.classList.remove('open'); o.setAttribute('aria-hidden','true'); o.style.display='none'; }
   }
 
-  function can(permission){ return !!(window.DMX_PERMISSIONS && window.DMX_PERMISSIONS[permission]); }
+  function can(permission){
+    // Se o usuário é admin (verificado pela sessão), tem todas as permissões
+    try{
+      const u = JSON.parse(localStorage.getItem('dmx_session_v41')||'null');
+      if(u){
+        const p = String(u.perfil||u.permissao||u.perfilApi||'').toLowerCase();
+        if(p==='admin'||p==='administrador') return true;
+      }
+    }catch(e){}
+    return !!(window.DMX_PERMISSIONS && window.DMX_PERMISSIONS[permission]);
+  }
   window.dmxCan = can;
 
   async function apiPost(action, payload){
@@ -10042,14 +10050,14 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     window.openKPIModal=function(id){ const r=old.apply(this,arguments); setTimeout(()=>ensureShareInModal485(id),120); setTimeout(()=>ensureShareInModal485(id),400); return r; };
   }
 
-  // ── Admin/Sheets: render sem precisar F5 ─────────────────────
+  // ── Admin/Sheets: render único com debounce ───────────────
+  let _adminRefreshTimer = null;
   function refreshAdmin485(){
     if(!document.getElementById('page-admin')?.classList.contains('active')) return;
-    if(typeof window.renderAdminDMX==='function'){
-      setTimeout(()=>window.renderAdminDMX(true),60);
-      setTimeout(()=>window.renderAdminDMX(true),550);
-      setTimeout(()=>window.renderAdminDMX(true),1300);
-    }
+    if(typeof window.renderAdminDMX!=='function') return;
+    // Debounce: cancela render anterior se ainda não executou
+    clearTimeout(_adminRefreshTimer);
+    _adminRefreshTimer = setTimeout(()=>window.renderAdminDMX(true), 150);
   }
 
   function wrapNav485(){
@@ -10072,7 +10080,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function boot485(){ wrapNav485(); wrapKpiModal485(); ensurePprPage485(); ensureDiretoria485(); if(document.getElementById('page-admin')?.classList.contains('active')) refreshAdmin485(); if(document.getElementById('page-diretoria')?.classList.contains('active')) window.dmxRenderDiretoria485(); if(document.getElementById('page-ppr')?.classList.contains('active')) window.renderPPR(); }
-  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot485,100); setTimeout(boot485,800); setTimeout(boot485,2000); });
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(boot485, 300); });
+  // boot único — múltiplos boots causavam re-renders em cascata no Admin
   setTimeout(boot485,300); setTimeout(boot485,1500); setTimeout(boot485,3500);
 })();
 </script>
@@ -14446,18 +14455,16 @@ setTimeout(()=>{
       return r;
     };
     window.renderAdminDMX.__v16pprAdmin = true;
-    // Re-renderiza se admin já estiver ativo
-    if(document.getElementById('page-admin')?.classList.contains('active')){
-      window.renderAdminDMX(true);
-    }
+    // Sem re-render automático no bootstrap — evita instabilidade
   }
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
-  [100, 600, 1500].forEach(ms=>setTimeout(()=>{
+  // Execução única — múltiplos timeouts causavam re-renders em cascata no Admin
+  setTimeout(()=>{
     patchRenderPPR();
     patchAdminRender();
     if(document.getElementById('page-ppr')?.classList.contains('active')) transformPPRPage();
-  }, ms));
+  }, 500);
 
 })();
 </script>
@@ -14829,7 +14836,8 @@ setTimeout(()=>{
   }
 
   // Bootstrap
-  [300, 1200, 3000].forEach(ms => setTimeout(applyAllPatches, ms));
+  // Patches de config: execução única
+  setTimeout(applyAllPatches, 400);
 
   // Sincroniza do Sheets na abertura (aguarda API estar pronta)
   setTimeout(syncAllFromSheets, 1500);
@@ -15146,10 +15154,11 @@ setTimeout(()=>{
     };
     // preserva flags anteriores
     Object.assign(window.renderAdminDMX, orig, {__v17etapas:true});
-    if(document.getElementById('page-admin')?.classList.contains('active')) window.renderAdminDMX(true);
+    // Sem re-render automático no bootstrap — evita instabilidade
   }
 
-  [200,800,2000].forEach(ms=>setTimeout(()=>{ patchProjections(); patchAdmin(); },ms));
+  // Execução única — múltiplos timeouts causavam re-renders em cascata
+  setTimeout(()=>{ patchProjections(); patchAdmin(); }, 600);
 
 })();
 </script>
