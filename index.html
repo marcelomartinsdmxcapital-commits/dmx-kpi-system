@@ -7773,11 +7773,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   const oldRender=window.renderAdminDMX;
   if(typeof oldRender==='function'){
-    window.renderAdminDMX = async function(){ const r=await oldRender.apply(this, arguments); setTimeout(injectAdminUsers,80); return r; };
+    window.renderAdminDMX = async function(){ const r=await oldRender.apply(this, arguments); injectAdminUsers(); return r; };
   }
   const oldNav=window.nav;
   if(typeof oldNav==='function'){
-    window.nav = nav = function(el){ const r=oldNav.apply(this, arguments); if(el?.dataset?.page==='admin') setTimeout(injectAdminUsers,250); return r; };
+    window.nav = nav = function(el){ const r=oldNav.apply(this, arguments); if(el?.dataset?.page==='admin') injectAdminUsers(); return r; };
   }
   document.addEventListener('keydown', e=>{ if(e.key==='Enter' && document.getElementById('dmx-login-overlay')?.classList.contains('open')) dmxLoginSubmit(); });
   document.addEventListener('DOMContentLoaded', async function(){ await getUsers(); setTimeout(()=>{ refreshUserChrome(); if(getSession()) hideLogin(); else showLogin(); },900); });
@@ -8178,11 +8178,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(typeof window.renderAdminDMX!=='function' || window.__dmxV45AdminTabsWrapped) return;
     window.__dmxV45AdminTabsWrapped=true;
     const old=window.renderAdminDMX;
-    window.renderAdminDMX=async function(){ const r=await old.apply(this,arguments); setTimeout(()=>ensureTabs('kpis'),140); return r; };
+    window.renderAdminDMX=async function(){ const r=await old.apply(this,arguments); ensureTabs('kpis'); return r; };
   }
-  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(patchRender,500); setTimeout(()=>{patchRender(); if(document.getElementById('page-admin')?.classList.contains('active')) ensureTabs('kpis');},1500); });
-  setTimeout(patchRender,800);
-  setTimeout(()=>{patchRender(); if(document.getElementById('page-admin')?.classList.contains('active')) ensureTabs('kpis');},2200);
+  // Execução única — múltiplas chamadas causavam re-renders em cascata
+  document.addEventListener('DOMContentLoaded',()=>{ setTimeout(patchRender, 800); });
 })();
 </script>
 
@@ -9344,7 +9343,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     window.__dmxV48AdminWrapped = true;
     const old = window.renderAdminDMX;
     if(typeof old === 'function'){
-      window.renderAdminDMX = async function(){ const r = await old.apply(this, arguments); setTimeout(injectAdminUsers,100); return r; };
+      window.renderAdminDMX = async function(){ const r = await old.apply(this, arguments); injectAdminUsers(); return r; };
     }
   }
 
