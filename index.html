@@ -4057,7 +4057,13 @@ window.addEventListener('DOMContentLoaded', init);
     (window.kpis||[]).filter(k=>k.vertente==='Meta').forEach(k=>(by[k.area]=by[k.area]||[]).push(k));
     Object.keys(by).forEach(a=>{
       const arr=by[a]; let ch=false;
-      arr.forEach(k=>{ if(s[k.id]===undefined){ s[k.id]=Math.round((100/arr.length)*100)/100; ch=true; } });
+      arr.forEach(k=>{
+        if(s[k.id]===undefined){
+          // Usa peso_indice do catálogo como valor inicial (não redistribui igualmente)
+          s[k.id]=Number(k.peso_indice||0)||Math.round((100/arr.length)*100)/100;
+          ch=true;
+        }
+      });
       if(ch&&arr.length){
         const sum=arr.reduce((x,k)=>x+Number(s[k.id]||0),0);
         s[arr[arr.length-1].id]=Math.round((Number(s[arr[arr.length-1].id]||0)+(100-sum))*100)/100;
@@ -6039,7 +6045,7 @@ window.buildShareSection = function(kpiId){
       ['dmx_indice_pesos_v12','dmx_pesos_indice_v1'].forEach(k=>{
         try { const o=JSON.parse(localStorage.getItem(k)||'{}'); o[id]=v; localStorage.setItem(k,JSON.stringify(o)); Object.assign(pesos,o); } catch(e){}
       });
-      // Sincroniza com Sheets
+      // Sincroniza com Sheets — aba Pesos_Indice
       const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
       if(typeof _api==='function'){
         const now = new Date().toISOString();
@@ -6048,6 +6054,13 @@ window.buildShareSection = function(kpiId){
           kpi_id: kpiId, peso: Number(peso||0), ativo: true, atualizado_em: now
         }));
         _api('salvarPesosIndice',{rows}).catch(e=>console.warn('Pesos índice→Sheets failed:',e));
+        // Também atualiza campo peso_indice na linha do KPI no Cadastro_KPIs
+        const kpi = (window.kpis||[]).find(k=>k.id===id);
+        if(kpi){
+          kpi.peso_indice = v; // atualiza em memória
+          _api('editarKPI', {id, id_kpi:id, peso_indice:v, atualizado_em:now})
+            .catch(e=>console.warn('peso_indice→Cadastro_KPIs failed:',e));
+        }
       }
       if(typeof showToast==='function') showToast('✓ Peso salvo: '+v.toFixed(2)+'%');
       if(typeof renderIndice==='function' && window.currentPage==='indice') setTimeout(renderIndice,50);
@@ -7562,8 +7575,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   // v37: controle de acesso cadastrado, mas filtro visual mantido passivo para não ocultar KPIs até validação multiusuário.
   window.dmxVisibleKpisForCurrentUser = function(list){ return list || []; };
 
+  // Execução única — chamadas duplicadas causavam re-renders em cascata
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); }, 1200); });
-  setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); }, 1800);
 })();
 </script>
 
@@ -14766,8 +14779,18 @@ setTimeout(()=>{
       const r = await apiGet('pesos_indice');
       if(!r || !r.ok) return null;
       const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
-      // Só sobrescreve localStorage se Sheets tiver dados reais
-      if(!rows.length) return null;
+      // Se Pesos_Indice vazio, usa peso_indice do Cadastro_KPIs como fonte
+      if(!rows.length){
+        const local = LS.get(PESO_LS) || {};
+        if(!Object.keys(local).length){
+          const fromCatalog = {};
+          (window.kpis||[]).filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta').forEach(k=>{
+            const p=Number(k.peso_indice||0); if(p>0) fromCatalog[k.id]=p;
+          });
+          if(Object.keys(fromCatalog).length){ LS.set(PESO_LS, fromCatalog); return fromCatalog; }
+        }
+        return null;
+      }
       const pesos = {};
       rows.forEach(x=>{ if(x.kpi_id) pesos[x.kpi_id] = Number(x.peso||0); });
       // Mescla com localStorage existente (Sheets tem prioridade)
