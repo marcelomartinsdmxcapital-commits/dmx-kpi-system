@@ -10293,8 +10293,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       if(checked){ sh.controle_areas[area]=true; sh.meta_areas=sh.meta_areas.filter(a=>!eq486(a,area)); }
       else delete sh.controle_areas[area];
     }
-    await persistShare486(kpi, sh, true);
-    // Atualiza a linha instantaneamente sem reabrir o modal
+    // Atualiza DOM ANTES do await — resposta visual imediata
     const isMeta=sh.meta_areas.some(a=>eq486(a,area));
     const isControle=!!Object.keys(sh.controle_areas||{}).find(a=>eq486(a,area));
     const peso=getPeso486(kpiId,area,(sh.pesos||{})[area]||0);
@@ -10314,7 +10313,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         else tdEfeito.innerHTML='<span style="color:var(--muted);font-size:11px">Não compartilhado</span>';
       }
     });
-  };
+    // Persiste no Sheets em segundo plano
+    persistShare486(kpi, sh, true);
   window.dmxShareSetResp = async function(kpiId, area){
     const kpi=getKpi486(kpiId); if(!kpi) return;
     const sh=parseCompartilhar486(kpi); sh.responsavel=area; await persistShare486(kpi, sh, false);
