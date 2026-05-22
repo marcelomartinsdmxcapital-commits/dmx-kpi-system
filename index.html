@@ -7850,7 +7850,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     });
     if(typeof window.renderAdminDMX==='function' && !window.__dmxGovRenderAdminWrapped){
       window.__dmxGovRenderAdminWrapped=true; const old=window.renderAdminDMX;
-      window.renderAdminDMX=async function(){ if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; } const r=await old.apply(this,arguments); setTimeout(dmxRenderGovernanceStatus,80); return r; };
+      window.renderAdminDMX=async function(){
+        const u=session()||{};
+        const p=norm(u.perfil||u.permissao||u.perfilApi||u.cargo||'');
+        const adminOk = p==='admin'||p==='administrador'||p==='admin';
+        if(!adminOk){ alert('Acesso restrito ao Administrador.'); return; }
+        const r=await old.apply(this,arguments); setTimeout(dmxRenderGovernanceStatus,80); return r;
+      };
     }
   }
   function tick(){ patchFunctions(); applyVisibility(); }
@@ -14456,7 +14462,387 @@ setTimeout(()=>{
 })();
 </script>
 
-<!-- PATCH v17 — Projeção semanal por peso de etapa (dias úteis automático) -->
+<!-- PATCH v86 — Configurações sincronizadas com Google Sheets -->
+<script>
+(function(){
+  if(window.__dmxConfigSyncV86) return;
+  window.__dmxConfigSyncV86 = true;
+
+  // ── Utilitários ────────────────────────────────────────────────────────────
+  function apiUrl(){ return (typeof dmxGetApiUrl==='function' ? dmxGetApiUrl() : window.DMX_API_URL || '').trim(); }
+
+  function apiGet(tipo){
+    return new Promise((resolve, reject)=>{
+      const url = apiUrl();
+      if(!url){ reject(new Error('API não configurada')); return; }
+      const cb = 'dmxCfg' + tipo.replace(/\W/g,'') + '_' + Date.now();
+      const full = url.replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'') +
+                   (url.includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo) +
+                   '&callback=' + cb + '&t=' + Date.now();
+      const timer = setTimeout(()=>{ delete window[cb]; reject(new Error('Timeout')); }, 15000);
+      window[cb] = (data)=>{ clearTimeout(timer); delete window[cb]; resolve(data); };
+      const s = document.createElement('script'); s.src = full;
+      s.onerror = ()=>{ clearTimeout(timer); delete window[cb]; reject(new Error('JSONP erro')); };
+      document.head.appendChild(s); setTimeout(()=>{ try{ document.head.removeChild(s); }catch(e){} }, 16000);
+    });
+  }
+
+  async function apiPost(tipo, payload){
+    if(typeof dmxApiPost === 'function') return dmxApiPost(tipo, payload);
+    const url = apiUrl(); if(!url) return {ok:false};
+    const r = await fetch(url + (url.includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo), {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:tipo, tipo, payload}), cache:'no-store'
+    });
+    return r.json().catch(()=>({ok:true}));
+  }
+
+  function now(){ return new Date().toISOString(); }
+  function uid(){ return Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+
+  // ── Cache local (fallback quando offline) ──────────────────────────────────
+  const LS = {
+    get: (k)=>{ try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } },
+    set: (k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  };
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 1. CONFIG PPR
+  // ════════════════════════════════════════════════════════════════════════════
+  const PPR_LS = 'dmx_ppr_config_v1';
+
+  async function loadPPRFromSheets(){
+    try{
+      const r = await apiGet('config_ppr');
+      if(!r || !r.ok) return null;
+      const rows = r.data || r.rows || [];
+      // Reconstrói objeto cfg a partir das linhas (kpi1..3, pesos, pesoArea)
+      const cfg = {};
+      rows.filter(x=>x.ativo!==false&&x.ativo!=='false').forEach(x=>{
+        if(x.kpi_id && x.area === '__global__'){
+          const idx = x.mes_ref; // usamos mes_ref como slot: 'kpi1','kpi2','kpi3','pesoArea'
+          if(idx) cfg[idx] = x.peso !== undefined ? x.peso : x.kpi_id;
+        }
+      });
+      // Formato legado: {kpi1,peso1,kpi2,peso2,kpi3,peso3,pesoArea}
+      // Linhas com mes_ref = 'kpi1','kpi2','kpi3','pesoArea'
+      // e kpi_id = id do kpi, peso = valor
+      const legacy = {};
+      rows.filter(x=>x.ativo!==false&&x.ativo!=='false'&&x.area==='__global__').forEach(x=>{
+        const slot = String(x.mes_ref||'');
+        if(slot.startsWith('kpi')) legacy[slot] = x.kpi_id;
+        if(slot.startsWith('peso') || slot==='pesoArea') legacy[slot] = Number(x.peso||0);
+      });
+      if(Object.keys(legacy).length){
+        LS.set(PPR_LS, legacy);
+        return legacy;
+      }
+      return null;
+    }catch(e){ console.warn('PPR load from Sheets failed:', e); return null; }
+  }
+
+  async function savePPRToSheets(cfg){
+    // Serializa cfg como linhas: uma por slot
+    const rows = [
+      {id:uid(), mes_ref:'kpi1',    area:'__global__', kpi_id:cfg.kpi1||'',    peso:cfg.peso1||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'peso1',   area:'__global__', kpi_id:cfg.kpi1||'',    peso:cfg.peso1||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'kpi2',    area:'__global__', kpi_id:cfg.kpi2||'',    peso:cfg.peso2||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'peso2',   area:'__global__', kpi_id:cfg.kpi2||'',    peso:cfg.peso2||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'kpi3',    area:'__global__', kpi_id:cfg.kpi3||'',    peso:cfg.peso3||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'peso3',   area:'__global__', kpi_id:cfg.kpi3||'',    peso:cfg.peso3||0,    ativo:true, criado_em:now()},
+      {id:uid(), mes_ref:'pesoArea',area:'__global__', kpi_id:'__area__',       peso:cfg.pesoArea||0, ativo:true, criado_em:now()},
+    ];
+    return apiPost('salvarConfigPPR', {rows});
+  }
+
+  // Intercepta todas as funções que salvam PPR config
+  function patchPPRSave(){
+    // Patch setPprCfg (aba PPR original, linha ~9946)
+    const origSetPpr = window.setPprCfg;
+    if(typeof origSetPpr==='function' && !origSetPpr.__v86){
+      window.setPprCfg = function(cfg){
+        origSetPpr(cfg);
+        savePPRToSheets(cfg).catch(e=>console.warn('PPR save to Sheets failed:',e));
+      };
+      window.setPprCfg.__v86 = true;
+    }
+    // Patch setPPRCfg (admin v16, linha ~14177)
+    const origSetPPR2 = window.setPPRCfg;
+    if(typeof origSetPPR2==='function' && !origSetPPR2.__v86){
+      window.setPPRCfg = function(cfg){
+        origSetPPR2(cfg);
+        savePPRToSheets(cfg).catch(e=>console.warn('PPR save to Sheets failed:',e));
+      };
+      window.setPPRCfg.__v86 = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 2. COMPARTILHAMENTOS DE KPI
+  // ════════════════════════════════════════════════════════════════════════════
+  const SHARE_LS = 'dmx_meta_compartilhada_v1';
+
+  async function loadSharesFromSheets(){
+    try{
+      const r = await apiGet('compartilhamentos_kpi');
+      if(!r || !r.ok) return null;
+      const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      if(!rows.length) return null;
+      // Reconstrói formato {kpiId: {meta_areas:[], controle_areas:[]}}
+      const shares = {};
+      rows.forEach(x=>{
+        if(!x.kpi_id) return;
+        if(!shares[x.kpi_id]) shares[x.kpi_id] = {meta_areas:[], controle_areas:[]};
+        if(x.area_destino) shares[x.kpi_id].meta_areas.push(x.area_destino);
+      });
+      LS.set(SHARE_LS, shares);
+      return shares;
+    }catch(e){ console.warn('Shares load from Sheets failed:', e); return null; }
+  }
+
+  async function saveShareToSheets(kpiId, data){
+    const rows = (data.meta_areas||[]).map(area=>({
+      id: uid(), kpi_id: kpiId, area_origem: (window.kpis||[]).find(k=>k.id===kpiId)?.area||'',
+      area_destino: area, ativo: true, criado_em: now()
+    }));
+    // Inclui todas as linhas de todos os KPIs compartilhados (substitui aba inteira)
+    const all = LS.get(SHARE_LS) || {};
+    all[kpiId] = data;
+    const allRows = [];
+    Object.entries(all).forEach(([id, d])=>{
+      (d.meta_areas||[]).forEach(area=>{
+        allRows.push({id:uid(), kpi_id:id,
+          area_origem:(window.kpis||[]).find(k=>k.id===id)?.area||'',
+          area_destino:area, ativo:true, criado_em:now()});
+      });
+    });
+    return apiPost('salvarCompartilhamentosKPI', {rows: allRows});
+  }
+
+  function patchSharesSave(){
+    const origSave = window.dmxSaveShares;
+    if(typeof origSave==='function' && !origSave.__v86){
+      window.dmxSaveShares = function(s){
+        origSave(s);
+        // Salva tudo no Sheets
+        const allRows = [];
+        Object.entries(s||{}).forEach(([id, d])=>{
+          (d.meta_areas||[]).forEach(area=>{
+            allRows.push({id:uid(), kpi_id:id,
+              area_origem:(window.kpis||[]).find(k=>k.id===id)?.area||'',
+              area_destino:area, ativo:true, criado_em:now()});
+          });
+        });
+        apiPost('salvarCompartilhamentosKPI', {rows:allRows})
+          .catch(e=>console.warn('Shares save to Sheets failed:',e));
+      };
+      window.dmxSaveShares.__v86 = true;
+    }
+    const origShareSave = window.dmxShareSave;
+    if(typeof origShareSave==='function' && !origShareSave.__v86){
+      window.dmxShareSave = function(id, data){
+        origShareSave(id, data);
+        saveShareToSheets(id, data).catch(e=>console.warn('Share save failed:',e));
+      };
+      window.dmxShareSave.__v86 = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 3. PESOS DO ÍNDICE
+  // ════════════════════════════════════════════════════════════════════════════
+  const PESO_LS = 'dmx_indice_pesos_v12';
+
+  async function loadPesosIndiceFromSheets(){
+    try{
+      const r = await apiGet('pesos_indice');
+      if(!r || !r.ok) return null;
+      const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      if(!rows.length) return null;
+      const pesos = {};
+      rows.forEach(x=>{ if(x.kpi_id) pesos[x.kpi_id] = Number(x.peso||0); });
+      LS.set(PESO_LS, pesos);
+      return pesos;
+    }catch(e){ console.warn('Pesos indice load from Sheets failed:', e); return null; }
+  }
+
+  async function savePesosIndiceToSheets(pesos){
+    const rows = Object.entries(pesos||{}).map(([kpiId, peso])=>({
+      id: uid(), area: (window.kpis||[]).find(k=>k.id===kpiId)?.area||'',
+      kpi_id: kpiId, peso: Number(peso||0), ativo: true, atualizado_em: now()
+    }));
+    return apiPost('salvarPesosIndice', {rows});
+  }
+
+  function patchPesosIndiceSave(){
+    const orig = window.dmxSetPesoIndice;
+    if(typeof orig==='function' && !orig.__v86){
+      window.dmxSetPesoIndice = function(id, v){
+        orig(id, v);
+        // Após salvar no localStorage, sincroniza tudo para o Sheets
+        setTimeout(()=>{
+          const pesos = LS.get(PESO_LS) || {};
+          savePesosIndiceToSheets(pesos).catch(e=>console.warn('Pesos indice save failed:',e));
+        }, 300);
+      };
+      window.dmxSetPesoIndice.__v86 = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 4. PESOS DE ETAPA SEMANAL
+  // ════════════════════════════════════════════════════════════════════════════
+  const ETAPA_LS = 'dmx_weekly_etapa_pesos_v1';
+
+  async function loadPesosEtapaFromSheets(){
+    try{
+      const r = await apiGet('pesos_etapas');
+      if(!r || !r.ok) return null;
+      const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      if(!rows.length) return null;
+      // Agrupa por mes_ref e área
+      const cfg = {};
+      rows.forEach(x=>{
+        const key = String(x.mes_ref||'__global__');
+        if(!cfg[key]) cfg[key] = {pesos:[]};
+        cfg[key].pesos[Number(x.etapa||1)-1] = Number(x.peso||0);
+      });
+      // Converte para formato do sistema: {__global__:{pesos:[...]}, area_mes:{pesos:[...]}}
+      const result = {};
+      Object.entries(cfg).forEach(([key, val])=>{ result[key] = val; });
+      LS.set(ETAPA_LS, result);
+      return result;
+    }catch(e){ console.warn('Pesos etapa load from Sheets failed:', e); return null; }
+  }
+
+  async function savePesosEtapaToSheets(cfg){
+    const rows = [];
+    Object.entries(cfg||{}).forEach(([key, val])=>{
+      (val.pesos||[]).forEach((peso, i)=>{
+        rows.push({id:uid(), mes_ref:key, etapa:i+1, peso:Number(peso||0), dias:0, ativo:true});
+      });
+    });
+    return apiPost('salvarPesosEtapas', {rows});
+  }
+
+  function patchPesosEtapaSave(){
+    const origSalvar = window.dmxSalvarEtapaPesos;
+    if(typeof origSalvar==='function' && !origSalvar.__v86){
+      window.dmxSalvarEtapaPesos = function(){
+        origSalvar();
+        setTimeout(()=>{
+          const cfg = LS.get(ETAPA_LS) || {};
+          savePesosEtapaToSheets(cfg).catch(e=>console.warn('Pesos etapa save failed:',e));
+        }, 300);
+      };
+      window.dmxSalvarEtapaPesos.__v86 = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 5. KPIs EXTRAS POR MÊS
+  // ════════════════════════════════════════════════════════════════════════════
+  async function loadKpisExtrasFromSheets(){
+    try{
+      const r = await apiGet('kpis_extras');
+      if(!r || !r.ok) return null;
+      const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      if(!rows.length) return null;
+      // Reconstrói localStorage por chave dmx_weekly_extra_{area}_{ano}_{mes}
+      const byKey = {};
+      rows.forEach(x=>{
+        const key = 'dmx_weekly_extra_' + String(x.area||'').replace(/\s/g,'_') + '_' + String(x.mes_ref||'').replace('-','_');
+        if(!byKey[key]) byKey[key] = [];
+        if(x.kpi_id) byKey[key].push(x.kpi_id);
+      });
+      Object.entries(byKey).forEach(([k,v])=>LS.set(k,v));
+      return byKey;
+    }catch(e){ console.warn('KPIs extras load from Sheets failed:', e); return null; }
+  }
+
+  async function saveKpisExtrasToSheets(){
+    // Coleta todas as chaves dmx_weekly_extra_*
+    const rows = [];
+    try{
+      for(let i=0; i<localStorage.length; i++){
+        const key = localStorage.key(i);
+        if(!key || !key.startsWith('dmx_weekly_extra_')) continue;
+        // Extrai area_ano_mes da chave
+        const parts = key.replace('dmx_weekly_extra_','').split('_');
+        const ano = parts[parts.length-2];
+        const mes = parts[parts.length-1];
+        const area = parts.slice(0, parts.length-2).join(' ');
+        const ids = LS.get(key) || [];
+        ids.forEach(kpiId=>{
+          rows.push({id:uid(), mes_ref:`${ano}-${mes}`, area, kpi_id:kpiId, ativo:true, criado_em:now()});
+        });
+      }
+    }catch(e){}
+    return apiPost('salvarKPIsExtras', {rows});
+  }
+
+  function patchKpisExtrasSave(){
+    const origSalvar = window.saveWeeklyExtraFromModal;
+    if(typeof origSalvar==='function' && !origSalvar.__v86){
+      window.saveWeeklyExtraFromModal = function(clear){
+        origSalvar(clear);
+        setTimeout(()=>saveKpisExtrasToSheets().catch(e=>console.warn('KPIs extras save failed:',e)), 300);
+      };
+      window.saveWeeklyExtraFromModal.__v86 = true;
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // INICIALIZAÇÃO — carrega do Sheets e aplica ao localStorage
+  // ════════════════════════════════════════════════════════════════════════════
+  async function syncAllFromSheets(){
+    if(!apiUrl()){ console.warn('v86: API não configurada, usando localStorage'); return; }
+
+    const [ppr, shares, pesosIndice, pesosEtapa, extras] = await Promise.allSettled([
+      loadPPRFromSheets(),
+      loadSharesFromSheets(),
+      loadPesosIndiceFromSheets(),
+      loadPesosEtapaFromSheets(),
+      loadKpisExtrasFromSheets(),
+    ]);
+
+    // Re-renderiza páginas abertas após sincronização
+    setTimeout(()=>{
+      try{
+        if(typeof renderPPR==='function' && document.getElementById('page-ppr')?.classList.contains('active')) renderPPR();
+        if(typeof renderIndice==='function' && document.getElementById('page-indice')?.classList.contains('active')) renderIndice();
+        if(typeof renderWeeklyOperational==='function' && document.getElementById('page-semanal')?.classList.contains('active')) renderWeeklyOperational();
+      }catch(e){}
+    }, 200);
+
+    const ok = [ppr,shares,pesosIndice,pesosEtapa,extras].filter(r=>r.status==='fulfilled'&&r.value).length;
+    if(ok > 0) console.log(`v86: ${ok}/5 configs sincronizadas do Sheets`);
+  }
+
+  // Aplica patches de salvamento
+  function applyAllPatches(){
+    patchPPRSave();
+    patchSharesSave();
+    patchPesosIndiceSave();
+    patchPesosEtapaSave();
+    patchKpisExtrasSave();
+  }
+
+  // Bootstrap
+  [300, 1200, 3000].forEach(ms => setTimeout(applyAllPatches, ms));
+
+  // Sincroniza do Sheets na abertura (aguarda API estar pronta)
+  setTimeout(syncAllFromSheets, 1500);
+
+  // Expõe para uso externo (botão de sync manual se necessário)
+  window.dmxSyncConfigFromSheets = syncAllFromSheets;
+
+})();
+</script>
+
+</body>
+</html>
+
 <script>
 (function(){
   if(window.__dmxWeeklyProjV17) return;
