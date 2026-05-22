@@ -6036,8 +6036,8 @@ window.buildShareSection = function(kpiId){
 // ── Unified dmxSetPesoIndice — always writes to both storage keys ────────────
 (function patchUnifiedPeso(){
   function doIt(){
-    if(window.__dmxPesoUnified) return;
-    window.__dmxPesoUnified = true;
+    if(window.__dmxPesoUnifiedV2) return;
+    window.__dmxPesoUnifiedV2 = true;
     window.dmxSetPesoIndice = function(id, val){
       const v = Number(String(val||0).replace(',','.'));
       // Salva em ambas as chaves do localStorage
@@ -6859,7 +6859,10 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
     if(r.ok) toast('✓ Configuração administrativa salva');
   };
 
-  window.renderAdminDMX = async function(force=false){
+  // Guard: evita execuções simultâneas (causa da instabilidade)
+  let _adminRenderBusy = false;
+  let _adminRenderQueued = false;
+  const _origRenderAdmin = async function(force=false){
     const host = document.getElementById('admin-root');
     if(!host) return;
     host.innerHTML = '<div class="block-card"><div class="section-title">Carregando administração...</div><div class="text-muted text-sm mt-2">Lendo Permissões, Config_Sistema e diagnóstico da conexão.</div></div>';
@@ -6930,6 +6933,22 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
           ${perms.length ? perms.map(p=>`<tr><td>${esc(p.email||p.usuario||'')}</td><td>${esc(p.perfil||'')}</td><td>${esc(p.cargo||'—')}</td><td>${esc(p.area||'Todas')}</td><td>${esc(p.ativo||'SIM')}</td><td><button class="btn btn-danger btn-sm" onclick="dmxDisablePermissao('${esc(p.email||p.usuario||'')}')">Desativar</button></td></tr>`).join('') : '<tr><td colspan="6" class="text-muted">Nenhuma permissão cadastrada.</td></tr>'}
         </tbody></table></div>
       </div>`;
+  };
+
+  // Wrapper com guard: evita execuções simultâneas (causa da instabilidade)
+  window.renderAdminDMX = async function(force=false){
+    if(_adminRenderBusy){
+      _adminRenderQueued = true;
+      return;
+    }
+    _adminRenderBusy = true;
+    try{ await _origRenderAdmin(force); }finally{
+      _adminRenderBusy = false;
+      if(_adminRenderQueued){
+        _adminRenderQueued = false;
+        setTimeout(()=>window.renderAdminDMX(false), 100);
+      }
+    }
   };
 
   function installAdminPage(){
@@ -14810,18 +14829,8 @@ setTimeout(()=>{
   }
 
   function patchPesosIndiceSave(){
-    const orig = window.dmxSetPesoIndice;
-    if(typeof orig==='function' && !orig.__v86){
-      window.dmxSetPesoIndice = function(id, v){
-        orig(id, v);
-        // Após salvar no localStorage, sincroniza tudo para o Sheets
-        setTimeout(()=>{
-          const pesos = LS.get(PESO_LS) || {};
-          savePesosIndiceToSheets(pesos).catch(e=>console.warn('Pesos indice save failed:',e));
-        }, 300);
-      };
-      window.dmxSetPesoIndice.__v86 = true;
-    }
+    // Já tratado pelo patchUnifiedPeso (linha ~6037) que grava em localStorage + Sheets
+    // Este patch v86 não precisa sobrescrever novamente
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -15295,6 +15304,27 @@ setTimeout(()=>{
 
   // Execução única — múltiplos timeouts causavam re-renders em cascata
   setTimeout(()=>{ patchProjections(); patchAdmin(); }, 600);
+
+  // ── Guard final: instalado após todos os wrappers ────────────────────────
+  // Evita que múltiplas chamadas simultâneas causem instabilidade no Admin
+  setTimeout(()=>{
+    const orig = window.renderAdminDMX;
+    if(typeof orig !== 'function' || orig.__dmxGuarded) return;
+    let _busy = false, _queued = false;
+    window.renderAdminDMX = async function(){
+      if(_busy){ _queued = true; return; }
+      _busy = true;
+      try{ await orig.apply(this, arguments); }
+      finally{
+        _busy = false;
+        if(_queued){ _queued = false; setTimeout(()=>window.renderAdminDMX(), 200); }
+      }
+    };
+    window.renderAdminDMX.__dmxGuarded = true;
+    // Preserva flags para compatibilidade
+    Object.assign(window.renderAdminDMX, orig);
+    window.renderAdminDMX.__dmxGuarded = true;
+  }, 2500);
 
 })();
 </script>
