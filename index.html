@@ -5851,7 +5851,7 @@ window.dmxShareToggleArea = function(kpiId, tipo, area, checked){
   }
   dmxShareSave(kpiId, sh);
   if(typeof showToast==='function') showToast('✓ Compartilhamento salvo');
-  setTimeout(()=>{ if(typeof openKPIModal==='function') openKPIModal(kpiId); }, 50);
+  // sem reopen modal — atualização instantânea via DOM
 };
 
 // ── Set responsável ──────────────────────────────────────────────────────────
@@ -7072,7 +7072,7 @@ window.dmxShareToggleArea = async function(kpiId, tipo, area, checked){
     else { delete sh.controle_areas[area]; }
   }
   await persistKpiShare(kpi, sh);
-  setTimeout(()=>{ if(typeof openKPIModal==='function') openKPIModal(kpiId); }, 120);
+  // sem reopen modal — atualização instantânea via DOM
 };
 window.dmxShareSetResp = async function(kpiId, area){
   const kpi=getKpi(kpiId); if(!kpi) return;
@@ -10336,7 +10336,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         : '<span style="font-size:11px;color:var(--muted)">—</span>';
       return '<tr style="border-bottom:1px solid #F0F2F8">'+
         '<td style="padding:7px 10px;font-size:12px;font-weight:'+(isOwn?'700':'400')+'">'+a+badge+'</td>'+ 
-        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isMeta?'checked':'')+(isOwn||!dmxIsAdminSession486?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--teal)'+(isOwn||!dmxIsAdminSession486?';opacity:.45':'')+'" '+(!isOwn&&dmxIsAdminSession486?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'meta\',\''+a+'\',this.checked)"':'')+'></td>'+ 
+        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isMeta?'checked':'')+(isOwn||!dmxIsAdminSession486()?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--teal)'+(isOwn||!dmxIsAdminSession486()?';opacity:.45':'')+'" title="'+(isOwn?'Área dona':!dmxIsAdminSession486()?'Restrito ao Administrador':'')+'" '+(!isOwn&&dmxIsAdminSession486()?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'meta\',\''+a+'\',this.checked)"':'')+'></td>'+ 
         '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isControle?'checked':'')+(isOwn?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--amber)" '+(!isOwn?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'controle\',\''+a+'\',this.checked)"':'')+'></td>'+ 
         '<td style="padding:7px 10px;text-align:center">'+pesoInput+'</td>'+ 
         '<td style="padding:7px 10px">'+(isMeta?'<span class="status-pill VERDE" style="font-size:9px">Meta / calcula índice</span>':isControle?'<span class="status-pill AMARELO" style="font-size:9px">Controle</span>':'<span style="color:var(--muted);font-size:11px">Não compartilhado</span>')+'</td>'+ 
