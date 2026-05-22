@@ -5809,7 +5809,23 @@ function confirmWeeklyImport(){
 // ── Storage ─────────────────────────────────────────────────────────────────
 const DMX_SHARE_KEY = 'dmx_meta_compartilhada_v1';
 function dmxLoadShares(){ try { return JSON.parse(localStorage.getItem(DMX_SHARE_KEY)||'{}')||{}; } catch(e){ return {}; } }
-function dmxSaveShares(s){ localStorage.setItem(DMX_SHARE_KEY, JSON.stringify(s)); }
+function dmxSaveShares(s){
+  localStorage.setItem(DMX_SHARE_KEY, JSON.stringify(s));
+  // Sincroniza com Sheets
+  const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
+  if(typeof _api==='function'){
+    const now = new Date().toISOString();
+    const rows = [];
+    Object.entries(s||{}).forEach(([id,d])=>{
+      (d.meta_areas||[]).forEach(area=>rows.push({
+        id:Date.now()+'_'+Math.random().toString(36).slice(2,5),
+        kpi_id:id, area_origem:(window.kpis||[]).find(k=>k.id===id)?.area||'',
+        area_destino:area, ativo:true, criado_em:now
+      }));
+    });
+    _api('salvarCompartilhamentosKPI',{rows}).catch(e=>console.warn('Shares→Sheets failed:',e));
+  }
+}
 function dmxShareGet(id){
   const s = dmxLoadShares();
   if(!s[id]) s[id] = { responsavel:'', meta_areas:[], controle_areas:{}, pesos:{} };
@@ -6018,9 +6034,21 @@ window.buildShareSection = function(kpiId){
     window.__dmxPesoUnified = true;
     window.dmxSetPesoIndice = function(id, val){
       const v = Number(String(val||0).replace(',','.'));
+      // Salva em ambas as chaves do localStorage
+      const pesos = {};
       ['dmx_indice_pesos_v12','dmx_pesos_indice_v1'].forEach(k=>{
-        try { const o=JSON.parse(localStorage.getItem(k)||'{}'); o[id]=v; localStorage.setItem(k,JSON.stringify(o)); } catch(e){}
+        try { const o=JSON.parse(localStorage.getItem(k)||'{}'); o[id]=v; localStorage.setItem(k,JSON.stringify(o)); Object.assign(pesos,o); } catch(e){}
       });
+      // Sincroniza com Sheets
+      const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
+      if(typeof _api==='function'){
+        const now = new Date().toISOString();
+        const rows = Object.entries(pesos).map(([kpiId,peso])=>({
+          id: kpiId+'_peso', area: (window.kpis||[]).find(k=>k.id===kpiId)?.area||'',
+          kpi_id: kpiId, peso: Number(peso||0), ativo: true, atualizado_em: now
+        }));
+        _api('salvarPesosIndice',{rows}).catch(e=>console.warn('Pesos índice→Sheets failed:',e));
+      }
       if(typeof showToast==='function') showToast('✓ Peso salvo: '+v.toFixed(2)+'%');
       if(typeof renderIndice==='function' && window.currentPage==='indice') setTimeout(renderIndice,50);
     };
@@ -14423,12 +14451,28 @@ setTimeout(()=>{
       peso3:   Number(dmxNumBR(document.getElementById('ppr-adm-p3')?.value)||0),
       pesoArea:Number(dmxNumBR(document.getElementById('ppr-adm-parea')?.value)||0),
     };
-    setPPRCfg(cfg);
-    if(typeof showToast==='function') showToast('✓ Configuração PPR salva');
-    // Atualiza aba PPR se estiver aberta
-    if(document.getElementById('page-ppr')?.classList.contains('active') && typeof renderPPR==='function'){
-      renderPPR();
+    // Salva no localStorage diretamente (setPPRCfg é local ao IIFE)
+    try{ localStorage.setItem('dmx_ppr_config_v1', JSON.stringify(cfg)); }catch(_){}
+    // Salva no Sheets diretamente
+    const _now = ()=>new Date().toISOString();
+    const _uid = ()=>Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    const rows = [
+      {id:_uid(), mes_ref:'kpi1',    area:'__global__', kpi_id:cfg.kpi1,    peso:cfg.peso1,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'peso1',   area:'__global__', kpi_id:cfg.kpi1,    peso:cfg.peso1,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'kpi2',    area:'__global__', kpi_id:cfg.kpi2,    peso:cfg.peso2,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'peso2',   area:'__global__', kpi_id:cfg.kpi2,    peso:cfg.peso2,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'kpi3',    area:'__global__', kpi_id:cfg.kpi3,    peso:cfg.peso3,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'peso3',   area:'__global__', kpi_id:cfg.kpi3,    peso:cfg.peso3,    ativo:true, criado_em:_now()},
+      {id:_uid(), mes_ref:'pesoArea',area:'__global__', kpi_id:'__area__',  peso:cfg.pesoArea, ativo:true, criado_em:_now()},
+    ];
+    const _apiPost = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
+    if(typeof _apiPost==='function'){
+      _apiPost('salvarConfigPPR', {rows})
+        .then(r=>{ if(r&&r.ok) console.log('✓ Config PPR salva no Sheets'); else console.warn('PPR Sheets resp:', r); })
+        .catch(e=>console.warn('PPR save to Sheets failed:', e));
     }
+    if(typeof showToast==='function') showToast('✓ Configuração PPR salva');
+    if(document.getElementById('page-ppr')?.classList.contains('active') && typeof renderPPR==='function') renderPPR();
   };
 
   // ── Injeta painel PPR na aba Admin via wrap de renderAdminDMX ──────────────
@@ -14594,6 +14638,8 @@ setTimeout(()=>{
       const r = await apiGet('compartilhamentos_kpi');
       if(!r || !r.ok) return null;
       const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      // Compartilhamentos vêm do campo 'compartilhar' do Cadastro_KPIs via window.kpis
+      // A aba Compartilhamentos_KPI é complementar — não sobrescreve se vazia
       if(!rows.length) return null;
       // Reconstrói formato {kpiId: {meta_areas:[], controle_areas:[]}}
       const shares = {};
@@ -14665,11 +14711,15 @@ setTimeout(()=>{
       const r = await apiGet('pesos_indice');
       if(!r || !r.ok) return null;
       const rows = (r.data||r.rows||[]).filter(x=>x.ativo!==false&&x.ativo!=='false');
+      // Só sobrescreve localStorage se Sheets tiver dados reais
       if(!rows.length) return null;
       const pesos = {};
       rows.forEach(x=>{ if(x.kpi_id) pesos[x.kpi_id] = Number(x.peso||0); });
-      LS.set(PESO_LS, pesos);
-      return pesos;
+      // Mescla com localStorage existente (Sheets tem prioridade)
+      const local = LS.get(PESO_LS) || {};
+      const merged = Object.assign({}, local, pesos);
+      LS.set(PESO_LS, merged);
+      return merged;
     }catch(e){ console.warn('Pesos indice load from Sheets failed:', e); return null; }
   }
 
@@ -15120,6 +15170,14 @@ setTimeout(()=>{
       cfg[area]={pesos:ids.map(id=>Number(String(document.getElementById(id)?.value||'0').replace(',','.'))/100)};
     }
     saveCfg(cfg);
+    // Sincroniza com Sheets
+    const _api=typeof dmxApiPost==='function'?dmxApiPost:window.dmxApiPost;
+    if(typeof _api==='function'){
+      const rows=[];Object.entries(cfg||{}).forEach(([key,val])=>{
+        (val.pesos||[]).forEach((peso,i)=>rows.push({id:Date.now()+'_'+i,mes_ref:key,etapa:i+1,peso:Number(peso||0),dias:0,ativo:true}));
+      });
+      _api('salvarPesosEtapas',{rows}).catch(e=>console.warn('Etapas→Sheets failed:',e));
+    }
     const ok=document.getElementById('etapa-saved-ok');
     if(ok){ok.style.display='inline';setTimeout(()=>ok.style.display='none',2000);}
     if(typeof showToast==='function') showToast('✓ Pesos das etapas salvos');
