@@ -10315,6 +10315,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     });
     // Persiste no Sheets em segundo plano
     persistShare486(kpi, sh, true);
+  };
   window.dmxShareSetResp = async function(kpiId, area){
     const kpi=getKpi486(kpiId); if(!kpi) return;
     const sh=parseCompartilhar486(kpi); sh.responsavel=area; await persistShare486(kpi, sh, false);
