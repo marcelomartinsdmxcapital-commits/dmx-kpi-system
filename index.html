@@ -6996,17 +6996,42 @@ function parseCompartilhar(kpi){
   const tokens = splitAreas(raw);
   const metaTokens=[];
   const controle={};
+  const pesos={};
   tokens.forEach(t=>{
-    const m = t.match(/^(controle|control|c)\s*:\s*(.+)$/i);
-    if(m){ expandTokenList([m[2]], own).forEach(a=>controle[a]=true); }
-    else metaTokens.push(t);
+    // Formato: Controle:Area
+    const mCtrl = t.match(/^(controle|control|c)\s*:\s*(.+)$/i);
+    if(mCtrl){
+      expandTokenList([mCtrl[2].split(':')[0].trim()], own).forEach(a=>controle[a]=true);
+      return;
+    }
+    // Formato: Meta:Area:peso ou Meta:Area
+    const mMeta = t.match(/^(meta|m)\s*:\s*([^:]+)(?::(\d+(?:\.\d+)?))?$/i);
+    if(mMeta){
+      const area = mMeta[2].trim();
+      const peso = mMeta[3] !== undefined ? Number(mMeta[3]) : 0;
+      expandTokenList([area], own).forEach(a=>{
+        metaTokens.push(a);
+        pesos[a] = peso;
+      });
+      return;
+    }
+    // Formato legado: apenas o nome da área (sem prefixo) = Meta
+    metaTokens.push(t);
   });
-  return { responsavel: norm(kpi && kpi.responsavel) || own, meta_areas: expandTokenList(metaTokens, own), controle_areas: controle, pesos: {} };
+  return {
+    responsavel: norm(kpi && kpi.responsavel) || own,
+    meta_areas: expandTokenList(metaTokens, own),
+    controle_areas: controle,
+    pesos
+  };
 }
 function serializeShare(kpi, sh){
   const own = norm(kpi && kpi.area);
-  const meta = uniq((sh.meta_areas||[]).filter(a=>!eq(a,own)));
-  const ctrl = uniq(Object.keys(sh.controle_areas||{}).filter(a=>!eq(a,own))).map(a=>'Controle:'+a);
+  const pesos = sh.pesos || {};
+  const meta = uniq((sh.meta_areas||[]).filter(a=>!eq(a,own)))
+    .map(a=>'Meta:'+a+':'+(Number(pesos[a]||0)));
+  const ctrl = uniq(Object.keys(sh.controle_areas||{}).filter(a=>!eq(a,own)))
+    .map(a=>'Controle:'+a);
   return [...meta, ...ctrl].join('/');
 }
 function getKpi(id){ const list = adminAllKpis(); return (typeof getKPI==='function' ? getKPI(id) : null) || list.find(k=>String(k.id)===String(id)) || null; }
@@ -10146,6 +10171,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     try{ if(typeof adminAllKpis==='function'){ const k=adminAllKpis().find(x=>String(x.id)===String(id)); if(k) return k; } }catch(e){}
     return (window.kpis||[]).find(k=>String(k.id)===String(id)) || null;
   }
+  // Verifica se sessão atual é admin (usado para restringir Meta no compartilhamento)
+  function dmxIsAdminSession486(){
+    try{
+      const s = JSON.parse(localStorage.getItem('dmx_session_v41')||'null');
+      if(!s) return false;
+      const p = String(s.perfil||s.permissao||s.perfilApi||'').toLowerCase();
+      return p==='admin'||p==='administrador';
+    }catch(e){ return false; }
+  }
+  window.dmxIsAdminSession486 = dmxIsAdminSession486;
   function splitTokens486(raw){
     return String(raw||'').split(/[\/;|\n]+/).map(x=>norm486(x)).filter(Boolean);
   }
@@ -10259,7 +10294,26 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       else delete sh.controle_areas[area];
     }
     await persistShare486(kpi, sh, true);
-    setTimeout(()=>{ try{ openKPIModal(kpiId); }catch(e){} },120);
+    // Atualiza a linha instantaneamente sem reabrir o modal
+    const isMeta=sh.meta_areas.some(a=>eq486(a,area));
+    const isControle=!!Object.keys(sh.controle_areas||{}).find(a=>eq486(a,area));
+    const peso=getPeso486(kpiId,area,(sh.pesos||{})[area]||0);
+    document.querySelectorAll('.dmx-share-section tbody tr').forEach(tr=>{
+      const tdArea=tr.querySelector('td:first-child');
+      if(!tdArea) return;
+      if(!eq486(tdArea.textContent.trim().split(' ')[0], area)) return;
+      const tdPeso=tr.querySelectorAll('td')[3];
+      if(tdPeso){
+        if(isMeta) tdPeso.innerHTML='<input class="edit-cell" type="number" min="0" max="100" step="0.01" value="'+peso.toFixed(2)+'" onchange="dmxShareSetPeso(\''+kpiId+'\',\''+area+'\',this.value)" style="width:78px"> %';
+        else tdPeso.innerHTML='<span style="font-size:11px;color:var(--muted)">—</span>';
+      }
+      const tdEfeito=tr.querySelectorAll('td')[4];
+      if(tdEfeito){
+        if(isMeta) tdEfeito.innerHTML='<span class="status-pill VERDE" style="font-size:9px">Meta / calcula índice</span>';
+        else if(isControle) tdEfeito.innerHTML='<span class="status-pill AMARELO" style="font-size:9px">Controle</span>';
+        else tdEfeito.innerHTML='<span style="color:var(--muted);font-size:11px">Não compartilhado</span>';
+      }
+    });
   };
   window.dmxShareSetResp = async function(kpiId, area){
     const kpi=getKpi486(kpiId); if(!kpi) return;
@@ -10282,7 +10336,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         : '<span style="font-size:11px;color:var(--muted)">—</span>';
       return '<tr style="border-bottom:1px solid #F0F2F8">'+
         '<td style="padding:7px 10px;font-size:12px;font-weight:'+(isOwn?'700':'400')+'">'+a+badge+'</td>'+ 
-        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isMeta?'checked':'')+(isOwn?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--teal)" '+(!isOwn?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'meta\',\''+a+'\',this.checked)"':'')+'></td>'+ 
+        '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isMeta?'checked':'')+(isOwn||!dmxIsAdminSession486?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--teal)'+(isOwn||!dmxIsAdminSession486?';opacity:.45':'')+'" '+(!isOwn&&dmxIsAdminSession486?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'meta\',\''+a+'\',this.checked)"':'')+'></td>'+ 
         '<td style="padding:7px 10px;text-align:center"><input type="checkbox" '+(isControle?'checked':'')+(isOwn?' disabled':'')+' style="width:15px;height:15px;accent-color:var(--amber)" '+(!isOwn?'onchange="dmxShareToggleArea(\''+kpiId+'\',\'controle\',\''+a+'\',this.checked)"':'')+'></td>'+ 
         '<td style="padding:7px 10px;text-align:center">'+pesoInput+'</td>'+ 
         '<td style="padding:7px 10px">'+(isMeta?'<span class="status-pill VERDE" style="font-size:9px">Meta / calcula índice</span>':isControle?'<span class="status-pill AMARELO" style="font-size:9px">Controle</span>':'<span style="color:var(--muted);font-size:11px">Não compartilhado</span>')+'</td>'+ 
