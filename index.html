@@ -10160,7 +10160,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const oldPeriod485 = window.onPeriodChange;
   if(typeof oldPeriod485==='function' && !window.__dmxV485PeriodWrapped){
     window.__dmxV485PeriodWrapped=true;
-    window.onPeriodChange=function(){ const r=oldPeriod485.apply(this,arguments); if(window.currentPage==='diretoria') window.dmxRenderDiretoria485(); if(window.currentPage==='ppr') window.renderPPR(); if(window.currentPage==='admin') refreshAdmin485(); return r; };
+    window.onPeriodChange=function(){ const r=oldPeriod485.apply(this,arguments); if(window.currentPage==='diretoria') window.dmxRenderDiretoria485(); if(window.currentPage==='ppr') window.renderPPR(); return r; };
   }
 
   function boot485(){ wrapNav485(); wrapKpiModal485(); ensurePprPage485(); ensureDiretoria485(); if(document.getElementById('page-admin')?.classList.contains('active')) refreshAdmin485(); if(document.getElementById('page-diretoria')?.classList.contains('active')) window.dmxRenderDiretoria485(); if(document.getElementById('page-ppr')?.classList.contains('active')) window.renderPPR(); }
@@ -13323,10 +13323,18 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const oldRenderCurrent = window.renderCurrentPage;
   if(typeof oldRenderCurrent === 'function' && !window.__dmxAdminLiteRenderGuardV70){
     window.__dmxAdminLiteRenderGuardV70 = true;
+    let _adminRenderDebounce = null;
     window.renderCurrentPage = function(){
       if(window.currentPage === 'admin'){
         if(adminEditing()) return;
-        return window.renderAdminDMX();
+        // Debounce: só re-renderiza Admin se não houve render nos últimos 2s
+        clearTimeout(_adminRenderDebounce);
+        _adminRenderDebounce = setTimeout(()=>{
+          // Só renderiza se admin-root estiver vazio (não re-renderiza se já tem conteúdo)
+          const host = document.getElementById('admin-root');
+          if(host && host.children.length < 2) return window.renderAdminDMX();
+        }, 2000);
+        return;
       }
       return oldRenderCurrent.apply(this, arguments);
     };
