@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v81.54 — 25/05/2026 -->
+<!-- DMX KPI System — v81.55 — 25/05/2026 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v81.54",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v81.55",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -6300,6 +6300,181 @@ window.buildShareSection = function(kpiId){
 
 <!-- PATCH v16 — Painel Financeiro fora de Áreas e fora do PPR -->
 <script>
+
+// ── Painel Financeiro v82 ─────────────────────────────────
+var _dmxFinCfgKey = 'dmx_painel_financeiro_config_v1';
+var _dmxFinTabs = ['Retorno', 'Risco', 'Eficiência'];
+var _dmxFinTab = 'Retorno';
+
+function dmxFinIsAdmin(){
+  try{
+    var s = JSON.parse(localStorage.getItem('dmx_session_v41')||'null');
+    return !!(s && ['admin','administrador'].includes(String(s.perfil||s.permissao||'').toLowerCase()));
+  }catch(e){ return false; }
+}
+function dmxFinLoadCfg(){ try{ return JSON.parse(localStorage.getItem(_dmxFinCfgKey)||'{}'); }catch(e){ return {}; } }
+function dmxFinSaveCfg(c){
+  localStorage.setItem(_dmxFinCfgKey, JSON.stringify(c));
+  var api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
+  if(typeof api === 'function'){
+    var rows = [];
+    _dmxFinTabs.forEach(function(v){
+      (c[v]||[]).forEach(function(id,i){
+        rows.push({id:id+'_'+v, vertente:v, kpi_id:id, ordem:i, ativo:true, criado_em:new Date().toISOString()});
+      });
+    });
+    api('salvarConfigPainelFinanceiro', {rows:rows}).catch(function(){});
+  }
+}
+function dmxFinEsc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dmxFinFmt(v,u){
+  if(v===null||v===undefined||v==='') return '—';
+  var n=Number(v); if(isNaN(n)) return String(v);
+  if(String(u||'').includes('%')) return n.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+  if(String(u||'').includes('R$')) return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+  return n.toLocaleString('pt-BR',{maximumFractionDigits:2});
+}
+function dmxFinGetLaunch(id){
+  try{
+    var m=window.currentMes||5, a=window.currentAno||2026;
+    if(typeof getLaunch==='function') return getLaunch(id,m,a);
+    return (window.LAUNCHES||window.launches||[]).find(function(l){
+      return String(l.id_kpi)===String(id) && Number(l.mes_num||l.mes)===m && Number(l.ano)===a;
+    })||null;
+  }catch(e){ return null; }
+}
+function dmxFinGetMeta(k){
+  try{
+    if(typeof resolveRef==='function'){
+      var r=resolveRef(k,window.currentMes||5,window.currentAno||2026);
+      return r.meta;
+    }
+    return k.meta||k.meta_padrao||null;
+  }catch(e){ return k.meta||null; }
+}
+function dmxFinCard(k){
+  var l=dmxFinGetLaunch(k.id), real=l?l.realizado:null, meta=dmxFinGetMeta(k);
+  var at=(real!==null&&real!==''&&meta!==null&&Number(meta)!==0&&meta!=='')?Math.round(Number(real)/Number(meta)*100):null;
+  var st=l?(l.status||'NA'):'NA';
+  var stC=st==='VERDE'?'var(--green)':st==='AMARELO'?'var(--amber)':st==='VERMELHO'?'var(--red)':'var(--muted)';
+  var stL=st==='VERDE'?'Verde':st==='AMARELO'?'Alerta':st==='VERMELHO'?'Crítico':'N/A';
+  var id=dmxFinEsc(k.id);
+  return [
+    '<div class="kpi-chart-card">',
+    '<div class="kpi-card-top"><div style="min-width:0;flex:1">',
+    '<div class="kpi-card-id">'+id+' &middot; '+dmxFinEsc(k.area)+'</div>',
+    '<div class="kpi-card-name">'+dmxFinEsc(k.indicador)+'</div>',
+    k.objetivo?'<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4"><b>Objetivo:</b> '+dmxFinEsc(k.objetivo)+'</div>':'',
+    k.formula?'<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> '+dmxFinEsc(k.formula)+'</div>':'',
+    '</div><div class="kpi-card-right"><span class="status-pill '+st+'">'+stL+'</span></div></div>',
+    '<div class="kpi-card-nums">',
+    '<div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div><div class="kpi-num-value" style="color:'+stC+'">'+dmxFinFmt(real,k.unidade)+'</div></div>',
+    '<div class="kpi-num-cell"><div class="kpi-num-label">Meta</div><div class="kpi-num-value">'+dmxFinFmt(meta,k.unidade)+'</div></div>',
+    '<div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+(at!==null?at+'%':'—')+'</div></div>',
+    '</div>',
+    '<div class="kpi-card-chart"><div style="height:110px"><canvas id="fc-'+id+'" width="400" height="110"></canvas></div></div>',
+    '<div class="kpi-card-footer" style="cursor:pointer" onclick="dmxFinOpenSlide(this)">Ver análise completa</div>',
+    '</div>'
+  ].join('');
+}
+function dmxFinOpenSlide(el){
+  var card=el.closest('.kpi-chart-card');
+  var idEl=card&&card.querySelector('.kpi-card-id');
+  if(!idEl)return;
+  var id=idEl.textContent.split('·')[0].trim();
+  if(typeof openKPISlide==='function') openKPISlide(id,0);
+}
+function dmxFinRenderTab(v){
+  var host=document.getElementById('fin-tab-content');
+  if(!host) return;
+  var cfg=dmxFinLoadCfg(), kpis=window.kpis||[];
+  var ids=cfg[v]||[];
+  var ks=ids.map(function(id){return kpis.find(function(k){return k.id===id;});}).filter(Boolean);
+  if(!ks.length){
+    var btnCfg=dmxFinIsAdmin()?'<br><br><button class="btn btn-primary" onclick="dmxFinEdit(''+v+'')">Configurar</button>':'';
+    host.innerHTML='<div style="color:var(--muted);padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">Nenhum indicador em <b>'+v+'</b>.'+btnCfg+'</div>';
+    return;
+  }
+  host.innerHTML='<div class="kpi-grid cols-2" style="margin-top:16px">'+ks.map(dmxFinCard).join('')+'</div>';
+  setTimeout(function(){
+    ks.forEach(function(k){
+      var canvas=document.getElementById('fc-'+k.id);
+      if(!canvas) return;
+      try{ if(typeof buildKPIChart==='function') buildKPIChart(k,canvas,110); }catch(e){}
+    });
+  },150);
+}
+function dmxFinRender(){
+  var host=document.getElementById('page-area-detail');
+  if(!host) return;
+  var cfg=dmxFinLoadCfg();
+  var meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var mes=meses[window.currentMes||5], ano=window.currentAno||2026;
+  var tabs=_dmxFinTabs.map(function(v){
+    var n=(cfg[v]||[]).length;
+    var active=v===_dmxFinTab?' active':'';
+    return '<div class="area-tab'+active+'" onclick="dmxFinSwitch(''+v+'')">'+v+' ('+n+')</div>';
+  }).join('');
+  var btnCfg=dmxFinIsAdmin()?'<button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="dmxFinEdit(''+_dmxFinTab+'')">Configurar</button>':'';
+  host.innerHTML=[
+    '<div class="pres-bar" style="display:flex;align-items:center;gap:12px;padding:14px 20px">',
+    '<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">Painel Financeiro</span>',
+    '<span style="font-size:12px;color:var(--muted)">'+mes+' '+ano+'</span>',
+    btnCfg,
+    '</div>',
+    '<div class="area-tabs" id="fin-tabs">'+tabs+'</div>',
+    '<div style="padding:16px 20px" id="fin-tab-content"></div>'
+  ].join('');
+  dmxFinRenderTab(_dmxFinTab);
+}
+function dmxFinSwitch(v){
+  _dmxFinTab=v;
+  document.querySelectorAll('#fin-tabs .area-tab').forEach(function(el){
+    el.classList.toggle('active', el.textContent.indexOf(v)>=0);
+  });
+  dmxFinRenderTab(v);
+}
+function dmxFinEdit(v){
+  if(!dmxFinIsAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
+  var kpis=window.kpis||[], cfg=dmxFinLoadCfg(), sel=cfg[v]||[];
+  var opts=kpis.map(function(k){
+    var chk=sel.includes(k.id)?'checked':'';
+    return '<label class="dfo" style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">'
+      +'<input type="checkbox" value="'+dmxFinEsc(k.id)+'" '+chk+' style="margin-top:3px;accent-color:var(--teal)">'
+      +'<div><div style="font-size:12px;font-weight:600">'+dmxFinEsc(k.id)+' · '+dmxFinEsc(k.indicador)+'</div>'
+      +'<div style="font-size:10px;color:var(--muted)">'+dmxFinEsc(k.area)+'</div></div></label>';
+  }).join('');
+  var m=document.getElementById('dmx-fin-modal')||document.createElement('div');
+  m.id='dmx-fin-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  var closeBtn='<button class="btn btn-ghost" onclick="document.getElementById('dmx-fin-modal').style.display='none'">Cancelar</button>';
+  var saveBtn='<button class="btn btn-primary" onclick="dmxFinSave(''+v+'')">Salvar</button>';
+  m.innerHTML='<div style="background:var(--bg);border-radius:12px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:20px 24px">'
+    +'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:8px">Configurar: '+v+'</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Selecione os KPIs para esta vertente.</div>'
+    +'<input id="dfo-search" type="text" placeholder="Buscar..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:8px;background:var(--bg2)">'
+    +'<div id="dfo-list" style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)">'+opts+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'+closeBtn+saveBtn+'</div>'
+    +'</div>';
+  if(!m.parentNode) document.body.appendChild(m);
+  m.style.display='flex';
+  m.onclick=function(e){if(e.target===m)m.style.display='none';};
+  document.getElementById('dfo-search').oninput=function(){
+    var q=this.value.toLowerCase();
+    document.querySelectorAll('#dfo-list .dfo').forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';});
+  };
+}
+function dmxFinSave(v){
+  var cfg=dmxFinLoadCfg();
+  cfg[v]=[].slice.call(document.querySelectorAll('#dmx-fin-modal input:checked')).map(function(c){return c.value;});
+  dmxFinSaveCfg(cfg);
+  document.getElementById('dmx-fin-modal').style.display='none';
+  _dmxFinTab=v;
+  dmxFinRender();
+}
+function dmxFinInit(){} // placeholder - functions defined above at top level
+// ── Fim Painel Financeiro v82 ─────────────────────────────
+
 (function(){
   const FIN_LABEL = 'Painel Financeiro';
   const FIN_ALIASES = ['CEO', FIN_LABEL];
@@ -6368,120 +6543,9 @@ window.buildShareSection = function(kpiId){
     try { currentPage = 'financeiro'; window.currentPage='financeiro'; } catch(e) {}
     try { window.currentArea = FIN_LABEL; currentArea = FIN_LABEL; } catch(e) {}
     const t=document.getElementById('topbar-title'); if(t) t.textContent='Painel Financeiro';
-    // Painel Financeiro v82 - instalado inline para garantir execução
-    if(!window._dmxFinV82){
-      window._dmxFinV82=true;
-      var _FC='dmx_painel_financeiro_config_v1';
-      var _FT=['Retorno','Risco','Eficiência'];
-      var _ft='Retorno';
-      function _fa(){try{var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null');return s&&['admin','administrador'].includes(String(s.perfil||s.permissao||'').toLowerCase());}catch(e){return false;}}
-      function _fc(){try{return JSON.parse(localStorage.getItem(_FC)||'{}');}catch(e){return{};}}
-      function _fs(c){localStorage.setItem(_FC,JSON.stringify(c));var a=typeof dmxApiPost==='function'?dmxApiPost:window.dmxApiPost;if(typeof a==='function'){var r=[];_FT.forEach(function(v){(c[v]||[]).forEach(function(id,i){r.push({id:id+'_'+v,vertente:v,kpi_id:id,ordem:i,ativo:true,criado_em:new Date().toISOString()});});});a('salvarConfigPainelFinanceiro',{rows:r}).catch(function(){});}}
-      function _fe(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-      function _ff(v,u){if(v===null||v===undefined||v==='')return '—';var n=Number(v);if(isNaN(n))return String(v);if(String(u||'').includes('%'))return n.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';if(String(u||'').includes('R$'))return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});return n.toLocaleString('pt-BR',{maximumFractionDigits:2});}
-      function _fl(id){try{var m=window.currentMes||5,a=window.currentAno||2026;if(typeof getLaunch==='function')return getLaunch(id,m,a);return(window.LAUNCHES||window.launches||[]).find(function(l){return String(l.id_kpi)===String(id)&&Number(l.mes_num||l.mes)===m&&Number(l.ano)===a;})||null;}catch(e){return null;}}
-      function _fm(k){try{if(typeof resolveRef==='function'){var r=resolveRef(k,window.currentMes||5,window.currentAno||2026);return r.meta;}return k.meta||k.meta_padrao||null;}catch(e){return k.meta||null;}}
-      function _fcard(k){
-        var l=_fl(k.id),real=l?l.realizado:null,meta=_fm(k);
-        var at=(real!==null&&real!==''&&meta!==null&&meta!==0&&meta!=='')?Math.round(Number(real)/Number(meta)*100):null;
-        var st=l?(l.status||'NA'):'NA';
-        var stC=st==='VERDE'?'var(--green)':st==='AMARELO'?'var(--amber)':st==='VERMELHO'?'var(--red)':'var(--muted)';
-        var stL=st==='VERDE'?'Verde':st==='AMARELO'?'Alerta':st==='VERMELHO'?'Crítico':'N/A';
-        return '<div class="kpi-chart-card">'
-          +'<div class="kpi-card-top"><div style="min-width:0;flex:1">'
-          +'<div class="kpi-card-id">'+_fe(k.id)+' &middot; '+_fe(k.area)+'</div>'
-          +'<div class="kpi-card-name">'+_fe(k.indicador)+'</div>'
-          +(k.objetivo?'<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4"><b>Objetivo:</b> '+_fe(k.objetivo)+'</div>':'')
-          +(k.formula?'<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> '+_fe(k.formula)+'</div>':'')
-          +'</div><div class="kpi-card-right"><span class="status-pill '+st+'">'+stL+'</span></div></div>'
-          +'<div class="kpi-card-nums">'
-          +'<div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div><div class="kpi-num-value" style="color:'+stC+'">'+_ff(real,k.unidade)+'</div></div>'
-          +'<div class="kpi-num-cell"><div class="kpi-num-label">Meta</div><div class="kpi-num-value">'+_ff(meta,k.unidade)+'</div></div>'
-          +'<div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+(at!==null?at+'%':'—')+'</div></div>'
-          +'</div>'
-          +'<div class="kpi-card-chart"><div style="height:110px"><canvas id="fc-'+_fe(k.id)+'" width="400" height="110"></canvas></div></div>'
-          +'<div class="kpi-card-footer" style="cursor:pointer" onclick="if(typeof openKPISlide==='function')openKPISlide(''+_fe(k.id)+'',0)">Ver análise completa</div>'
-          +'</div>';
-      }
-      function _frtab(v,cfg,kpis){
-        var host=document.getElementById('fin-tab-content');
-        if(!host)return;
-        var ids=cfg[v]||[];
-        var ks=ids.map(function(id){return kpis.find(function(k){return k.id===id;});}).filter(Boolean);
-        if(!ks.length){
-          host.innerHTML='<div style="color:var(--muted);padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">Nenhum indicador em <b>'+v+'</b>.'+(_fa()?'<br><br><button class="btn btn-primary" onclick="dmxFinEditVertente(''+v+'')">Configurar</button>':'')+'</div>';
-          return;
-        }
-        host.innerHTML='<div class="kpi-grid cols-2" style="margin-top:16px">'+ks.map(_fcard).join('')+'</div>';
-        setTimeout(function(){
-          ks.forEach(function(k){
-            var c=document.getElementById('fc-'+k.id);
-            if(!c)return;
-            try{if(typeof buildKPIChart==='function')buildKPIChart(k,c,110);}catch(e){}
-          });
-        },150);
-      }
-      window.dmxRenderPainelFinanceiro=function(){
-        var host=document.getElementById('page-area-detail');
-        if(!host)return;
-        var cfg=_fc(),kpis=window.kpis||[];
-        var meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-        var tabs=_FT.map(function(v){
-          var n=(cfg[v]||[]).length;
-          return '<div class="area-tab'+(v===_ft?' active':'')+'" onclick="dmxFinSwitchTab(''+v+'')">'+v+' ('+n+')</div>';
-        }).join('');
-        host.innerHTML=
-          '<div class="pres-bar" style="display:flex;align-items:center;gap:12px;padding:14px 20px">'
-          +'<span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">Painel Financeiro</span>'
-          +'<span style="font-size:12px;color:var(--muted)">'+meses[window.currentMes||5]+' '+(window.currentAno||2026)+'</span>'
-          +(_fa()?'<button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="dmxFinEditVertente(''+_ft+'')">Configurar</button>':'')
-          +'</div>'
-          +'<div class="area-tabs" id="fin-tabs">'+tabs+'</div>'
-          +'<div style="padding:16px 20px" id="fin-tab-content"></div>';
-        _frtab(_ft,cfg,kpis);
-      };
-      window.dmxFinSwitchTab=function(v){
-        _ft=v;
-        document.querySelectorAll('#fin-tabs .area-tab').forEach(function(el){el.classList.toggle('active',el.textContent.indexOf(v)>=0);});
-        _frtab(v,_fc(),window.kpis||[]);
-      };
-      window.dmxFinEditVertente=function(v){
-        if(!_fa()){alert('Acesso restrito ao Administrador.');return;}
-        var kpis=window.kpis||[],cfg=_fc(),sel=cfg[v]||[];
-        var opts=kpis.map(function(k){
-          return '<label class="dfo" style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">'
-            +'<input type="checkbox" value="'+_fe(k.id)+'" '+(sel.includes(k.id)?'checked':'')+' style="margin-top:3px;accent-color:var(--teal)">'
-            +'<div><div style="font-size:12px;font-weight:600">'+_fe(k.id)+' · '+_fe(k.indicador)+'</div>'
-            +'<div style="font-size:10px;color:var(--muted)">'+_fe(k.area)+'</div></div></label>';
-        }).join('');
-        var m=document.getElementById('dmx-fin-modal')||document.createElement('div');
-        m.id='dmx-fin-modal';
-        m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
-        m.innerHTML='<div style="background:var(--bg);border-radius:12px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:20px 24px">'
-          +'<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:8px">Configurar: '+v+'</div>'
-          +'<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Selecione os KPIs para esta vertente.</div>'
-          +'<input type="text" placeholder="Buscar..." oninput="var q=this.value.toLowerCase();this.nextElementSibling.querySelectorAll('.dfo').forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(q)?'':\'none\';})" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:8px;background:var(--bg2)">'
-          +'<div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)">'+opts+'</div>'
-          +'<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'
-          +'<button class="btn btn-ghost" onclick="document.getElementById('dmx-fin-modal').style.display='none'">Cancelar</button>'
-          +'<button class="btn btn-primary" onclick="dmxFinSalvarVertente(''+v+'')">Salvar</button>'
-          +'</div></div>';
-        if(!m.parentNode)document.body.appendChild(m);
-        m.style.display='flex';
-        m.onclick=function(e){if(e.target===m)m.style.display='none';};
-      };
-      window.dmxFinSalvarVertente=function(v){
-        var cfg=_fc();
-        cfg[v]=[].slice.call(document.querySelectorAll('#dmx-fin-modal input[type=checkbox]:checked')).map(function(c){return c.value;});
-        _fs(cfg);
-        document.getElementById('dmx-fin-modal').style.display='none';
-        _ft=v;
-        window.dmxRenderPainelFinanceiro();
-      };
-      console.log('[DMX] Painel Financeiro v82 OK');
-    }
-    window.dmxRenderPainelFinanceiro();
-  };
+    dmxFinInit();
+    dmxFinRender();
+  };;
   // buildSidebar sem CEO/Painel Financeiro na seção ÁREA
   const oldBuildSidebar = window.buildSidebar;
   if(typeof oldBuildSidebar === 'function'){
