@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v81.52 — 25/05/2026 -->
+<!-- DMX KPI System — v81.53 — 25/05/2026 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v81.52",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v81.53",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -15017,6 +15017,8 @@ setTimeout(()=>{
 
 <!-- PATCH v82.1 — Painel Financeiro Reformulado (Retorno/Risco/Eficiência) -->
 <script>
+// Definição imediata no escopo global — antes do IIFE
+window.dmxRenderPainelFinanceiro = function(){ console.log('[FIN] render chamado'); };
 try{
 (function(){
   const FIN_CONFIG_KEY = 'dmx_painel_financeiro_config_v1';
@@ -15282,6 +15284,8 @@ try{
   },3000);
 
   console.log('[DMX] Painel Financeiro v82.1 instalado');
+  // Confirma exposição global
+  console.log('[FIN] dmxRenderPainelFinanceiro definida:', typeof window.dmxRenderPainelFinanceiro);
 })();
 }catch(e){ console.error('[DMX v82.1 ERRO]', e); }
 </script>
