@@ -1753,10 +1753,9 @@ function renderAreaDetail(area) {
 
   // Column count heuristic
   function cols(n) {
-    if (n <= 2) return 'cols-2';
-    if (n <= 4) return 'cols-2';
-    if (n <= 6) return 'cols-3';
-    return 'cols-4';
+    // Máximo 2 colunas para melhor visualização de objetivo e fórmula
+    if (n <= 1) return 'cols-1';
+    return 'cols-2';
   }
 
   const stLabel = (s) => s === 'VERDE' ? 'Verde' : s === 'AMARELO' ? 'Alerta' : 'Cr\u00EDtico';
@@ -1846,6 +1845,8 @@ function kpiChartCard(kpi, area) {
         '<div style="min-width:0;flex:1">' +
           '<div class="kpi-card-id">' + kpi.id + ' &middot; ' + kpi.pilar + '</div>' +
           '<div class="kpi-card-name">' + kpi.indicador + '</div>' +
+          (kpi.objetivo ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4"><b>Objetivo:</b> ' + kpi.objetivo + '</div>' : '') +
+          (kpi.formula ? '<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> ' + kpi.formula + '</div>' : '') +
         '</div>' +
         '<div class="kpi-card-right">' + pill(st) + planBadge + '</div>' +
       '</div>' +
@@ -3221,7 +3222,7 @@ function openKPIModal(id) {
     '<span class="tag tag-area">'+kpi.area+'</span></div>'+
     '<div class="modal-title">'+kpi.indicador+'</div>'+
     '<p class="text-muted text-sm mt-1 mb-3">'+kpi.objetivo+'</p>'+
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'+
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">'+
     infoCard('Status '+MES[currentMes], pill(st), '') +
     infoCard('Realizado', l?fmtVal(l.realizado,kpi.unidade):'\u2014', '') +
     infoCard('Meta', fmtVal(kpi.meta,kpi.unidade), '') +
@@ -3633,7 +3634,7 @@ function openKPIModal(id) {
     '<span class="tag tag-area">'+kpi.area+'</span></div>'+
     '<div class="modal-title">'+kpi.indicador+'</div>'+
     '<p class="text-muted text-sm mt-1 mb-3">'+kpi.objetivo+'</p>'+
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'+
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">'+
     infoCard('Status '+MES[currentMes], pill(st), '') +
     infoCard('Realizado', l?fmtVal(l.realizado,kpi.unidade):'\u2014', '') +
     infoCard('Meta', fmtVal(kpi.meta,kpi.unidade), '') +
@@ -4622,7 +4623,7 @@ window.addEventListener('DOMContentLoaded', init);
     const origin = '<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#F8FAFC;border-bottom:1px solid #E5E7EB;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase">👁 KPI acompanhado <span style="margin-left:auto;color:var(--teal)">Origem: '+esc(kpi.area)+'</span></div>';
     return card.replace('<div class="kpi-card-top">', origin + '<div class="kpi-card-top">');
   }
-  function cols(n){ if(n<=2) return 'cols-2'; if(n<=4) return 'cols-2'; if(n<=6) return 'cols-3'; return 'cols-4'; }
+  function cols(n){ if(n<=1) return 'cols-1'; return 'cols-2'; }
 
   window.openWatchSelector = function(area){
     area = area || (document.getElementById('topbar-title') ? document.getElementById('topbar-title').textContent : '');
@@ -8163,8 +8164,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function ensureTabs(active='kpis'){
     const root=document.getElementById('admin-root'); if(!root) return;
+    // Se o painel principal já foi renderizado pelo renderAdminDMX, não duplica
     let old=document.getElementById('dmx-admin-kpi-panel'); if(old) old.remove();
     let wrap=document.getElementById('dmx-v45-admin-tabs-wrap');
+    // Não cria painel de KPIs duplicado se já existe um no admin-root
+    if(!wrap && root.querySelectorAll('.section-title').length > 2) return;
     if(!wrap){ wrap=document.createElement('div'); wrap.id='dmx-v45-admin-tabs-wrap'; root.appendChild(wrap); }
     wrap.innerHTML=`<div class="dmx-admin-tabs">
       <button class="dmx-admin-tab-btn ${active==='kpis'?'active':''}" onclick="dmxV45RenderAdminTabs('kpis')">KPIs</button>
@@ -10139,7 +10143,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function refreshAdmin485(){
     if(!document.getElementById('page-admin')?.classList.contains('active')) return;
     if(typeof window.renderAdminDMX!=='function') return;
-    // Debounce: cancela render anterior se ainda não executou
+    const host = document.getElementById('admin-root');
+    const isEmpty = !host || host.children.length < 2;
+    // Só re-renderiza se: admin está vazio OU usuário navegou explicitamente
+    if(!isEmpty && !window.__dmxAdminUserNav) return;
+    window.__dmxAdminUserNav = false;
     clearTimeout(_adminRefreshTimer);
     _adminRefreshTimer = setTimeout(()=>window.renderAdminDMX(true), 150);
   }
@@ -10153,7 +10161,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const p=el?.dataset?.page;
       if(p==='diretoria') setTimeout(window.dmxRenderDiretoria485,80);
       if(p==='ppr') setTimeout(window.renderPPR,80);
-      if(p==='admin') refreshAdmin485();
+      if(p==='admin'){ window.__dmxAdminUserNav=true; refreshAdmin485(); }
       return r;
     };
   }
@@ -13278,7 +13286,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <div class="dmx-admin-lite-actions">
           <button class="btn btn-primary" onclick="dmxOpenSheet && dmxOpenSheet()">↗ Abrir Google Sheets</button>
           <button class="btn btn-ghost" onclick="configurarApiDMX && configurarApiDMX()">☁ Configurar API</button>
-          <button class="btn btn-ghost" onclick="renderAdminDMX()">↻ Atualizar diagnóstico</button>
+          <button class="btn btn-ghost" onclick="window.__dmxAdminUserNav=true; renderAdminDMX()">↻ Atualizar diagnóstico</button>
         </div>
         <div class="dmx-admin-lite-note" style="word-break:break-all"><b>API:</b> ${esc(url || 'não configurada')}</div>
         <div class="dmx-admin-lite-note">
@@ -13323,18 +13331,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const oldRenderCurrent = window.renderCurrentPage;
   if(typeof oldRenderCurrent === 'function' && !window.__dmxAdminLiteRenderGuardV70){
     window.__dmxAdminLiteRenderGuardV70 = true;
-    let _adminRenderDebounce = null;
     window.renderCurrentPage = function(){
       if(window.currentPage === 'admin'){
         if(adminEditing()) return;
-        // Debounce: só re-renderiza Admin se não houve render nos últimos 2s
-        clearTimeout(_adminRenderDebounce);
-        _adminRenderDebounce = setTimeout(()=>{
-          // Só renderiza se admin-root estiver vazio (não re-renderiza se já tem conteúdo)
-          const host = document.getElementById('admin-root');
-          if(host && host.children.length < 2) return window.renderAdminDMX();
-        }, 2000);
-        return;
+        // Só re-renderiza Admin se vazio ou navegação explícita do usuário
+        const host = document.getElementById('admin-root');
+        const isEmpty = !host || host.children.length < 2;
+        if(!isEmpty && !window.__dmxAdminUserNav) return;
+        window.__dmxAdminUserNav = false;
+        return window.renderAdminDMX();
       }
       return oldRenderCurrent.apply(this, arguments);
     };
