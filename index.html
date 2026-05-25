@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v81.50 — 25/05/2026 -->
+<!-- DMX KPI System — v81.51 — 25/05/2026 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v81.50",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v81.51",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -6360,17 +6360,21 @@ window.buildShareSection = function(kpiId){
     });
   }
   window.dmxOpenFinanceiro = function(el){
-    normalizeFinanceData();
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
     if(el) el.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active'); p.style.display=''; });
     const page = document.getElementById('page-area-detail');
     if(page) page.classList.add('active');
-    try { currentPage = 'area-detail'; } catch(e) {}
-    try { window.currentArea = FIN_LABEL; } catch(e) {}
-    if(typeof window.renderAreaDetail === 'function') window.renderAreaDetail(FIN_LABEL);
-    const t=document.getElementById('topbar-title'); if(t) t.textContent=FIN_LABEL;
-    setTimeout(stripFinancePPRCards,80);
+    try { currentPage = 'financeiro'; window.currentPage='financeiro'; } catch(e) {}
+    try { window.currentArea = FIN_LABEL; currentArea = FIN_LABEL; } catch(e) {}
+    const t=document.getElementById('topbar-title'); if(t) t.textContent='Painel Financeiro';
+    // Usa novo painel reformulado se disponível, senão fallback
+    if(typeof window.dmxRenderPainelFinanceiro === 'function'){
+      window.dmxRenderPainelFinanceiro();
+    } else {
+      if(typeof window.renderAreaDetail === 'function') window.renderAreaDetail(FIN_LABEL);
+      setTimeout(stripFinancePPRCards,80);
+    }
   };
   // buildSidebar sem CEO/Painel Financeiro na seção ÁREA
   const oldBuildSidebar = window.buildSidebar;
@@ -11864,14 +11868,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function installFinanceiroWrapper(){
+    // v57 wrapper desativado — substituído pelo patch v82.1 que usa dmxRenderPainelFinanceiro
     if(typeof window.dmxOpenFinanceiro === 'function' && !window.dmxOpenFinanceiro.__dmxV57Wrapped){
-      const baseFin = window.dmxOpenFinanceiro;
-      window.dmxOpenFinanceiro = function(el){
-        const r = baseFin.apply(this, arguments);
-        try{ saveState('area-detail', 'Painel Financeiro'); }catch(e){}
-        return r;
-      };
-      window.dmxOpenFinanceiro.__dmxV57Wrapped = true;
+      window.dmxOpenFinanceiro.__dmxV57Wrapped = true; // marca sem sobrescrever
     }
   }
 
@@ -15261,33 +15260,7 @@ setTimeout(()=>{
     window.dmxRenderPainelFinanceiro();
   };
 
-  // ── Intercepta navegação ──────────────────────────────────
-  const origOpenFin = window.dmxOpenFinanceiro;
-  if(!window.dmxOpenFinanceiro?.__dmxV82_1){
-    window.dmxOpenFinanceiro = function(el){
-      // Atualiza nav sem quebrar o sistema de páginas
-      if(typeof nav==='function'){
-        // Não chama nav() diretamente para evitar conflito com área-detail
-        // Faz manualmente o que nav() faz
-      }
-      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-      if(el) el.classList.add('active');
-      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-      const page = document.getElementById('page-area-detail');
-      if(page){ page.classList.add('active'); page.style.display=''; }
-      window.currentPage = 'financeiro';
-      window.currentArea = 'Painel Financeiro';
-      // Atualiza estado persistido para que nav() funcione após
-      try{
-        if(typeof write==='function') write({currentPage:'financeiro',currentArea:'Painel Financeiro'});
-        if(typeof window.dmxSaveUiState==='function') window.dmxSaveUiState({page:'financeiro',area:'Painel Financeiro'});
-      }catch(e){}
-      const t=document.getElementById('topbar-title');
-      if(t) t.textContent='Painel Financeiro';
-      window.dmxRenderPainelFinanceiro();
-    };
-    window.dmxOpenFinanceiro.__dmxV82_1 = true;
-  }
+  // Navegação já corrigida na origem (linha ~6362) — sem necessidade de wrapper adicional
 
   // ── Carrega config do Sheets ──────────────────────────────
   setTimeout(async()=>{
