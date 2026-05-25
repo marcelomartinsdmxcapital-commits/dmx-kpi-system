@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v81.48 — 25/05/2026 -->
+<!-- DMX KPI System — v81.50 — 25/05/2026 -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v81.48",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v81.50",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -1744,7 +1744,9 @@ function renderAreas() {
 let currentAreaKPIs = []; // for slide navigation
 
 function renderAreaDetail(area) {
-  const areaKPIs = kpis.filter(k => k.area === area);
+  // Limpa estado do Painel Financeiro se estava ativo
+  if(window.currentPage==='financeiro') window.currentPage='area-detail';
+  window.currentArea = area;
   const data = byPeriod(currentMes, currentAno).filter(l => l.area === area);
   const v = data.filter(l => l.status === 'VERDE').length;
   const a = data.filter(l => l.status === 'AMARELO').length;
@@ -15012,21 +15014,22 @@ setTimeout(()=>{
 
 
 
-<!-- PATCH v82 — Painel Financeiro Reformulado (Retorno/Risco/Eficiência) -->
+
+
+<!-- PATCH v82.1 — Painel Financeiro Reformulado (Retorno/Risco/Eficiência) -->
 <script>
 (function(){
-  const FIN_VERSION = 'v82';
   const FIN_CONFIG_KEY = 'dmx_painel_financeiro_config_v1';
   const VERTENTES = ['Retorno', 'Risco', 'Eficiência'];
+  let _finActiveTab = 'Retorno';
 
-  // ── Helpers ──────────────────────────────────────────────
-  function isAdminOrCEO(){
+  // ── Helpers ───────────────────────────────────────────────
+  function isAdmin(){
     try{
       const s = JSON.parse(localStorage.getItem('dmx_session_v41')||'null');
       if(!s) return false;
-      const perfil = String(s.perfil||s.permissao||s.perfilApi||'').toLowerCase();
-      const cargo = String(s.cargo||'').toLowerCase();
-      return perfil==='admin'||perfil==='administrador'||cargo==='ceo'||cargo==='diretor';
+      const p = String(s.perfil||s.permissao||s.perfilApi||'').toLowerCase();
+      return p==='admin'||p==='administrador';
     }catch(e){ return false; }
   }
 
@@ -15036,58 +15039,61 @@ setTimeout(()=>{
 
   function saveFinConfig(cfg){
     localStorage.setItem(FIN_CONFIG_KEY, JSON.stringify(cfg));
-    // Sincroniza com Sheets
     const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
     if(typeof _api==='function'){
       const rows = [];
       VERTENTES.forEach(v=>{
         (cfg[v]||[]).forEach((kpiId,i)=>{
-          rows.push({id:kpiId+'_'+v, vertente:v, kpi_id:kpiId, ordem:i, ativo:true});
+          rows.push({id:kpiId+'_'+v, vertente:v, kpi_id:kpiId, ordem:i, ativo:true, criado_em:new Date().toISOString()});
         });
       });
-      _api('salvarConfigPainelFinanceiro', {rows}).catch(e=>console.warn('FinPanel→Sheets:',e));
+      _api('salvarConfigPainelFinanceiro',{rows}).catch(e=>console.warn('FinPanel→Sheets:',e));
     }
   }
 
-  function getAllKpis(){ return window.kpis||[]; }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-  function fmtV(v, u){
+  function fmtV(v,u){
     if(v===null||v===undefined||v==='') return '—';
-    const n=Number(v);
-    if(isNaN(n)) return String(v);
+    const n=Number(v); if(isNaN(n)) return String(v);
     if(String(u||'').includes('R$')||String(u||'').includes('$'))
-      return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+      return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
     if(String(u||'').includes('%')) return n.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
     return n.toLocaleString('pt-BR',{maximumFractionDigits:2});
   }
 
   function getLaunchFin(kpiId){
     try{
-      if(typeof getLaunch==='function') return getLaunch(kpiId, window.currentMes||5, window.currentAno||2026);
-      return null;
+      const mes=window.currentMes||5, ano=window.currentAno||2026;
+      if(typeof getLaunch==='function') return getLaunch(kpiId,mes,ano);
+      // Fallback: busca direto em LAUNCHES
+      const launches = window.LAUNCHES||window.launches||[];
+      return launches.find(l=>String(l.id_kpi)===String(kpiId)&&Number(l.mes_num||l.mes)===mes&&Number(l.ano)===ano)||null;
     }catch(e){ return null; }
   }
 
-  function getRefFin(kpi){
+  function getMetaFin(kpi){
     try{
-      if(typeof resolveRef==='function') return resolveRef(kpi, window.currentMes||5, window.currentAno||2026);
-      return {meta: kpi.meta||kpi.meta_padrao||null};
-    }catch(e){ return {meta:null}; }
+      if(typeof resolveRef==='function'){
+        const ref = resolveRef(kpi,window.currentMes||5,window.currentAno||2026);
+        return ref.meta;
+      }
+      return kpi.meta||kpi.meta_padrao||null;
+    }catch(e){ return kpi.meta||null; }
   }
 
-  // ── Renderiza card de KPI ─────────────────────────────────
+  // ── Card de KPI ───────────────────────────────────────────
   function finKpiCard(kpi){
     const l = getLaunchFin(kpi.id);
-    const ref = getRefFin(kpi);
     const real = l ? l.realizado : null;
-    const meta = ref.meta;
-    const at = (real!==null && meta!==null && meta!==0) ? Number(real)/Number(meta) : null;
-    const stC = !l ? 'var(--muted)' :
-      (l.status==='VERDE' ? 'var(--green)' : l.status==='AMARELO' ? 'var(--amber)' : 'var(--red)');
+    const meta = getMetaFin(kpi);
+    const at = (real!==null&&real!==''&&meta!==null&&meta!==0&&meta!=='')
+      ? Math.round(Number(real)/Number(meta)*100) : null;
+    const st = l ? (l.status||'NA') : 'NA';
+    const stC = st==='VERDE'?'var(--green)':st==='AMARELO'?'var(--amber)':st==='VERMELHO'?'var(--red)':'var(--muted)';
+    const stL = st==='VERDE'?'Verde':st==='AMARELO'?'Alerta':st==='VERMELHO'?'Crítico':'N/A';
 
-    return `<div class="kpi-chart-card" style="break-inside:avoid">
+    return `<div class="kpi-chart-card">
       <div class="kpi-card-top">
         <div style="min-width:0;flex:1">
           <div class="kpi-card-id">${esc(kpi.id)} &middot; ${esc(kpi.area)}</div>
@@ -15096,180 +15102,212 @@ setTimeout(()=>{
           ${kpi.formula?`<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> ${esc(kpi.formula)}</div>`:''}
         </div>
         <div class="kpi-card-right">
-          <span class="status-pill ${l?l.status:'NA'}">${l?(l.status==='VERDE'?'Verde':l.status==='AMARELO'?'Alerta':'Crítico'):'N/A'}</span>
+          <span class="status-pill ${st}">${stL}</span>
         </div>
       </div>
       <div class="kpi-card-nums">
-        <div class="kpi-num-cell">
-          <div class="kpi-num-label">Realizado</div>
-          <div class="kpi-num-value" style="color:${stC}">${fmtV(real, kpi.unidade)}</div>
-        </div>
-        <div class="kpi-num-cell">
-          <div class="kpi-num-label">Meta</div>
-          <div class="kpi-num-value">${fmtV(meta, kpi.unidade)}</div>
-        </div>
-        <div class="kpi-num-cell">
-          <div class="kpi-num-label">Atingimento</div>
-          <div class="kpi-num-value" style="color:${stC}">${at!==null?Math.round(at*100)+'%':'—'}</div>
-        </div>
+        <div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div>
+          <div class="kpi-num-value" style="color:${stC}">${fmtV(real,kpi.unidade)}</div></div>
+        <div class="kpi-num-cell"><div class="kpi-num-label">Meta</div>
+          <div class="kpi-num-value">${fmtV(meta,kpi.unidade)}</div></div>
+        <div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div>
+          <div class="kpi-num-value" style="color:${stC}">${at!==null?at+'%':'—'}</div></div>
       </div>
-      <div class="kpi-card-chart"><div style="height:100px"><canvas id="chart-fin-${esc(kpi.id)}"></canvas></div></div>
-      <div class="kpi-card-footer" onclick="openKPISlide && openKPISlide('${esc(kpi.id)}',0)">
-        <span style="font-size:14px">🔎</span> Ver análise completa<span style="margin-left:auto;font-size:12px">›</span>
+      <div class="kpi-card-chart"><div style="height:110px"><canvas id="fin-chart-${esc(kpi.id)}" width="400" height="110"></canvas></div></div>
+      <div class="kpi-card-footer" style="cursor:pointer" onclick="if(typeof openKPISlide==='function') openKPISlide('${esc(kpi.id)}',0)">
+        <span style="font-size:14px">🔎</span> Ver análise completa<span style="margin-left:auto">›</span>
       </div>
     </div>`;
   }
 
-  // ── Renderiza seção de vertente ───────────────────────────
-  function finVertente(nome, kpiIds, allKpis, canEdit, cfg){
-    const kpis = kpiIds.map(id=>allKpis.find(k=>k.id===id)).filter(Boolean);
-    const cor = nome==='Retorno'?'var(--green)':nome==='Risco'?'var(--red)':'var(--blue)';
-    const ico = nome==='Retorno'?'📈':nome==='Risco'?'⚠️':'⚙️';
+  // ── Renderiza aba ativa ───────────────────────────────────
+  function renderFinTab(vertente, cfg, allKpis){
+    const ids = cfg[vertente]||[];
+    const kpis = ids.map(id=>allKpis.find(k=>k.id===id)).filter(Boolean);
+    const host = document.getElementById('fin-tab-content');
+    if(!host) return;
 
-    return `<div style="margin-bottom:32px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid ${cor}">
-        <span style="font-size:18px">${ico}</span>
-        <span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;color:${cor}">${nome}</span>
-        <span style="font-size:11px;color:var(--muted)">${kpis.length} indicador${kpis.length!==1?'es':''}</span>
-        ${canEdit?`<button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="dmxFinEditVertente('${nome}')">✏️ Configurar</button>`:''}
-      </div>
-      ${kpis.length===0
-        ? `<div style="color:var(--muted);font-size:13px;padding:16px;background:var(--bg2);border-radius:8px;text-align:center">
-            Nenhum indicador configurado${canEdit?' — clique em Configurar para adicionar':''}.
-          </div>`
-        : `<div class="kpi-grid cols-2">${kpis.map(k=>finKpiCard(k)).join('')}</div>`
-      }
-    </div>`;
+    if(kpis.length===0){
+      host.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">
+        Nenhum indicador configurado para <b>${vertente}</b>.
+        ${isAdmin()?'<br><br><button class="btn btn-primary" onclick="dmxFinEditVertente(''+vertente+'')">✏️ Configurar vertente</button>':''}
+      </div>`;
+      return;
+    }
+
+    host.innerHTML = `<div class="kpi-grid cols-2" style="margin-top:16px">${kpis.map(k=>finKpiCard(k)).join('')}</div>`;
+
+    // Renderiza gráficos — usa a mesma função das áreas
+    setTimeout(()=>{
+      kpis.forEach(kpi=>{
+        const canvas = document.getElementById('fin-chart-'+kpi.id);
+        if(!canvas) return;
+        try{
+          // Usa a mesma função das áreas para renderizar gráficos
+          if(typeof buildKPIChart==='function'){ buildKPIChart(kpi,canvas,110); return; }
+          // Fallback: usa Chart.js diretamente com os dados de lançamentos
+          const launches = (window.LAUNCHES||window.launches||[])
+            .filter(l=>String(l.id_kpi)===String(kpi.id)&&Number(l.ano)===(window.currentAno||2026))
+            .sort((a,b)=>Number(a.mes_num||a.mes)-Number(b.mes_num||b.mes));
+          const labels = launches.map(l=>{
+            const m=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+            return m[Number(l.mes_num||l.mes)]||'';
+          });
+          const data = launches.map(l=>Number(l.realizado)||null);
+          const metas = launches.map(l=>Number(l.meta||kpi.meta_padrao||kpi.meta)||null);
+          if(typeof Chart==='undefined') return;
+          new Chart(canvas,{
+            type:'line',
+            data:{labels,datasets:[
+              {label:'Realizado',data,borderColor:'#0E9E82',backgroundColor:'rgba(14,158,130,.1)',pointRadius:3,tension:.3,fill:true},
+              {label:'Meta',data:metas,borderColor:'rgba(37,99,235,.5)',borderDash:[4,3],pointRadius:0,tension:0}
+            ]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+              scales:{x:{display:false},y:{display:false}}}
+          });
+        }catch(e){ console.warn('fin chart error',kpi.id,e); }
+      });
+    },150);
   }
 
-  // ── Modal de configuração da vertente ─────────────────────
+  // ── Renderiza o painel completo ───────────────────────────
+  window.dmxRenderPainelFinanceiro = function(){
+    const host = document.getElementById('page-area-detail');
+    if(!host) return;
+
+    const admin = isAdmin();
+    const cfg = loadFinConfig();
+    const allKpis = window.kpis||[];
+    const mes = window.currentMes||5;
+    const meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    const tabsHtml = VERTENTES.map(v=>{
+      const count = (cfg[v]||[]).length;
+      const ico = v==='Retorno'?'📈':v==='Risco'?'⚠️':'⚙️';
+      const active = v===_finActiveTab;
+      return `<div class="area-tab${active?' active':''}" onclick="dmxFinSwitchTab('${v}')" style="cursor:pointer">
+        ${ico} ${v} <span style="font-size:10px;opacity:.7">(${count})</span>
+      </div>`;
+    }).join('');
+
+    host.innerHTML = `
+      <div class="pres-bar" style="display:flex;align-items:center;gap:12px;padding:14px 20px">
+        <span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">◆ Painel Financeiro</span>
+        <span style="font-size:12px;color:var(--muted)">${meses[mes]} ${window.currentAno||2026}</span>
+        ${admin?`<button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="dmxFinEditVertente('${_finActiveTab}')">✏️ Configurar vertente</button>`:''}
+      </div>
+      <div class="area-tabs" id="fin-tabs">${tabsHtml}</div>
+      <div style="padding:16px 20px" id="fin-tab-content"></div>`;
+
+    renderFinTab(_finActiveTab, cfg, allKpis);
+  };
+
+  // ── Troca de aba ─────────────────────────────────────────
+  window.dmxFinSwitchTab = function(v){
+    _finActiveTab = v;
+    // Atualiza visual das abas
+    document.querySelectorAll('#fin-tabs .area-tab').forEach(el=>{
+      el.classList.toggle('active', el.textContent.trim().startsWith(v==='Retorno'?'📈':v==='Risco'?'⚠️':'⚙️'));
+    });
+    renderFinTab(v, loadFinConfig(), window.kpis||[]);
+  };
+
+  // ── Modal de configuração ─────────────────────────────────
   window.dmxFinEditVertente = function(vertente){
-    const allKpis = getAllKpis();
+    if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
+    const allKpis = window.kpis||[];
     const cfg = loadFinConfig();
     const selecionados = cfg[vertente]||[];
 
     const opts = allKpis.map(k=>`
-      <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" value="${esc(k.id)}" ${selecionados.includes(k.id)?'checked':''} style="margin-top:3px;flex-shrink:0">
+      <label class="dmx-fin-opt" style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" value="${esc(k.id)}" ${selecionados.includes(k.id)?'checked':''} style="margin-top:3px;flex-shrink:0;accent-color:var(--teal)">
         <div>
           <div style="font-size:12px;font-weight:600">${esc(k.id)} · ${esc(k.indicador)}</div>
           <div style="font-size:10px;color:var(--muted)">${esc(k.area)}</div>
         </div>
       </label>`).join('');
 
-    const html = `<div style="padding:20px;max-width:560px;margin:0 auto">
-      <div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;margin-bottom:4px">Configurar: ${vertente}</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Selecione os KPIs que aparecerão nesta vertente do Painel Financeiro.</div>
-      <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--bg2)">
-        <input type="text" placeholder="Buscar KPI..." oninput="dmxFinSearch(this)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:8px;background:var(--bg)">
-        <div id="dmx-fin-opts">${opts}</div>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('dmx-fin-modal')">Cancelar</button>
-        <button class="btn btn-primary" onclick="dmxFinSalvarVertente('${vertente}')">✓ Salvar</button>
-      </div>
-    </div>`;
-
-    // Cria modal simples
     let modal = document.getElementById('dmx-fin-modal');
     if(!modal){
       modal = document.createElement('div');
       modal.id = 'dmx-fin-modal';
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
       document.body.appendChild(modal);
     }
-    modal.innerHTML = `<div style="background:var(--bg);border-radius:12px;max-width:580px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">${html}</div>`;
-    modal.style.display = 'flex';
-    modal.onclick = e=>{ if(e.target===modal) modal.style.display='none'; };
-  };
-
-  window.dmxFinSearch = function(input){
-    const q = input.value.toLowerCase();
-    document.querySelectorAll('#dmx-fin-opts label').forEach(l=>{
-      l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
+    modal.innerHTML = `<div style="background:var(--bg);border-radius:12px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="padding:20px 24px">
+        <div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:3px">Configurar vertente: ${vertente}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Selecione os KPIs que aparecerão nesta vertente. Qualquer KPI do sistema pode ser incluído.</div>
+        <input type="text" placeholder="🔍 Buscar KPI..." oninput="this.nextElementSibling.querySelectorAll('.dmx-fin-opt').forEach(l=>l.style.display=l.textContent.toLowerCase().includes(this.value.toLowerCase())?'':'none')"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:8px;background:var(--bg2)">
+        <div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)">${opts}</div>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button class="btn btn-ghost" onclick="document.getElementById('dmx-fin-modal').style.display='none'">Cancelar</button>
+          <button class="btn btn-primary" onclick="dmxFinSalvarVertente('${vertente}')">✓ Salvar configuração</button>
+        </div>
+      </div>
+    </div>`;
+    modal.style.display='flex';
+    modal.onclick=e=>{ if(e.target===modal) modal.style.display='none'; };
   };
 
   window.dmxFinSalvarVertente = function(vertente){
     const cfg = loadFinConfig();
-    const checks = document.querySelectorAll('#dmx-fin-opts input[type=checkbox]:checked');
-    cfg[vertente] = [...checks].map(c=>c.value);
+    cfg[vertente] = [...document.querySelectorAll('#dmx-fin-modal input[type=checkbox]:checked')].map(c=>c.value);
     saveFinConfig(cfg);
-    document.getElementById('dmx-fin-modal').style.display = 'none';
+    document.getElementById('dmx-fin-modal').style.display='none';
+    _finActiveTab = vertente;
     window.dmxRenderPainelFinanceiro();
   };
 
-  // ── Renderiza o painel completo ───────────────────────────
-  window.dmxRenderPainelFinanceiro = function(){
-    const host = document.getElementById('page-area-detail');
-    if(!host) return;
-    if(window.currentPage!=='financeiro' && !(window.currentPage==='area-detail'&&window.currentArea==='Painel Financeiro')) return;
-
-    const canEdit = isAdminOrCEO();
-    const cfg = loadFinConfig();
-    const allKpis = getAllKpis();
-    const mes = window.currentMes||5;
-    const ano = window.currentAno||2026;
-    const meses = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-
-    host.innerHTML = `
-      <div class="pres-bar" style="background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px">
-        <span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800">◆ Painel Financeiro</span>
-        <span style="font-size:12px;opacity:.7">${meses[mes]} ${ano}</span>
-        ${canEdit?`<span style="margin-left:auto;font-size:11px;opacity:.7">Modo Admin — configure as vertentes clicando em ✏️</span>`:''}
-      </div>
-      <div style="padding:20px 24px">
-        ${VERTENTES.map(v=>finVertente(v, cfg[v]||[], allKpis, canEdit, cfg)).join('')}
-      </div>`;
-
-    // Renderiza gráficos após inserir no DOM
-    setTimeout(()=>{
-      allKpis.forEach(kpi=>{
-        const canvas = document.getElementById('chart-fin-'+kpi.id);
-        if(!canvas) return;
-        try{
-          if(typeof renderKpiChart==='function') renderKpiChart(kpi, canvas);
-          else if(typeof buildChart==='function') buildChart(canvas, kpi);
-        }catch(e){}
-      });
-    }, 100);
-  };
-
-  // ── Intercepta navegação para o Painel Financeiro ─────────
+  // ── Intercepta navegação ──────────────────────────────────
   const origOpenFin = window.dmxOpenFinanceiro;
-  window.dmxOpenFinanceiro = function(el){
-    // Configura o estado de navegação
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    if(el) el.classList.add('active');
-    document.querySelectorAll('.page').forEach(p=>{ p.classList.remove('active'); p.style.display=''; });
-    const page = document.getElementById('page-area-detail');
-    if(page) page.classList.add('active');
-    try{ window.currentPage='financeiro'; }catch(e){}
-    try{ window.currentArea='Painel Financeiro'; }catch(e){}
-    const t = document.getElementById('topbar-title');
-    if(t) t.textContent = 'Painel Financeiro';
-    // Usa nova renderização
-    window.dmxRenderPainelFinanceiro();
-  };
-  window.dmxOpenFinanceiro.__dmxV82 = true;
+  if(!window.dmxOpenFinanceiro?.__dmxV82_1){
+    window.dmxOpenFinanceiro = function(el){
+      // Atualiza nav sem quebrar o sistema de páginas
+      if(typeof nav==='function'){
+        // Não chama nav() diretamente para evitar conflito com área-detail
+        // Faz manualmente o que nav() faz
+      }
+      document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+      if(el) el.classList.add('active');
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      const page = document.getElementById('page-area-detail');
+      if(page){ page.classList.add('active'); page.style.display=''; }
+      window.currentPage = 'financeiro';
+      window.currentArea = 'Painel Financeiro';
+      // Atualiza estado persistido para que nav() funcione após
+      try{
+        if(typeof write==='function') write({currentPage:'financeiro',currentArea:'Painel Financeiro'});
+        if(typeof window.dmxSaveUiState==='function') window.dmxSaveUiState({page:'financeiro',area:'Painel Financeiro'});
+      }catch(e){}
+      const t=document.getElementById('topbar-title');
+      if(t) t.textContent='Painel Financeiro';
+      window.dmxRenderPainelFinanceiro();
+    };
+    window.dmxOpenFinanceiro.__dmxV82_1 = true;
+  }
 
-  // ── Carrega config do Sheets na inicialização ─────────────
+  // ── Carrega config do Sheets ──────────────────────────────
   setTimeout(async()=>{
     try{
       const _apiGet = typeof apiGet==='function' ? apiGet : null;
       if(!_apiGet) return;
       const r = await _apiGet('config_painel_financeiro');
-      if(!r||!r.ok||!r.rows||!r.rows.length) return;
+      if(!r||!r.ok||!(r.rows||r.data)||!(r.rows||r.data).length) return;
+      const rows = r.rows||r.data;
       const cfg = {};
       VERTENTES.forEach(v=>cfg[v]=[]);
-      r.rows.filter(x=>x.ativo!==false&&x.ativo!=='false')
+      rows.filter(x=>x.ativo!==false&&x.ativo!=='false')
         .sort((a,b)=>Number(a.ordem||0)-Number(b.ordem||0))
-        .forEach(x=>{ if(cfg[x.vertente]) cfg[x.vertente].push(x.kpi_id); });
-      localStorage.setItem(FIN_CONFIG_KEY, JSON.stringify(cfg));
+        .forEach(x=>{ if(x.vertente&&cfg[x.vertente]) cfg[x.vertente].push(x.kpi_id); });
+      if(Object.values(cfg).some(v=>v.length>0))
+        localStorage.setItem(FIN_CONFIG_KEY,JSON.stringify(cfg));
     }catch(e){}
-  }, 3000);
+  },3000);
 
-  console.log('[DMX] Painel Financeiro', FIN_VERSION, 'instalado');
+  console.log('[DMX] Painel Financeiro v82.1 instalado');
 })();
 </script>
 
