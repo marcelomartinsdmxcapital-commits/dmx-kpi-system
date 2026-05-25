@@ -1316,7 +1316,9 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
     buildSidebar();
     buildFilters();
     if (typeof fillWeeklyFilters === 'function') fillWeeklyFilters();
-    if (typeof renderCurrentPage === 'function') renderCurrentPage(); else renderDashboard();
+    // Não re-renderiza Admin na sincronização — o flag __dmxAdminUserNav controla isso
+    if (typeof renderCurrentPage === 'function' && window.currentPage !== 'admin') renderCurrentPage();
+    else if (window.currentPage !== 'admin' && typeof renderDashboard === 'function') renderDashboard();
     // Admin não re-renderiza automaticamente na sincronização — evita instabilidade
     dmxApiStatus.connected = true;
     dmxApiStatus.lastError = null;
@@ -1326,7 +1328,11 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
     else showToast(msg);
     if (qtdKpisAplicados > 0) {
       setTimeout(() => {
-        try { refreshDimensions(); buildSidebar(); buildFilters(); if (typeof renderCurrentPage === 'function') renderCurrentPage(); else renderDashboard(); } catch(e) { console.warn('Reaplicação v33 não crítica:', e); }
+        try {
+          refreshDimensions(); buildSidebar(); buildFilters();
+          if (typeof renderCurrentPage === 'function' && window.currentPage !== 'admin') renderCurrentPage();
+          else if (window.currentPage !== 'admin' && typeof renderDashboard === 'function') renderDashboard();
+        } catch(e) { console.warn('Reaplicação v33 não crítica:', e); }
       }, 250);
     }
     return true;
