@@ -6054,10 +6054,14 @@ window.buildShareSection = function(kpiId){
     window.dmxSetPesoIndice = function(id, val){
       const v = Number(String(val||0).replace(',','.'));
       // Salva em ambas as chaves do localStorage
-      const pesos = {};
+      let pesos = {};
       ['dmx_indice_pesos_v12','dmx_pesos_indice_v1'].forEach(k=>{
-        try { const o=JSON.parse(localStorage.getItem(k)||'{}'); o[id]=v; localStorage.setItem(k,JSON.stringify(o)); Object.assign(pesos,o); } catch(e){}
+        try { const o=JSON.parse(localStorage.getItem(k)||'{}'); o[id]=v; localStorage.setItem(k,JSON.stringify(o)); } catch(e){}
       });
+      // Usa apenas a chave principal para sincronizar com Sheets
+      try { pesos = JSON.parse(localStorage.getItem('dmx_indice_pesos_v12')||'{}'); } catch(e){}
+      // Filtra pesos inválidos antes de enviar ao Sheets
+      Object.keys(pesos).forEach(k=>{ if(pesos[k]<0||pesos[k]>100) pesos[k]=0; });
       // Sincroniza com Sheets — aba Pesos_Indice
       const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
       if(typeof _api==='function'){
@@ -14840,10 +14844,18 @@ setTimeout(()=>{
         return null;
       }
       const pesos = {};
-      rows.forEach(x=>{ if(x.kpi_id) pesos[x.kpi_id] = Number(x.peso||0); });
-      // Mescla com localStorage existente (Sheets tem prioridade)
+      rows.forEach(x=>{
+        if(x.kpi_id){
+          const p = Number(x.peso||0);
+          // Valida: peso deve estar entre 0 e 100 (fora disso é dado corrompido)
+          pesos[x.kpi_id] = (p >= 0 && p <= 100) ? p : 0;
+        }
+      });
+      // Mescla com localStorage existente (Sheets tem prioridade apenas para valores válidos)
       const local = LS.get(PESO_LS) || {};
-      const merged = Object.assign({}, local, pesos);
+      // Só mescla pesos válidos do Sheets
+      const merged = Object.assign({}, local);
+      Object.entries(pesos).forEach(([id,p])=>{ if(p >= 0 && p <= 100) merged[id]=p; });
       LS.set(PESO_LS, merged);
       return merged;
     }catch(e){ console.warn('Pesos indice load from Sheets failed:', e); return null; }
