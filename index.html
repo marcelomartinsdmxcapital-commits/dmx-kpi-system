@@ -6970,7 +6970,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       _adminRenderBusy = false;
       if(_adminRenderQueued){
         _adminRenderQueued = false;
-        setTimeout(()=>window.renderAdminDMX(false), 100);
+        // Não auto-re-renderiza para evitar loop
       }
     }
   };
@@ -15904,7 +15904,15 @@ setTimeout(()=>{
       try{ await orig.apply(this, arguments); }
       finally{
         _busy = false;
-        if(_queued){ _queued = false; setTimeout(()=>window.renderAdminDMX(), 200); }
+        // Só executa a fila se nenhum campo do Admin estiver com foco (usuário não está digitando)
+        if(_queued){
+          _queued = false;
+          var focused = document.activeElement;
+          var adminPage = document.getElementById('page-admin');
+          var userEditing = focused && adminPage && adminPage.contains(focused) &&
+            (focused.tagName==='INPUT'||focused.tagName==='TEXTAREA'||focused.tagName==='SELECT');
+          if(!userEditing) setTimeout(function(){ window.renderAdminDMX(); }, 500);
+        }
       }
     };
     window.renderAdminDMX.__dmxGuarded = true;
