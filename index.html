@@ -15134,10 +15134,8 @@ try{
     if(!host) return;
 
     if(kpis.length===0){
-      host.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">
-        Nenhum indicador configurado para <b>${vertente}</b>.
-        ${isAdmin()?'<br><br><button class="btn btn-primary" onclick="dmxFinEditVertente(''+vertente+'')">✏️ Configurar vertente</button>':''}
-      </div>`;
+      var _adminBtn = isAdmin() ? '<br><br><button class="btn btn-primary" onclick="dmxFinEditVertente(\'' + vertente + '\')">✏️ Configurar vertente</button>' : '';
+      host.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">Nenhum indicador configurado para <b>' + vertente + '</b>.' + _adminBtn + '</div>';
       return;
     }
 
@@ -15640,4 +15638,3 @@ try{
 
 </body>
 </html>
-
