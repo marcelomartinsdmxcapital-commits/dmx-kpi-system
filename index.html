@@ -620,8 +620,8 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
   </div>
 <nav class="sidebar-nav">
     <div class="nav-section-label">Visão Geral</div>
-    <div class="nav-item active" data-page="dashboard" onclick="nav(this)"><span class="icon">⬡</span> Painel Executivo</div>
-    <div class="nav-item" data-page="financeiro" onclick="dmxOpenFinanceiro(this)"><span class="icon">◆</span> Painel Financeiro</div>
+    <div class="nav-item active" data-page="dashboard" onclick="nav(this)"><span class="icon">⬡</span> Dashboard Operacional</div>
+    <div class="nav-item" data-page="financeiro" onclick="dmxOpenFinanceiro(this)"><span class="icon">◆</span> Painel Executivo</div>
     <div class="nav-section-label">Gestão</div>
     <div class="nav-item" data-page="kpis" onclick="nav(this)"><span class="icon">◈</span> Catálogo de KPIs</div>
     <div class="nav-item" data-page="atualizar" onclick="nav(this)"><span class="icon">⊙</span> Atualizar Dados</div>
@@ -638,7 +638,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 <!-- MAIN -->
 <div class="main">
   <div class="topbar">
-    <div class="topbar-title" id="topbar-title">Painel Executivo</div>
+    <div class="topbar-title" id="topbar-title">Dashboard Operacional</div>
     <div class="period-selector">
       <span style="font-size:10px;color:var(--muted);font-weight:600">MÊS</span>
       <select id="mes-sel" onchange="onPeriodChange()">
@@ -1554,7 +1554,7 @@ function nav(el, areaName) {
     p.classList.remove('active');
     p.style.display = '';
   });
-  const titles = {dashboard:'Painel Executivo', areas:'Vis\u00E3o por \u00C1rea', kpis:'Cat\u00E1logo de KPIs',
+  const titles = {dashboard:'Dashboard Operacional', areas:'Vis\u00E3o por \u00C1rea', kpis:'Cat\u00E1logo de KPIs',
     atualizar:'Atualizar Dados do M\u00EAs', planos:'Planos de A\u00E7\u00E3o',
      'area-detail': areaName || '\u00C1rea', 'semanal-operacional': 'Acompanhamento Semanal'};
   document.getElementById('topbar-title').textContent = titles[page] || page;
@@ -4928,7 +4928,7 @@ window.addEventListener('DOMContentLoaded', init);
   function n(v){ const x = Number(String(v ?? '').replace(',','.')); return Number.isFinite(x) ? x : null; }
   function pct(v){ return v === null || v === undefined || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%'; }
   function safeKpis(){ try { return (Array.isArray(window.kpis) && window.kpis.length) ? window.kpis : (Array.isArray(kpis) ? kpis : KPI_CATALOG); } catch(e) { return []; } }
-  function safeAreas(){ try { const base = (Array.isArray(window.AREAS) && window.AREAS.length) ? window.AREAS : [...new Set(safeKpis().map(k=>k.area).filter(Boolean))].sort(); return base.filter(a => !['CEO','Painel Financeiro'].includes(String(a||'').trim())); } catch(e) { return []; } }
+  function safeAreas(){ try { const base = (Array.isArray(window.AREAS) && window.AREAS.length) ? window.AREAS : [...new Set(safeKpis().map(k=>k.area).filter(Boolean))].sort(); return base.filter(a => !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim())); } catch(e) { return []; } }
   function kpiById(id){ return safeKpis().find(k=>String(k.id)===String(id)); }
   function defaultConfig(){ const metas = safeKpis().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta'); return {kpi1: metas[0]?.id || '', peso1: 20, kpi2: metas[1]?.id || '', peso2: 20, kpi3: metas[2]?.id || '', peso3: 20, pesoArea: 40}; }
   function loadConfigPPR(){ try { return Object.assign(defaultConfig(), JSON.parse(localStorage.getItem(PPR_KEY)||'{}')||{}); } catch(e){ return defaultConfig(); } }
@@ -6302,8 +6302,8 @@ window.buildShareSection = function(kpiId){
 <script>
 
 (function(){
-  const FIN_LABEL = 'Painel Financeiro';
-  const FIN_ALIASES = ['CEO', FIN_LABEL];
+  const FIN_LABEL = 'CEO';
+  const FIN_ALIASES = ['CEO', 'Painel Financeiro', 'Painel Executivo'];
   function isFin(a){ return FIN_ALIASES.includes(String(a||'').trim()); }
   function normArea(a){ return isFin(a) ? FIN_LABEL : a; }
   function normalizeFinanceData(){
@@ -6333,17 +6333,17 @@ window.buildShareSection = function(kpiId){
       item = document.createElement('div');
       item.className = 'nav-item';
       item.dataset.page = 'financeiro';
-      item.innerHTML = '<span class="icon">◆</span> Painel Financeiro';
+      item.innerHTML = '<span class="icon">◆</span> Painel Executivo';
       item.onclick = function(){ window.dmxOpenFinanceiro(item); };
       if(dash && dash.parentNode) dash.parentNode.insertBefore(item, dash.nextSibling);
     } else {
-      item.innerHTML = '<span class="icon">◆</span> Painel Financeiro';
+      item.innerHTML = '<span class="icon">◆</span> Painel Executivo';
       item.onclick = function(){ window.dmxOpenFinanceiro(item); };
     }
   }
   function removeFinanceFromAreaNav(){
     document.querySelectorAll('#area-nav-items .nav-item').forEach(el => {
-      if(isFin(el.dataset.area) || /^(CEO|Painel Financeiro)\s*$/.test((el.textContent||'').replace('▸','').trim())) el.remove();
+      if(isFin(el.dataset.area) || /^(CEO|Painel Financeiro|Painel Executivo)\s*$/.test((el.textContent||'').replace('▸','').trim())) el.remove();
     });
   }
   function stripFinancePPRCards(){
@@ -6369,7 +6369,7 @@ window.buildShareSection = function(kpiId){
     try { currentPage = 'financeiro'; window.currentPage = 'financeiro'; } catch(e) {}
     try { window.currentArea = FIN_LABEL; currentArea = FIN_LABEL; } catch(e) {}
     const t = document.getElementById('topbar-title');
-    if(t) t.textContent = 'Painel Financeiro';
+    if(t) t.textContent = 'Painel Executivo';
     if(typeof window.dmxRenderPainelFinanceiro === 'function') {
       window.dmxRenderPainelFinanceiro();
     } else if(typeof window.dmxFinanceiroPainel === 'function') {
@@ -6451,7 +6451,7 @@ window.buildShareSection = function(kpiId){
       setTimeout(function(){
         document.querySelectorAll('#ppr-area-tables .block-card').forEach(card => {
           const head = card.querySelector('div[style*="font-family:Syne"]')?.textContent || card.textContent || '';
-          if(/\bCEO\b|Painel Financeiro/i.test(head)) card.remove();
+          if(/\bCEO\b|Painel Financeiro|Painel Executivo/i.test(head)) card.remove();
         });
       },50);
     };
@@ -8595,7 +8595,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     el.classList.add('active');
     document.querySelectorAll('.page').forEach(p=>{p.classList.remove('active');p.style.display='';});
-    const titles={dashboard:'Painel Executivo',areas:'Visão por Área',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação','area-detail':areaName||'Área','semanal-operacional':'Acompanhamento Semanal'};
+    const titles={dashboard:'Dashboard Operacional',areas:'Visão por Área',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação','area-detail':areaName||'Área','semanal-operacional':'Acompanhamento Semanal'};
     const t=document.getElementById('topbar-title'); if(t) t.textContent=titles[page]||page;
     const pageEl=document.getElementById('page-'+page);
     if(pageEl){pageEl.classList.add('active'); if(page==='kpi-slide'||page==='weekly-slide') pageEl.style.display='flex';}
@@ -8776,7 +8776,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   window.dmxGetApiUrl = function(){ return DMX_API_URL; };
 
   const ABAS_OPCOES = [
-    'TODAS','PAINEL EXECUTIVO','MODO DIRETORIA','PAINEL FINANCEIRO',
+    'TODAS','DASHBOARD OPERACIONAL','MODO DIRETORIA','PAINEL FINANCEIRO',
     'CATÁLOGO DE KPIs','ATUALIZAR DADOS','PLANOS DE AÇÃO',
     'PLANO PPR','ÍNDICE EFICIÊNCIA','SEMANAL','ADMIN / SHEETS','ÁREA'
   ];
@@ -8785,9 +8785,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const STATUS_OPCOES = ['SIM','NÃO'];
 
   const PAGE_TO_ABA = {
-    dashboard:'PAINEL EXECUTIVO',
+    dashboard:'DASHBOARD OPERACIONAL',
     diretoria:'MODO DIRETORIA',
-    financeiro:'PAINEL FINANCEIRO',
+    financeiro:'PAINEL EXECUTIVO',
     kpis:'CATÁLOGO DE KPIs',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
@@ -9272,7 +9272,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <div class="dmx-v48-field"><label>Senha</label><input id="adm-user-senha" class="filter-input" placeholder="Senha nova/provisória"></div>
       </div>
       <div class="dmx-v48-access-grid">
-        <div class="dmx-v48-field"><label>Abas de acesso</label>${checkboxList('adm-user-abas', ABAS_OPCOES, 'PAINEL EXECUTIVO')}</div>
+        <div class="dmx-v48-field"><label>Abas de acesso</label>${checkboxList('adm-user-abas', ABAS_OPCOES, 'DASHBOARD OPERACIONAL')}</div>
         <div class="dmx-v48-field"><label>Áreas liberadas</label>${checkboxList('adm-user-areas', areas, 'TODAS')}</div>
       </div>
       <div class="filter-row"><button class="btn btn-primary" onclick="dmxAdminSaveUserV48()">Salvar usuário</button></div>
@@ -9306,7 +9306,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const cargo=document.getElementById('adm-user-cargo'); if(cargo) cargo.value='ANALISTA';
     const perm=document.getElementById('adm-user-permissao'); if(perm) perm.value='LEITURA';
     const status=document.getElementById('adm-user-status'); if(status) status.value='SIM';
-    setCheckboxValues('adm-user-abas','PAINEL EXECUTIVO');
+    setCheckboxValues('adm-user-abas','DASHBOARD OPERACIONAL');
     setCheckboxValues('adm-user-areas','TODAS');
   };
 
@@ -9318,7 +9318,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     document.getElementById('adm-user-permissao').value = u.permissao || 'LEITURA';
     document.getElementById('adm-user-status').value = u.status || u.ativo || 'SIM';
     document.getElementById('adm-user-senha').value = '';
-    setCheckboxValues('adm-user-abas', u.abas||u.abasAcesso||'PAINEL EXECUTIVO');
+    setCheckboxValues('adm-user-abas', u.abas||u.abasAcesso||'DASHBOARD OPERACIONAL');
     setCheckboxValues('adm-user-areas', u.areas||u.area||'TODAS');
     window.scrollTo?.(0,0);
   };
@@ -9339,7 +9339,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!payload.nome) payload.nome = payload.email;
     if(!payload.cargo) payload.cargo = 'ANALISTA';
     if(!payload.permissao) payload.permissao = 'LEITURA';
-    if(!payload.abas) payload.abas = 'PAINEL EXECUTIVO';
+    if(!payload.abas) payload.abas = 'DASHBOARD OPERACIONAL';
     if(!payload.areas) payload.areas = 'TODAS';
     if(!payload.status) payload.status = 'SIM';
     try{
@@ -9532,9 +9532,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return !arr.length || arr.some(x => ['TODAS','TODOS','ALL','*'].includes(x));
   };
   const pageMap = {
-    dashboard:'PAINEL EXECUTIVO',
+    dashboard:'DASHBOARD OPERACIONAL',
     diretoria:'MODO DIRETORIA',
-    financeiro:'PAINEL FINANCEIRO',
+    financeiro:'PAINEL EXECUTIVO',
     kpis:'CATÁLOGO DE KPIS',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
@@ -9793,9 +9793,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return !arr.length || arr.some(x => ['TODAS','TODOS','ALL','*'].includes(x));
   };
   const pageMap = {
-    dashboard:'PAINEL EXECUTIVO',
+    dashboard:'DASHBOARD OPERACIONAL',
     diretoria:'MODO DIRETORIA',
-    financeiro:'PAINEL FINANCEIRO',
+    financeiro:'PAINEL EXECUTIVO',
     kpis:'CATÁLOGO DE KPIS',
     atualizar:'ATUALIZAR DADOS',
     planos:'PLANOS DE AÇÃO',
@@ -10033,7 +10033,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function areas485(){
     const a = Array.isArray(window.AREAS) && window.AREAS.length ? window.AREAS : [...new Set(kpis485().map(k=>k.area).filter(Boolean))];
-    return [...new Set(a.map(x=>String(x||'').trim()).filter(Boolean))].filter(a=>!['CEO','Painel Financeiro','Mensal'].includes(a)).sort();
+    return [...new Set(a.map(x=>String(x||'').trim()).filter(Boolean))].filter(a=>!['CEO','Painel Financeiro','Painel Executivo','Mensal'].includes(a)).sort();
   }
   function byPeriod485(mes,ano){
     try{ if(typeof byPeriod==='function') return byPeriod(mes||currentMes, ano||currentAno) || []; }catch(e){}
@@ -10099,8 +10099,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <div id="ppr-validacao" class="text-sm text-muted" style="margin-top:10px"></div>
       </div>
       <div class="cards-row" id="ppr-cards" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div id="ppr-semestral-bloco">
       <div class="section-header"><div class="section-title">Resultado final por área</div><span class="text-muted text-sm">Base atual: ${metas.length} KPIs meta · ${areaList.length} áreas</span></div>
-      <div id="ppr-area-tables"></div>`;
+      <div id="ppr-area-tables"></div>
+      </div>`;
     ['1','2','3'].forEach(i=>{ const el=document.getElementById('ppr-kpi-'+i); if(el) el.value=cfg['kpi'+i]||''; });
     document.querySelectorAll('.dmx-ppr-input').forEach(el=>el.addEventListener('change',()=>window.dmxSalvarPPR485(false)));
     drawPpr485();
@@ -10224,7 +10226,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function getAreaList486(){
     const fixed = Array.isArray(window.AREAS) ? window.AREAS : [];
     const fromKpis = Array.isArray(window.kpis) ? window.kpis.map(k=>k && k.area).filter(Boolean) : [];
-    const extra = ['Cadastro','Checagem','Cobrança','Comercial','Jurídico','MRO','Operações','PP','RH','Trustee','Painel Financeiro'];
+    const extra = ['Cadastro','Checagem','Cobrança','Comercial','Jurídico','MRO','Operações','PP','RH','Trustee'];
     return uniq486([...fixed, ...fromKpis, ...extra]).filter(a=>!['Mensal','Semanal'].some(x=>eq486(a,x))).sort((a,b)=>a.localeCompare(b,'pt-BR'));
   }
   function getKpi486(id){
@@ -10558,7 +10560,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return arr.map(norm).includes(norm(area));
   }
   const PAGE_ALIASES = {
-    dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],
+    dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],
     diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
     financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
     kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],
@@ -10628,7 +10630,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     fixUserChip();
   }
   function pageTitle(page, areaName){
-    return ({dashboard:'Painel Executivo',diretoria:'Modo Diretoria',financeiro:'Painel Financeiro',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',ppr:'Plano PPR',indice:'Índice de Eficiência','semanal-operacional':'Acompanhamento Semanal','area-detail':areaName||'Área',admin:'Administração / Google Sheets'})[page] || page;
+    return ({dashboard:'Dashboard Operacional',diretoria:'Modo Diretoria',financeiro:'Painel Executivo',kpis:'Catálogo de KPIs',atualizar:'Atualizar Dados do Mês',planos:'Planos de Ação',ppr:'Plano PPR',indice:'Índice de Eficiência','semanal-operacional':'Acompanhamento Semanal','area-detail':areaName||'Área',admin:'Administração / Google Sheets'})[page] || page;
   }
   function callRenderer(page, areaName){
     try{
@@ -10738,7 +10740,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function tabs(u){return unique([].concat(split(u?.abas),split(u?.abasAcesso),split(u?.['Abas de Acesso']),split(u?.paginas)));}
   function areas(u){return unique([].concat(split(u?.areas),split(u?.area),split(u?.['Área']),split(u?.areasLiberadas)));}
   function all(arr){return (arr||[]).some(x=>['TODAS','TODOS','*','ALL'].includes(norm(x)));}
-  const aliases={dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
+  const aliases={dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
   function canPage(p,u=session()){ if(!u) return false; if(isAdmin(u)) return true; if(p==='admin') return false; if(p==='area-detail') return areas(u).length>0 || tabs(u).map(norm).includes('AREA') || all(tabs(u)); const t=tabs(u); if(all(t)) return true; return (aliases[p]||[p]).some(a=>t.map(norm).includes(norm(a))); }
   function canArea(a,u=session()){ if(!u) return false; if(isAdmin(u)) return true; const ar=areas(u); if(all(ar)) return true; return ar.map(norm).includes(norm(a)); }
 
@@ -10866,7 +10868,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function hasAll(arr){ return (arr||[]).some(x=>['TODAS','TODOS','ALL','*'].includes(key(x))); }
 
   const PAGE_ALIAS = {
-    dashboard:['PAINEL EXECUTIVO','EXECUTIVO','DASHBOARD'],
+    dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],
     diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
     financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
     kpis:['CATALOGO DE KPIS','CATALOGO KPI','CATÁLOGO DE KPIS','CATÁLOGO KPI'],
@@ -11679,7 +11681,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     page = normPage(page || DEFAULT_PAGE);
     // Painel Financeiro não possui page própria. Ele usa page-area-detail + renderAreaDetail('Painel Financeiro').
     // Portanto nunca gravamos/restauramos currentPage='financeiro', pois isso ativa menu sem tela real e gera branco.
-    if(page === 'financeiro') return {page:'area-detail', area:'Painel Financeiro'};
+    if(page === 'financeiro') return {page:'financeiro', area:'CEO'};
     area = page === 'area-detail' ? (area || '') : '';
     if(page === 'area-detail' && isFinanceArea(area)) area = 'Painel Financeiro';
     return {page, area};
@@ -11736,7 +11738,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(page === 'financeiro' || (page === 'area-detail' && isFinanceArea(area))){
       const el = findNav('financeiro');
       if(typeof window.dmxOpenFinanceiro === 'function') { window.dmxOpenFinanceiro(el); return true; }
-      page = 'area-detail'; area = 'Painel Financeiro';
+      page = 'financeiro'; area = 'CEO';
     }
     const el = findNav(page, area);
     if(el && typeof window.nav === 'function') { window.nav(el, page === 'area-detail' ? area : undefined); return true; }
@@ -14466,7 +14468,7 @@ setTimeout(()=>{
 
     const areaList = (typeof areas485==='function' ? areas485() :
       [...new Set(kpisAll().map(k=>k.area).filter(Boolean))].sort()
-    ).filter(a=>!['CEO','Painel Financeiro'].includes(String(a||'').trim()));
+    ).filter(a=>!['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()));
 
     const finais = areaList.map(a=>({a, v:calcPprSem(a,ano,sem.ini,sem.fim)})).filter(x=>x.v!=null);
     if(!finais.length){ out.textContent='Sem dados lançados para esse semestre.'; return; }
@@ -15019,279 +15021,543 @@ setTimeout(()=>{
 
 
 
-<!-- PATCH v82.1 — Painel Financeiro Reformulado (Retorno/Risco/Eficiência) -->
+
+
+
+
+
+
+
+
+
+
+<!-- PATCH v82 — Painel Financeiro (Retorno/Risco/Eficiência) -->
+
+
+<!-- PATCH v82 — PPR Mensal -->
+
+
+
+
+
+
+
+
+<!-- PATCH v82 — PPR v4 (Mensal+Semestral independentes + Tabela Transparência) -->
 <script>
-// Definição imediata no escopo global — antes do IIFE
-window.dmxRenderPainelFinanceiro = function(){ console.log('[FIN] render chamado'); };
-try{
 (function(){
-  const FIN_CONFIG_KEY = 'dmx_painel_financeiro_config_v1';
-  const VERTENTES = ['Retorno', 'Risco', 'Eficiência'];
-  let _finActiveTab = 'Retorno';
+  if(window.__dmxPprV4) return;
+  window.__dmxPprV4 = true;
 
-  // ── Helpers ───────────────────────────────────────────────
-  function isAdmin(){
+  var CFG_SEM_KEY = 'dmx_ppr_config_v1';
+  var CFG_MES_KEY = 'dmx_ppr_config_mensal_v1';
+  var MODO_KEY    = 'dmx_ppr_modo_v82';
+  var modoAtual   = localStorage.getItem(MODO_KEY) || 'semestral';
+
+  var MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function pct(v,d){ d=(d===undefined?1:d); return v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%'; }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function getCfg(modo){
+    try{ return JSON.parse(localStorage.getItem(modo==='mensal'?CFG_MES_KEY:CFG_SEM_KEY)||'{}'); }catch(e){ return {}; }
+  }
+  function setCfg(modo,cfg){ localStorage.setItem(modo==='mensal'?CFG_MES_KEY:CFG_SEM_KEY, JSON.stringify(cfg)); }
+
+  function kpisAll(){ return window.kpis||[]; }
+  function kpiById(id){ return kpisAll().filter(function(k){ return String(k.id)===String(id); })[0]; }
+
+  function getAreaList(){
+    return (typeof areas485==='function'?areas485():
+      [...new Set(kpisAll().map(function(k){ return k.area; }).filter(Boolean))].sort())
+      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
+  }
+
+  // ── Atingimento de um KPI num intervalo ───────────────────────────────────
+  function calcAting(kpiId, ano, ini, fim){
     try{
-      const s = JSON.parse(localStorage.getItem('dmx_session_v41')||'null');
-      if(!s) return false;
-      const p = String(s.perfil||s.permissao||s.perfilApi||'').toLowerCase();
-      return p==='admin'||p==='administrador';
-    }catch(e){ return false; }
-  }
-
-  function loadFinConfig(){
-    try{ return JSON.parse(localStorage.getItem(FIN_CONFIG_KEY)||'{}'); }catch(e){ return {}; }
-  }
-
-  function saveFinConfig(cfg){
-    localStorage.setItem(FIN_CONFIG_KEY, JSON.stringify(cfg));
-    const _api = typeof dmxApiPost==='function' ? dmxApiPost : window.dmxApiPost;
-    if(typeof _api==='function'){
-      const rows = [];
-      VERTENTES.forEach(v=>{
-        (cfg[v]||[]).forEach((kpiId,i)=>{
-          rows.push({id:kpiId+'_'+v, vertente:v, kpi_id:kpiId, ordem:i, ativo:true, criado_em:new Date().toISOString()});
-        });
+      var k=kpiById(kpiId); if(!k||!kpiId) return null;
+      // launches é global, não window.launches
+      var all = (typeof launches!=='undefined' ? launches : (window.LAUNCHES||window.launches||[]));
+      var list=all.filter(function(l){
+        var m=Number(l.mes_num||l.mes||0);
+        return String(l.id_kpi)===String(kpiId) && Number(l.ano)===Number(ano) &&
+               m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
       });
-      _api('salvarConfigPainelFinanceiro',{rows}).catch(e=>console.warn('FinPanel→Sheets:',e));
-    }
-  }
-
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  function fmtV(v,u){
-    if(v===null||v===undefined||v==='') return '—';
-    const n=Number(v); if(isNaN(n)) return String(v);
-    if(String(u||'').includes('R$')||String(u||'').includes('$'))
-      return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
-    if(String(u||'').includes('%')) return n.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-    return n.toLocaleString('pt-BR',{maximumFractionDigits:2});
-  }
-
-  function getLaunchFin(kpiId){
-    try{
-      const mes=window.currentMes||5, ano=window.currentAno||2026;
-      if(typeof getLaunch==='function') return getLaunch(kpiId,mes,ano);
-      // Fallback: busca direto em LAUNCHES
-      const launches = window.LAUNCHES||window.launches||[];
-      return launches.find(l=>String(l.id_kpi)===String(kpiId)&&Number(l.mes_num||l.mes)===mes&&Number(l.ano)===ano)||null;
+      if(!list.length) return null;
+      var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
+      var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
+      var real=isS?sum('realizado'):sum('realizado')/list.length;
+      var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
+      if(!metaOk.length) return null;
+      var meta=isS?sum('meta'):sum('meta')/list.length;
+      if(!meta) return null;
+      return (real/meta)*100;
     }catch(e){ return null; }
   }
 
-  function getMetaFin(kpi){
+  // ── Índice da área ────────────────────────────────────────────────────────
+  function calcIndiceArea(area, mes, ano){
     try{
-      if(typeof resolveRef==='function'){
-        const ref = resolveRef(kpi,window.currentMes||5,window.currentAno||2026);
-        return ref.meta;
+      if(typeof window.dmxIndiceArea==='function'){
+        var r=window.dmxIndiceArea(area,mes,ano); return r?r.indiceAcum:null;
       }
-      return kpi.meta||kpi.meta_padrao||null;
-    }catch(e){ return kpi.meta||null; }
+      return null;
+    }catch(e){ return null; }
   }
 
-  // ── Card de KPI ───────────────────────────────────────────
-  function finKpiCard(kpi){
-    const l = getLaunchFin(kpi.id);
-    const real = l ? l.realizado : null;
-    const meta = getMetaFin(kpi);
-    const at = (real!==null&&real!==''&&meta!==null&&meta!==0&&meta!=='')
-      ? Math.round(Number(real)/Number(meta)*100) : null;
-    const st = l ? (l.status||'NA') : 'NA';
-    const stC = st==='VERDE'?'var(--green)':st==='AMARELO'?'var(--amber)':st==='VERMELHO'?'var(--red)':'var(--muted)';
-    const stL = st==='VERDE'?'Verde':st==='AMARELO'?'Alerta':st==='VERMELHO'?'Crítico':'N/A';
-
-    return `<div class="kpi-chart-card">
-      <div class="kpi-card-top">
-        <div style="min-width:0;flex:1">
-          <div class="kpi-card-id">${esc(kpi.id)} &middot; ${esc(kpi.area)}</div>
-          <div class="kpi-card-name">${esc(kpi.indicador)}</div>
-          ${kpi.objetivo?`<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4"><b>Objetivo:</b> ${esc(kpi.objetivo)}</div>`:''}
-          ${kpi.formula?`<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> ${esc(kpi.formula)}</div>`:''}
-        </div>
-        <div class="kpi-card-right">
-          <span class="status-pill ${st}">${stL}</span>
-        </div>
-      </div>
-      <div class="kpi-card-nums">
-        <div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div>
-          <div class="kpi-num-value" style="color:${stC}">${fmtV(real,kpi.unidade)}</div></div>
-        <div class="kpi-num-cell"><div class="kpi-num-label">Meta</div>
-          <div class="kpi-num-value">${fmtV(meta,kpi.unidade)}</div></div>
-        <div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div>
-          <div class="kpi-num-value" style="color:${stC}">${at!==null?at+'%':'—'}</div></div>
-      </div>
-      <div class="kpi-card-chart"><div style="height:110px"><canvas id="fin-chart-${esc(kpi.id)}" width="400" height="110"></canvas></div></div>
-      <div class="kpi-card-footer" style="cursor:pointer" onclick="if(typeof openKPISlide==='function') openKPISlide('${esc(kpi.id)}',0)">
-        <span style="font-size:14px">🔎</span> Ver análise completa<span style="margin-left:auto">›</span>
-      </div>
-    </div>`;
+  // ── Detalha PPR por área ──────────────────────────────────────────────────
+  function calcPPRDetalhado(area, ano, ini, fim, cfg){
+    var c1=calcAting(cfg.kpi1,ano,ini,fim), p1=Number(cfg.peso1||0);
+    var c2=calcAting(cfg.kpi2,ano,ini,fim), p2=Number(cfg.peso2||0);
+    var c3=calcAting(cfg.kpi3,ano,ini,fim), p3=Number(cfg.peso3||0);
+    var ci=calcIndiceArea(area,fim,ano),    pi=Number(cfg.pesoArea||0);
+    var total=0, peso=0;
+    if(c1!=null&&p1>0){ total+=c1*p1/100; peso+=p1; }
+    if(c2!=null&&p2>0){ total+=c2*p2/100; peso+=p2; }
+    if(c3!=null&&p3>0){ total+=c3*p3/100; peso+=p3; }
+    if(ci!=null&&pi>0){ total+=ci*pi/100; peso+=pi; }
+    return {
+      area:area,
+      kpi1:{v:c1,p:p1,contrib:c1!=null?c1*p1/100:null},
+      kpi2:{v:c2,p:p2,contrib:c2!=null?c2*p2/100:null},
+      kpi3:{v:c3,p:p3,contrib:c3!=null?c3*p3/100:null},
+      indice:{v:ci,p:pi,contrib:ci!=null?ci*pi/100:null},
+      total:peso?total:null
+    };
   }
 
-  // ── Renderiza aba ativa ───────────────────────────────────
-  function renderFinTab(vertente, cfg, allKpis){
-    const ids = cfg[vertente]||[];
-    const kpis = ids.map(id=>allKpis.find(k=>k.id===id)).filter(Boolean);
-    const host = document.getElementById('fin-tab-content');
-    if(!host) return;
-
-    if(kpis.length===0){
-      var _adminBtn = isAdmin() ? '<br><br><button class="btn btn-primary" onclick="dmxFinEditVertente(\'' + vertente + '\')">✏️ Configurar vertente</button>' : '';
-      host.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:32px;text-align:center;background:var(--bg2);border-radius:10px;margin:16px 0">Nenhum indicador configurado para <b>' + vertente + '</b>.' + _adminBtn + '</div>';
-      return;
-    }
-
-    host.innerHTML = `<div class="kpi-grid cols-2" style="margin-top:16px">${kpis.map(k=>finKpiCard(k)).join('')}</div>`;
-
-    // Renderiza gráficos — usa a mesma função das áreas
-    setTimeout(()=>{
-      kpis.forEach(kpi=>{
-        const canvas = document.getElementById('fin-chart-'+kpi.id);
-        if(!canvas) return;
-        try{
-          // Usa a mesma função das áreas para renderizar gráficos
-          if(typeof buildKPIChart==='function'){ buildKPIChart(kpi,canvas,110); return; }
-          // Fallback: usa Chart.js diretamente com os dados de lançamentos
-          const launches = (window.LAUNCHES||window.launches||[])
-            .filter(l=>String(l.id_kpi)===String(kpi.id)&&Number(l.ano)===(window.currentAno||2026))
-            .sort((a,b)=>Number(a.mes_num||a.mes)-Number(b.mes_num||b.mes));
-          const labels = launches.map(l=>{
-            const m=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-            return m[Number(l.mes_num||l.mes)]||'';
-          });
-          const data = launches.map(l=>Number(l.realizado)||null);
-          const metas = launches.map(l=>Number(l.meta||kpi.meta_padrao||kpi.meta)||null);
-          if(typeof Chart==='undefined') return;
-          new Chart(canvas,{
-            type:'line',
-            data:{labels,datasets:[
-              {label:'Realizado',data,borderColor:'#0E9E82',backgroundColor:'rgba(14,158,130,.1)',pointRadius:3,tension:.3,fill:true},
-              {label:'Meta',data:metas,borderColor:'rgba(37,99,235,.5)',borderDash:[4,3],pointRadius:0,tension:0}
-            ]},
-            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-              scales:{x:{display:false},y:{display:false}}}
-          });
-        }catch(e){ console.warn('fin chart error',kpi.id,e); }
-      });
-    },150);
+  // ── Célula da tabela ──────────────────────────────────────────────────────
+  function celula(comp){
+    if(!comp||comp.v==null)
+      return '<td style="text-align:center;padding:6px 10px;color:var(--muted);font-size:12px">—</td>';
+    var cor=comp.v>=100?'var(--green)':comp.v>=80?'var(--amber)':'var(--red)';
+    return '<td style="text-align:center;padding:6px 10px;vertical-align:middle;border-right:1px solid #F0F2F8">'+
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:'+cor+'">'+pct(comp.v)+'</div>'+
+      '<div style="font-size:9px;color:var(--muted);margin-top:1px">&times;'+pct(comp.p,0)+' = <b>'+pct(comp.contrib)+'</b></div>'+
+    '</td>';
   }
 
-  // ── Renderiza o painel completo ───────────────────────────
-  window.dmxRenderPainelFinanceiro = function(){
-    const host = document.getElementById('page-area-detail');
-    if(!host) return;
+  // ── Tabela de transparência ───────────────────────────────────────────────
+  function renderTabela(dados, cfg, periodoLabel){
+    if(!dados.length)
+      return '<div style="padding:24px;color:var(--muted);text-align:center;font-size:13px">Sem dados suficientes para o período.</div>';
+    var k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3);
+    var th=function(txt,sub){
+      return '<th style="text-align:center;padding:8px 10px;font-size:10px;font-weight:700;line-height:1.4;border-right:1px solid var(--border)">'+
+        esc(txt)+(sub?'<br><span style="font-weight:400;opacity:.65;font-size:9px">'+sub+'</span>':'')+
+      '</th>';
+    };
+    var header='<tr style="background:var(--bg3)">'+
+      '<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700">ÁREA</th>'+
+      th(k1?k1.indicador:'KPI Global 1','peso '+pct(Number(cfg.peso1||0),0))+
+      th(k2?k2.indicador:'KPI Global 2','peso '+pct(Number(cfg.peso2||0),0))+
+      th(k3?k3.indicador:'KPI Global 3','peso '+pct(Number(cfg.peso3||0),0))+
+      th('Índice da Área','peso '+pct(Number(cfg.pesoArea||0),0))+
+      '<th style="text-align:center;padding:8px 10px;font-size:10px;font-weight:700">ÍNDICE PPR</th>'+
+    '</tr>';
 
-    const admin = isAdmin();
-    const cfg = loadFinConfig();
-    const allKpis = window.kpis||[];
-    const mes = window.currentMes||5;
-    const meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-
-    const tabsHtml = VERTENTES.map(v=>{
-      const count = (cfg[v]||[]).length;
-      const ico = v==='Retorno'?'📈':v==='Risco'?'⚠️':'⚙️';
-      const active = v===_finActiveTab;
-      return `<div class="area-tab${active?' active':''}" onclick="dmxFinSwitchTab('${v}')" style="cursor:pointer">
-        ${ico} ${v} <span style="font-size:10px;opacity:.7">(${count})</span>
-      </div>`;
+    var rows=dados.map(function(d){
+      var cor=d.total!=null?(d.total>=100?'var(--green)':d.total>=80?'var(--amber)':'var(--red)'):'var(--muted)';
+      var ico=d.total!=null?(d.total>=100?'✅':d.total>=80?'⚠️':'❌'):'—';
+      return '<tr style="border-bottom:1px solid #F0F2F8">'+
+        '<td style="padding:7px 12px;font-weight:600;font-size:12px;border-right:1px solid #F0F2F8">'+esc(d.area)+'</td>'+
+        celula(d.kpi1)+celula(d.kpi2)+celula(d.kpi3)+celula(d.indice)+
+        '<td style="text-align:center;padding:6px 10px">'+
+          '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:'+cor+'">'+pct(d.total)+'</div>'+
+          '<div style="font-size:14px;margin-top:1px">'+ico+'</div>'+
+        '</td>'+
+      '</tr>';
     }).join('');
 
-    host.innerHTML = `
-      <div class="pres-bar" style="display:flex;align-items:center;gap:12px;padding:14px 20px">
-        <span style="font-family:Syne,sans-serif;font-size:18px;font-weight:800">◆ Painel Financeiro</span>
-        <span style="font-size:12px;color:var(--muted)">${meses[mes]} ${window.currentAno||2026}</span>
-        ${admin?`<button class="btn btn-ghost" style="margin-left:auto;font-size:11px" onclick="dmxFinEditVertente('${_finActiveTab}')">✏️ Configurar vertente</button>`:''}
-      </div>
-      <div class="area-tabs" id="fin-tabs">${tabsHtml}</div>
-      <div style="padding:16px 20px" id="fin-tab-content"></div>`;
+    return '<div class="block-card" style="padding:0;overflow:hidden;margin-bottom:16px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#0D0D0D;color:#fff">'+
+        '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📊 Demonstrativo dos Resultados PPR</span>'+
+        '<span style="font-size:11px;opacity:.7">'+esc(periodoLabel)+'</span>'+
+      '</div>'+
+      '<div style="padding:6px 14px;background:#F8FAFF;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'+
+        '<b>Fórmula:</b> Índice PPR = (Ating. KPI1 × Peso1) + (Ating. KPI2 × Peso2) + (Ating. KPI3 × Peso3) + (Índice Área × Peso Área)'+
+      '</div>'+
+      '<div style="overflow-x:auto">'+
+        '<table class="data-table" style="min-width:700px"><thead>'+header+'</thead><tbody>'+rows+'</tbody></table>'+
+      '</div>'+
+    '</div>';
+  }
 
-    renderFinTab(_finActiveTab, cfg, allKpis);
-  };
+  // ── Card de composição dinâmico (substitui o estático do patch v16) ────────
+  function updateComposicaoCard(modo){
+    var cfg=getCfg(modo);
+    var block=document.getElementById('ppr-composicao-card');
+    if(!block) return;
+    var k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3);
+    var row=function(label,kpi,peso){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'+
+        '<span style="font-size:12px;color:var(--muted)">'+label+'</span>'+
+        '<div style="text-align:right">'+
+          '<span style="font-weight:700;font-size:13px">'+(kpi?esc(kpi.indicador):'—')+'</span>'+
+          (kpi?'<span class="tag tag-area" style="margin-left:6px">'+esc(kpi.area)+'</span>':'')+
+          '<span style="font-size:11px;color:var(--muted);margin-left:8px">peso '+pct(peso,0)+'</span>'+
+        '</div>'+
+      '</div>';
+    };
+    var modoLabel=modo==='mensal'?'📅 Mensal':'🗓️ Semestral';
+    block.innerHTML=
+      '<div class="section-header" style="margin-bottom:10px">'+
+        '<div>'+
+          '<div class="section-title">Composição do PPR</div>'+
+          '<div class="text-muted text-sm mt-1">Configuração <b>'+modoLabel+'</b> · Gerenciada pelo Administrador na aba <strong>Admin / Sheets</strong>.</div>'+
+        '</div>'+
+      '</div>'+
+      row('KPI Global 1',k1,cfg.peso1)+
+      row('KPI Global 2',k2,cfg.peso2)+
+      row('KPI Global 3',k3,cfg.peso3)+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">'+
+        '<span style="font-size:12px;color:var(--muted)">Índice PPR da Área</span>'+
+        '<span style="font-size:11px;color:var(--muted)">automático · peso '+pct(cfg.pesoArea,0)+'</span>'+
+      '</div>';
+  }
 
-  // ── Troca de aba ─────────────────────────────────────────
-  window.dmxFinSwitchTab = function(v){
-    _finActiveTab = v;
-    // Atualiza visual das abas
-    document.querySelectorAll('#fin-tabs .area-tab').forEach(el=>{
-      el.classList.toggle('active', el.textContent.trim().startsWith(v==='Retorno'?'📈':v==='Risco'?'⚠️':'⚙️'));
-    });
-    renderFinTab(v, loadFinConfig(), window.kpis||[]);
-  };
+  // ── Prepara o block-card de composição com ID fixo ────────────────────────
+  function ensureComposicaoCard(){
+    if(document.getElementById('ppr-composicao-card')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var block=page.querySelector('.block-card');
+    if(block){ block.id='ppr-composicao-card'; block.dataset.v16ro='1'; }
+  }
 
-  // ── Modal de configuração ─────────────────────────────────
-  window.dmxFinEditVertente = function(vertente){
-    if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
-    const allKpis = window.kpis||[];
-    const cfg = loadFinConfig();
-    const selecionados = cfg[vertente]||[];
+  // ── Racional ──────────────────────────────────────────────────────────────
+  function injectRacional(){
+    if(document.getElementById('ppr-racional')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var div=document.createElement('div');
+    div.id='ppr-racional';
+    div.style.cssText='margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#F0F9FF,#EFF6FF);border:1px solid #BAE6FD;border-radius:10px';
+    div.innerHTML=
+      '<div style="display:flex;align-items:flex-start;gap:12px">'+
+        '<div style="font-size:24px;flex-shrink:0">📋</div>'+
+        '<div>'+
+          '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#0369A1;margin-bottom:6px">Como funciona o Plano PPR</div>'+
+          '<div style="font-size:12px;color:#0C4A6E;line-height:1.7">'+
+            'O índice PPR de cada área combina <b>3 KPIs globais</b> (iguais para todas as áreas) com o <b>Índice de Eficiência da própria área</b>, '+
+            'cada um com peso definido pelo Administrador (soma = 100%).<br>'+
+            '<b>Fórmula:</b> Índice PPR = (Ating. KPI1 × Peso1) + (Ating. KPI2 × Peso2) + (Ating. KPI3 × Peso3) + (Índice Área × Peso Área)<br>'+
+            '<span style="display:inline-flex;gap:16px;margin-top:5px;padding:4px 10px;background:#DBEAFE;border-radius:5px;font-size:11px">'+
+              '<span>🗓️ <b>Semestral:</b> acumula os meses do semestre, com KPIs e pesos próprios</span>'+
+              '<span>📅 <b>Mensal:</b> avalia cada mês individualmente, com KPIs e pesos independentes</span>'+
+            '</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    var bar=document.getElementById('ppr-periodo-bar');
+    if(bar) page.insertBefore(div,bar); else page.insertBefore(div,page.firstChild);
+  }
 
-    const opts = allKpis.map(k=>`
-      <label class="dmx-fin-opt" style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" value="${esc(k.id)}" ${selecionados.includes(k.id)?'checked':''} style="margin-top:3px;flex-shrink:0;accent-color:var(--teal)">
-        <div>
-          <div style="font-size:12px;font-weight:600">${esc(k.id)} · ${esc(k.indicador)}</div>
-          <div style="font-size:10px;color:var(--muted)">${esc(k.area)}</div>
-        </div>
-      </label>`).join('');
+  // ── Barra de período ──────────────────────────────────────────────────────
+  function injectBar(){
+    if(document.getElementById('ppr-periodo-bar')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var bar=document.createElement('div');
+    bar.id='ppr-periodo-bar';
+    bar.style.cssText='display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px';
+    bar.innerHTML=
+      '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#0369A1">📅 Período PPR</span>'+
+      '<div style="display:flex;border:1px solid #BAE6FD;border-radius:6px;overflow:hidden">'+
+        '<button id="ppr-btn-sem" onclick="window.dmxPprSetModo(\'semestral\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Semestral</button>'+
+        '<button id="ppr-btn-mes" onclick="window.dmxPprSetModo(\'mensal\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Mensal</button>'+
+      '</div>'+
+      '<select id="ppr-sem-sel2" class="filter-input" style="width:200px;margin:0" onchange="window.dmxPprCalcSem()">'+
+        '<option value="1">1º Semestre — Jan a Jun</option>'+
+        '<option value="2">2º Semestre — Jul a Dez</option>'+
+      '</select>'+
+      '<select id="ppr-mes-sel2" class="filter-input" style="width:140px;margin:0;display:none" onchange="window.dmxPprCalcMes()">'+
+        '<option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>'+
+        '<option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>'+
+        '<option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>'+
+        '<option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>'+
+      '</select>'+
+      '<div id="ppr-periodo-out" style="font-size:12px;color:var(--muted);flex:1">← Selecione o período</div>';
+    var cards=document.getElementById('ppr-cards');
+    if(cards) page.insertBefore(bar,cards); else page.appendChild(bar);
+    // container tabela mensal
+    var divMes=document.createElement('div');
+    divMes.id='ppr-mensal-res'; divMes.style.cssText='display:none;margin-top:0';
+    if(cards) page.insertBefore(divMes,cards); else page.appendChild(divMes);
+    var ms=document.getElementById('ppr-mes-sel2');
+    if(ms) ms.value=String(window.currentMes||5);
+  }
 
-    let modal = document.getElementById('dmx-fin-modal');
-    if(!modal){
-      modal = document.createElement('div');
-      modal.id = 'dmx-fin-modal';
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center';
-      document.body.appendChild(modal);
+  // ── Aplica modo ───────────────────────────────────────────────────────────
+  function aplicaModo(modo){
+    modoAtual=modo; localStorage.setItem(MODO_KEY,modo);
+    var ativo='background:#0369A1;color:#fff;', inativo='background:transparent;color:#0369A1;';
+    var base='padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;';
+    var btnS=document.getElementById('ppr-btn-sem'), btnM=document.getElementById('ppr-btn-mes');
+    var selS=document.getElementById('ppr-sem-sel2'), selM=document.getElementById('ppr-mes-sel2');
+    var cards=document.getElementById('ppr-cards');
+    var semBloco=document.getElementById('ppr-semestral-bloco');
+    var semTabela=document.getElementById('ppr-sem-tabela-transp');
+    var res=document.getElementById('ppr-mensal-res');
+    var oldBar=document.getElementById('ppr-sem-bar');
+    if(oldBar) oldBar.style.display='none';
+    // Atualiza card de composição para o modo atual
+    ensureComposicaoCard();
+    updateComposicaoCard(modo);
+    if(modo==='semestral'){
+      if(btnS) btnS.style.cssText=base+ativo; if(btnM) btnM.style.cssText=base+inativo;
+      if(selS) selS.style.display=''; if(selM) selM.style.display='none';
+      if(cards) cards.style.display='none'; // oculta cards individuais (substituídos pela tabela)
+      if(semBloco) semBloco.style.display='';
+      if(semTabela) semTabela.style.display='';
+      if(res) res.style.display='none';
+      document.getElementById('ppr-periodo-out').textContent='← Selecione o semestre';
+      window.dmxPprCalcSem();
+    } else {
+      if(btnS) btnS.style.cssText=base+inativo; if(btnM) btnM.style.cssText=base+ativo;
+      if(selS) selS.style.display='none'; if(selM) selM.style.display='';
+      if(cards) cards.style.display='none';
+      if(semBloco) semBloco.style.display='none';
+      if(semTabela) semTabela.style.display='none';
+      if(res) res.style.display='';
+      document.getElementById('ppr-periodo-out').textContent='← Selecione o mês';
+      window.dmxPprCalcMes();
     }
-    modal.innerHTML = `<div style="background:var(--bg);border-radius:12px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <div style="padding:20px 24px">
-        <div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:3px">Configurar vertente: ${vertente}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Selecione os KPIs que aparecerão nesta vertente. Qualquer KPI do sistema pode ser incluído.</div>
-        <input type="text" placeholder="🔍 Buscar KPI..." oninput="this.nextElementSibling.querySelectorAll('.dmx-fin-opt').forEach(l=>l.style.display=l.textContent.toLowerCase().includes(this.value.toLowerCase())?'':'none')"
-          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:8px;background:var(--bg2)">
-        <div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)">${opts}</div>
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-          <button class="btn btn-ghost" onclick="document.getElementById('dmx-fin-modal').style.display='none'">Cancelar</button>
-          <button class="btn btn-primary" onclick="dmxFinSalvarVertente('${vertente}')">✓ Salvar configuração</button>
-        </div>
-      </div>
-    </div>`;
-    modal.style.display='flex';
-    modal.onclick=e=>{ if(e.target===modal) modal.style.display='none'; };
+  }
+
+  window.dmxPprSetModo=function(modo){ aplicaModo(modo); };
+
+  // ── Cálculo semestral ─────────────────────────────────────────────────────
+  window.dmxPprCalcSem=function(){
+    var SEMS={1:{label:'1º Semestre',short:'Jan–Jun',ini:1,fim:6},2:{label:'2º Semestre',short:'Jul–Dez',ini:7,fim:12}};
+    var v=Number(document.getElementById('ppr-sem-sel2')?.value||1);
+    var sem=SEMS[v]||SEMS[1], ano=Number(window.currentAno||2026);
+    var cfg=getCfg('semestral');
+    var out=document.getElementById('ppr-periodo-out'); if(!out) return;
+    var areas=getAreaList();
+    var dados=areas.map(function(a){ return calcPPRDetalhado(a,ano,sem.ini,sem.fim,cfg); })
+                   .filter(function(d){ return d.total!=null; });
+    if(!dados.length){ out.textContent='Sem dados para esse semestre.'; return; }
+    var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
+    var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
+    out.innerHTML='<strong>'+sem.label+' ('+sem.short+')/'+ano+'</strong> &nbsp;·&nbsp; '+
+      'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
+      'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
+      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+    // Tabela de transparência dentro do semestral-bloco
+    var semBloco=document.getElementById('ppr-semestral-bloco'); if(!semBloco) return;
+    var tabId='ppr-sem-tabela-transp';
+    var tabDiv=document.getElementById(tabId)||document.createElement('div');
+    tabDiv.id=tabId;
+    tabDiv.innerHTML=renderTabela(sorted,cfg,sem.label+' — '+sem.short+'/'+ano);
+    if(!document.getElementById(tabId)){
+      var areaTab=document.getElementById('ppr-area-tables');
+      // Insere ANTES do ppr-area-tables e oculta o antigo
+      if(areaTab){ semBloco.insertBefore(tabDiv,areaTab); areaTab.style.display='none'; }
+      else semBloco.appendChild(tabDiv);
+    }
+    // Garante que ppr-area-tables fique oculto (layout antigo)
+    var at=document.getElementById('ppr-area-tables'); if(at) at.style.display='none';
+    var sh=semBloco.querySelector('.section-header'); if(sh) sh.style.display='none';
   };
 
-  window.dmxFinSalvarVertente = function(vertente){
-    const cfg = loadFinConfig();
-    cfg[vertente] = [...document.querySelectorAll('#dmx-fin-modal input[type=checkbox]:checked')].map(c=>c.value);
-    saveFinConfig(cfg);
-    document.getElementById('dmx-fin-modal').style.display='none';
-    _finActiveTab = vertente;
-    window.dmxRenderPainelFinanceiro();
+  // ── Cálculo mensal ────────────────────────────────────────────────────────
+  window.dmxPprCalcMes=function(){
+    var mes=Number(document.getElementById('ppr-mes-sel2')?.value||window.currentMes||5);
+    var ano=Number(window.currentAno||2026);
+    var cfg=getCfg('mensal');
+    var cfgSem=getCfg('semestral');
+    var out=document.getElementById('ppr-periodo-out');
+    var res=document.getElementById('ppr-mensal-res');
+    if(!out||!res) return;
+    var areas=getAreaList();
+    var cfgUsar=cfg.kpi1?cfg:cfgSem; // fallback para semestral se mensal não configurado
+    var dados=areas.map(function(a){ return calcPPRDetalhado(a,ano,mes,mes,cfgUsar); })
+                   .filter(function(d){ return d.total!=null; });
+    var periodoLabel=MESES_LABEL[mes]+'/'+ano;
+    if(!dados.length){ out.innerHTML='<span style="color:var(--muted)">Sem dados para '+esc(periodoLabel)+'.</span>'; res.innerHTML=''; return; }
+    var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
+    var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
+    out.innerHTML='<strong>'+esc(periodoLabel)+'</strong> &nbsp;·&nbsp; '+
+      'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
+      'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
+      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+    var aviso=(!cfg.kpi1&&!cfg.kpi2&&!cfg.kpi3)?
+      '<div style="padding:9px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:12px;color:#92400E;margin-bottom:12px">'+
+      '⚠️ <b>Configuração mensal não definida.</b> Configure os KPIs do programa mensal em <b>Admin / Sheets</b>. Exibindo com config semestral como prévia.'+
+      '</div>':'';
+    res.innerHTML=aviso+renderTabela(sorted,cfgUsar,MESES_LABEL[mes]+'/'+ano+' — Mensal');
   };
 
-  // Navegação já corrigida na origem (linha ~6362) — sem necessidade de wrapper adicional
+  // ── Config mensal no Admin ────────────────────────────────────────────────
+  function buildAdminMensalPanel(){
+    var cfg=getCfg('mensal');
+    var metas=(window.kpis||[]).filter(function(k){ return String(k.vertente||'').toLowerCase().indexOf('meta')>=0; });
+    var opts='<option value="">— Selecione um KPI —</option>'+
+      metas.map(function(k){ return '<option value="'+esc(k.id)+'">'+esc(k.id)+' · '+esc(k.area)+' · '+esc(k.indicador)+'</option>'; }).join('');
+    function row(label,kpiId,pesoId,val){
+      return '<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">'+
+        '<div><div class="card-label">'+label+'</div><select class="filter-input" id="'+kpiId+'" style="width:100%">'+opts+'</select></div>'+
+        '<div><div class="card-label">Peso (%)</div><input class="filter-input" id="'+pesoId+'" type="text" inputmode="decimal" value="'+val+'" style="width:100%"></div>'+
+      '</div>';
+    }
+    return '<div id="dmx-ppr-mensal-admin" style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border)">'+
+      '<div class="section-header" style="margin-bottom:12px">'+
+        '<div><div class="section-title">📅 Configuração PPR Mensal</div>'+
+        '<div class="text-muted text-sm mt-1">KPIs e pesos independentes do semestral. Para incentivar metas pontuais mensais.</div></div>'+
+        '<button class="btn btn-primary btn-sm" onclick="window.dmxSalvarPPRMensal()">Salvar Config Mensal</button>'+
+      '</div>'+
+      row('KPI Global 1 (Mensal)','ppr-mes-kpi1','ppr-mes-p1',cfg.peso1!=null?cfg.peso1:20)+
+      row('KPI Global 2 (Mensal)','ppr-mes-kpi2','ppr-mes-p2',cfg.peso2!=null?cfg.peso2:20)+
+      row('KPI Global 3 (Mensal)','ppr-mes-kpi3','ppr-mes-p3',cfg.peso3!=null?cfg.peso3:20)+
+      '<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">'+
+        '<div><div class="card-label">Índice da Área</div><div class="filter-input" style="background:#F8FAFC;color:var(--muted)">Automático</div></div>'+
+        '<div><div class="card-label">Peso (%)</div><input class="filter-input" id="ppr-mes-parea" type="text" inputmode="decimal" value="'+(cfg.pesoArea!=null?cfg.pesoArea:40)+'" style="width:100%"></div>'+
+      '</div>'+
+      '<div id="ppr-mes-valid" style="font-size:12px;margin-top:6px"></div>'+
+    '</div>';
+  }
 
-  // ── Carrega config do Sheets ──────────────────────────────
-  setTimeout(async()=>{
-    try{
-      const _apiGet = typeof apiGet==='function' ? apiGet : null;
-      if(!_apiGet) return;
-      const r = await _apiGet('config_painel_financeiro');
-      if(!r||!r.ok||!(r.rows||r.data)||!(r.rows||r.data).length) return;
-      const rows = r.rows||r.data;
-      const cfg = {};
-      VERTENTES.forEach(v=>cfg[v]=[]);
-      rows.filter(x=>x.ativo!==false&&x.ativo!=='false')
-        .sort((a,b)=>Number(a.ordem||0)-Number(b.ordem||0))
-        .forEach(x=>{ if(x.vertente&&cfg[x.vertente]) cfg[x.vertente].push(x.kpi_id); });
-      if(Object.values(cfg).some(v=>v.length>0))
-        localStorage.setItem(FIN_CONFIG_KEY,JSON.stringify(cfg));
-    }catch(e){}
-  },3000);
+  function fillAdminMensal(){
+    var cfg=getCfg('mensal');
+    ['1','2','3'].forEach(function(i){
+      var el=document.getElementById('ppr-mes-kpi'+i); if(el) el.value=cfg['kpi'+i]||'';
+    });
+    ['ppr-mes-kpi1','ppr-mes-kpi2','ppr-mes-kpi3','ppr-mes-p1','ppr-mes-p2','ppr-mes-p3','ppr-mes-parea']
+      .forEach(function(id){
+        var el=document.getElementById(id);
+        if(el&&!el.dataset.mensalBound){ el.dataset.mensalBound='1'; el.addEventListener('input',validaMensal); }
+      });
+    validaMensal();
+  }
 
-  console.log('[DMX] Painel Financeiro v82.1 instalado');
-  // Confirma exposição global
-  console.log('[FIN] dmxRenderPainelFinanceiro definida:', typeof window.dmxRenderPainelFinanceiro);
+  function validaMensal(){
+    var v=document.getElementById('ppr-mes-valid'); if(!v) return;
+    function n(id){ return Number(String(document.getElementById(id)?.value||'0').replace(',','.')); }
+    var tot=n('ppr-mes-p1')+n('ppr-mes-p2')+n('ppr-mes-p3')+n('ppr-mes-parea');
+    v.innerHTML=Math.abs(tot-100)<0.01
+      ?'<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>'
+      :'<span style="color:var(--red);font-weight:700">⚠ Soma: '+tot.toFixed(1)+'% (precisa ser 100%)</span>';
+  }
+
+  window.dmxSalvarPPRMensal=function(){
+    function n(id){ return Number(String(document.getElementById(id)?.value||'0').replace(',','.')); }
+    var cfg={kpi1:document.getElementById('ppr-mes-kpi1')?.value||'',peso1:n('ppr-mes-p1'),
+             kpi2:document.getElementById('ppr-mes-kpi2')?.value||'',peso2:n('ppr-mes-p2'),
+             kpi3:document.getElementById('ppr-mes-kpi3')?.value||'',peso3:n('ppr-mes-p3'),pesoArea:n('ppr-mes-parea')};
+    setCfg('mensal',cfg);
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var rows=[
+        {id:'mes_kpi1',mes_ref:'mensal_kpi1',area:'__global__',kpi_id:cfg.kpi1,peso:cfg.peso1,ativo:true},
+        {id:'mes_kpi2',mes_ref:'mensal_kpi2',area:'__global__',kpi_id:cfg.kpi2,peso:cfg.peso2,ativo:true},
+        {id:'mes_kpi3',mes_ref:'mensal_kpi3',area:'__global__',kpi_id:cfg.kpi3,peso:cfg.peso3,ativo:true},
+        {id:'mes_parea',mes_ref:'mensal_pesoArea',area:'__global__',kpi_id:'__area__',peso:cfg.pesoArea,ativo:true},
+      ];
+      api('salvarConfigPPRMensal',{rows:rows}).catch(function(){});
+    }
+    if(typeof window.showToast==='function') window.showToast('✓ Config PPR Mensal salva');
+    if(modoAtual==='mensal') window.dmxPprCalcMes();
+  };
+
+  function patchAdmin(){
+    var orig=window.renderAdminDMX;
+    if(typeof orig!=='function'||orig.__dmxPprV4Admin) return;
+    window.renderAdminDMX=async function(){
+      var r=await orig.apply(this,arguments);
+      setTimeout(function(){
+        var host=document.getElementById('admin-root'); if(!host) return;
+        if(!document.getElementById('dmx-ppr-mensal-admin')){
+          var wrap=document.createElement('div'); wrap.innerHTML=buildAdminMensalPanel();
+          var semPanel=document.getElementById('dmx-ppr-admin-panel');
+          if(semPanel) semPanel.parentElement.appendChild(wrap); else host.appendChild(wrap);
+        }
+        fillAdminMensal();
+      },150);
+      return r;
+    };
+    window.renderAdminDMX.__dmxPprV4Admin=true;
+    Object.assign(window.renderAdminDMX,orig);
+    window.renderAdminDMX.__dmxPprV4Admin=true;
+  }
+
+  function wrapRenderPPR(){
+    var orig=window.renderPPR;
+    if(typeof orig!=='function'||orig.__dmxPprV4) return;
+    window.renderPPR=function(){
+      var r=orig.apply(this,arguments);
+      setTimeout(function(){
+        var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
+        ensureComposicaoCard();
+        injectRacional();
+        injectBar();
+        aplicaModo(modoAtual);
+      },130);
+      return r;
+    };
+    window.renderPPR.__dmxPprV4=true;
+  }
+
+  setTimeout(function(){
+    wrapRenderPPR();
+    patchAdmin();
+    if(window.currentPage==='ppr'){
+      var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
+      ensureComposicaoCard();
+      injectRacional();
+      injectBar();
+      aplicaModo(modoAtual);
+    }
+  },900);
+
+  console.log('[DMX] PPR v4 instalado');
 })();
-}catch(e){ console.error('[DMX v82.1 ERRO]', e); }
+
 </script>
 
+
+
+
+
+
+<!-- PATCH v82 — Oculta CEO/Painel Financeiro da seção ÁREA -->
+<script>
+(function(){
+  if(window.__dmxHideFinArea) return;
+  window.__dmxHideFinArea = true;
+
+  var HIDE = /^(CEO|Painel Financeiro|Painel Executivo|__fin_interno__)\s*$/i;
+
+  function hideFinArea(){
+    // Remove do container area-nav-items (onde buildSidebar coloca as áreas)
+    var cont = document.getElementById('area-nav-items');
+    if(cont){
+      cont.querySelectorAll('.nav-item[data-area]').forEach(function(el){
+        if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+      });
+    }
+    // Remove da sidebar geral por data-area
+    document.querySelectorAll('.sidebar-nav .nav-item[data-area]').forEach(function(el){
+      if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+    });
+  }
+
+  // Roda após buildSidebar sem substituí-lo
+  var origBuild = window.buildSidebar;
+  if(typeof origBuild === 'function' && !origBuild.__dmxHideFinWrapped){
+    window.buildSidebar = function(){
+      var r = origBuild.apply(this, arguments);
+      hideFinArea();
+      return r;
+    };
+    // Copia todas as propriedades e flags do original
+    Object.keys(origBuild).forEach(function(k){ window.buildSidebar[k] = origBuild[k]; });
+    window.buildSidebar.__dmxHideFinWrapped = true;
+  }
+
+  [200, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
+
+  console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
+})();
+</script>
 </body>
 </html>
 
@@ -15636,5 +15902,828 @@ try{
 })();
 </script>
 
+
+
+<!-- PATCH v82 — Painel Financeiro do Zero (Retorno/Risco/Eficiência) -->
+
+
+<!-- PATCH v82 — PPR Visão Mensal -->
+
+
+
+
+<!-- PATCH v82 — Painel Financeiro (Retorno/Risco/Eficiência) -->
+<script>
+(function(){
+  if(window.__dmxFinV82b) return;
+  window.__dmxFinV82b = true;
+
+  var PAGE_ID  = 'page-financeiro-v82';
+  var CFG_KEY  = 'dmx_fin_cfg_v82';
+  var MODO_KEY = 'dmx_fin_modo_v82';
+  var ABAS     = ['Retorno','Risco','Eficiência'];
+  var abaAtiva = localStorage.getItem(MODO_KEY) || 'Retorno';
+
+  var VERT_CFG = {
+    'Retorno':   { ico:'📈', cor:'#16A34A', bg:'#DCFCE7', label:'Retorno' },
+    'Risco':     { ico:'🛡️', cor:'#D97706', bg:'#FEF3C7', label:'Risco' },
+    'Eficiência':{ ico:'⚙️', cor:'#2563EB', bg:'#DBEAFE', label:'Eficiência' }
+  };
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function fmt(v,u){
+    if(v===null||v===undefined||v==='') return '—';
+    var n=Number(v); if(isNaN(n)) return String(v);
+    u=String(u||'');
+    if(u.indexOf('R$')>=0) return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+    if(u.indexOf('%')>=0)  return n.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+    return n.toLocaleString('pt-BR',{maximumFractionDigits:2});
+  }
+  function isAdmin(){
+    try{
+      var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); if(!s) return false;
+      var p=String(s.perfil||s.permissao||s.perfilApi||'').toLowerCase();
+      return p==='admin'||p==='administrador';
+    }catch(e){ return false; }
+  }
+  function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); }catch(e){ return {}; } }
+  function saveCfg(cfg){
+    localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null; if(!api) return;
+    var rows=[]; ABAS.forEach(function(v){ (cfg[v]||[]).forEach(function(id,i){ rows.push({id:id+'_'+v,vertente:v,kpi_id:id,ordem:i,ativo:true,criado_em:new Date().toISOString()}); }); });
+    api('salvarConfigPainelExecutivo',{rows:rows}).catch(function(){});
+  }
+  function getLanc(kpiId){
+    try{
+      var mes=window.currentMes||5,ano=window.currentAno||2026;
+      if(typeof window.getLaunch==='function') return window.getLaunch(kpiId,mes,ano);
+      return (window.LAUNCHES||window.launches||[]).filter(function(l){ return String(l.id_kpi)===String(kpiId)&&Number(l.mes_num||l.mes)===mes&&Number(l.ano)===ano; })[0]||null;
+    }catch(e){ return null; }
+  }
+  function getMeta(k){
+    try{
+      if(typeof window.resolveRef==='function'){ var r=window.resolveRef(k,window.currentMes||5,window.currentAno||2026); return r.meta; }
+      return k.meta||k.meta_padrao||null;
+    }catch(e){ return k.meta||null; }
+  }
+
+  // ── CSS injetado uma vez ───────────────────────────────────────────────────
+  function injectCSS(){
+    if(document.getElementById('fin82-css')) return;
+    var s=document.createElement('style'); s.id='fin82-css';
+    s.textContent=[
+      '#page-financeiro-v82 .fin-tabs{display:flex;gap:12px;padding:16px 20px 0;background:var(--bg2);border-bottom:1px solid var(--border);}',
+      '#page-financeiro-v82 .fin-tab{display:flex;align-items:center;gap:10px;padding:10px 20px 12px;cursor:pointer;border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s;position:relative;bottom:-1px;}',
+      '#page-financeiro-v82 .fin-tab:hover{background:var(--bg3);}',
+      '#page-financeiro-v82 .fin-tab.active{background:var(--bg);border-color:var(--border);color:var(--text);border-bottom-color:var(--bg);}',
+      '#page-financeiro-v82 .fin-tab .fin-tab-ico{font-size:22px;line-height:1;}',
+      '#page-financeiro-v82 .fin-tab .fin-tab-info{display:flex;flex-direction:column;}',
+      '#page-financeiro-v82 .fin-tab .fin-tab-label{font-family:Syne,sans-serif;font-size:13px;font-weight:800;}',
+      '#page-financeiro-v82 .fin-tab .fin-tab-count{font-size:10px;color:var(--muted);font-weight:400;}',
+      '#page-financeiro-v82 .fin-tab.active .fin-tab-count{color:var(--teal);}',
+      '#page-financeiro-v82 .fin-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--bg2);}',
+      '#page-financeiro-v82 .fin-content{padding:16px 20px;}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  // ── Page e nav ─────────────────────────────────────────────────────────────
+  function ensurePage(){
+    if(document.getElementById(PAGE_ID)) return;
+    var c=document.querySelector('.content'); if(!c) return;
+    var p=document.createElement('div'); p.className='page'; p.id=PAGE_ID;
+    p.innerHTML='<div id="fin82-root"></div>';
+    c.appendChild(p);
+  }
+  function ensureNav(){
+    var ex=document.querySelector('[data-page="financeiro"]');
+    if(ex){ ex.onclick=function(){ openFin(ex); }; return; }
+    var nav=document.querySelector('.sidebar-nav'); if(!nav) return;
+    var item=document.createElement('div'); item.className='nav-item'; item.dataset.page='financeiro';
+    item.innerHTML='<span class="icon">◆</span> Painel Executivo';
+    item.onclick=function(){ openFin(item); };
+    var dir=nav.querySelector('[data-page="diretoria"]');
+    if(dir&&dir.nextSibling) nav.insertBefore(item,dir.nextSibling); else nav.insertBefore(item,nav.firstChild);
+  }
+
+  // ── Abre ───────────────────────────────────────────────────────────────────
+  function openFin(el){
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    if(el) el.classList.add('active');
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); p.style.display=''; });
+    var page=document.getElementById(PAGE_ID); if(page) page.classList.add('active');
+    try{ window.currentPage='financeiro'; }catch(e){}
+    var t=document.getElementById('topbar-title'); if(t) t.textContent='Painel Executivo';
+    renderFin();
+  }
+
+  // ── Render principal ───────────────────────────────────────────────────────
+  function renderFin(){
+    injectCSS();
+    var root=document.getElementById('fin82-root'); if(!root) return;
+    var cfg=loadCfg(), mes=window.currentMes||5, ano=window.currentAno||2026;
+    var meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    var admin=isAdmin();
+
+    // Header
+    var cfgBtn=admin?'<button class="btn btn-ghost btn-sm" id="fin82-cfg-btn" onclick="window.dmxFin82Cfg(\''+abaAtiva+'\')">✏️ Configurar vertente</button>':'';
+    var headerHtml='<div class="fin-header">'+
+      '<div><span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">◆ Painel Executivo</span>'+
+      '<span style="font-size:12px;color:var(--muted);margin-left:10px">'+meses[mes]+' '+ano+'</span></div>'+
+      cfgBtn+'</div>';
+
+    // Tabs com visual card
+    var tabsHtml='<div class="fin-tabs">'+ABAS.map(function(v){
+      var c=VERT_CFG[v]; var n=(cfg[v]||[]).length;
+      var active=v===abaAtiva?' active':'';
+      return '<div class="fin-tab'+active+'" onclick="window.dmxFin82Tab(\''+v+'\')" data-aba="'+v+'">'+
+        '<div class="fin-tab-ico">'+c.ico+'</div>'+
+        '<div class="fin-tab-info">'+
+          '<span class="fin-tab-label">'+v+'</span>'+
+          '<span class="fin-tab-count">'+n+' indicador'+(n!==1?'es':'')+'</span>'+
+        '</div>'+
+      '</div>';
+    }).join('')+'</div>';
+
+    root.innerHTML=headerHtml+tabsHtml+'<div class="fin-content" id="fin82-content"></div>';
+    renderAba(abaAtiva);
+  }
+
+  // ── Render aba ─────────────────────────────────────────────────────────────
+  function renderAba(v){
+    var host=document.getElementById('fin82-content'); if(!host) return;
+    var cfg=loadCfg(), ids=cfg[v]||[], allKpis=window.kpis||[];
+    var ks=ids.map(function(id){ return allKpis.filter(function(k){ return k.id===id; })[0]; }).filter(Boolean);
+    var vc=VERT_CFG[v];
+
+    if(!ks.length){
+      var cfgLink=isAdmin()?'<br><br><button class="btn btn-primary" onclick="window.dmxFin82Cfg(\''+v+'\')">✏️ Configurar '+esc(v)+'</button>':'';
+      host.innerHTML='<div style="padding:48px;text-align:center;background:var(--bg2);border-radius:12px;border:2px dashed var(--border)">'+
+        '<div style="font-size:36px;margin-bottom:12px">'+vc.ico+'</div>'+
+        '<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Vertente '+esc(v)+'</div>'+
+        '<div style="font-size:13px;color:var(--muted)">Nenhum indicador configurado nesta vertente.</div>'+
+        cfgLink+'</div>';
+      return;
+    }
+
+    host.innerHTML='<div class="kpi-grid cols-2">'+ks.map(function(k){ return renderCard(k,vc); }).join('')+'</div>';
+    setTimeout(function(){
+      ks.forEach(function(k){
+        var canvas=document.getElementById('fin82-c-'+k.id); if(!canvas) return;
+        try{
+          if(typeof window.buildKPIChart==='function'){ window.buildKPIChart(k,canvas,110); return; }
+          var list=(window.LAUNCHES||window.launches||[])
+            .filter(function(l){ return String(l.id_kpi)===String(k.id)&&Number(l.ano)===(window.currentAno||2026); })
+            .sort(function(a,b){ return Number(a.mes_num||a.mes)-Number(b.mes_num||b.mes); });
+          if(!list.length||typeof Chart==='undefined') return;
+          var mn=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+          new Chart(canvas,{type:'line',data:{labels:list.map(function(l){ return mn[Number(l.mes_num||l.mes)]||''; }),datasets:[
+            {label:'Realizado',data:list.map(function(l){ return Number(l.realizado)||null; }),borderColor:'#0E9E82',backgroundColor:'rgba(14,158,130,.1)',pointRadius:3,tension:.3,fill:true},
+            {label:'Meta',data:list.map(function(l){ return Number(l.meta||k.meta_padrao||k.meta)||null; }),borderColor:'rgba(37,99,235,.5)',borderDash:[4,3],pointRadius:0,tension:0}
+          ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
+        }catch(e){}
+      });
+    },150);
+  }
+
+  // ── Card ───────────────────────────────────────────────────────────────────
+  function renderCard(k,vc){
+    var l=getLanc(k.id),real=l?l.realizado:null,meta=getMeta(k);
+    var at=(real!==null&&real!==''&&meta!==null&&Number(meta)!==0)?Math.round(Number(real)/Number(meta)*100):null;
+    var st=l?(l.status||'NA'):'NA';
+    var stC={VERDE:'var(--green)',AMARELO:'var(--amber)',VERMELHO:'var(--red)'}[st]||'var(--muted)';
+    var stL={VERDE:'Verde',AMARELO:'Alerta',VERMELHO:'Crítico'}[st]||'N/A';
+    return '<div class="kpi-chart-card" style="border-top:3px solid '+vc.cor+'">'+
+      '<div class="kpi-card-top">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div class="kpi-card-id">'+esc(k.id)+' &middot; '+esc(k.area)+'</div>'+
+          '<div class="kpi-card-name">'+esc(k.indicador)+'</div>'+
+          (k.objetivo?'<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4"><b>Objetivo:</b> '+esc(k.objetivo)+'</div>':'')+
+          (k.formula?'<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> '+esc(k.formula)+'</div>':'')+
+        '</div>'+
+        '<div class="kpi-card-right"><span class="status-pill '+st+'">'+stL+'</span></div>'+
+      '</div>'+
+      '<div class="kpi-card-nums">'+
+        '<div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div><div class="kpi-num-value" style="color:'+stC+'">'+fmt(real,k.unidade)+'</div></div>'+
+        '<div class="kpi-num-cell"><div class="kpi-num-label">Meta</div><div class="kpi-num-value">'+fmt(meta,k.unidade)+'</div></div>'+
+        '<div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+(at!==null?at+'%':'—')+'</div></div>'+
+      '</div>'+
+      '<div class="kpi-card-chart"><div style="height:110px"><canvas id="fin82-c-'+esc(k.id)+'" width="400" height="110"></canvas></div></div>'+
+      '<div class="kpi-card-footer" onclick="if(typeof openKPISlide===\'function\') openKPISlide(\''+esc(k.id)+'\',0)">'+
+        '<span style="font-size:13px">🔎</span> Ver análise completa <span style="margin-left:auto">›</span>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Troca aba ──────────────────────────────────────────────────────────────
+  window.dmxFin82Tab=function(v){
+    abaAtiva=v; localStorage.setItem(MODO_KEY,v);
+    document.querySelectorAll('#fin82-root .fin-tab').forEach(function(el){
+      el.classList.toggle('active',el.dataset.aba===v);
+    });
+    var btn=document.getElementById('fin82-cfg-btn');
+    if(btn) btn.setAttribute('onclick','window.dmxFin82Cfg(\''+v+'\')');
+    renderAba(v);
+  };
+
+  // ── Modal config ───────────────────────────────────────────────────────────
+  window.dmxFin82Cfg=function(v){
+    if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
+    var allKpis=window.kpis||[], cfg=loadCfg(), sel=cfg[v]||[];
+    var areas={};
+    allKpis.forEach(function(k){ if(!areas[k.area]) areas[k.area]=[]; areas[k.area].push(k); });
+    var optsHtml=Object.keys(areas).sort().map(function(area){
+      return '<div style="margin-bottom:4px">'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:8px 0 2px;letter-spacing:.8px">'+esc(area)+'</div>'+
+        areas[area].map(function(k){
+          return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer">'+
+            '<input type="checkbox" value="'+esc(k.id)+'" '+(sel.indexOf(k.id)>=0?'checked':'')+' style="margin-top:3px;flex-shrink:0;accent-color:var(--teal)">'+
+            '<div><div style="font-size:12px;font-weight:600">'+esc(k.id)+' · '+esc(k.indicador)+'</div>'+
+            '<div style="font-size:10px;color:var(--muted)">'+esc(k.area)+'</div></div></label>';
+        }).join('')+
+      '</div>';
+    }).join('');
+    var modal=document.getElementById('fin82-modal');
+    if(!modal){ modal=document.createElement('div'); modal.id='fin82-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center'; document.body.appendChild(modal); }
+    modal.innerHTML='<div style="background:var(--bg);border-radius:12px;max-width:580px;width:92%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
+      '<div style="padding:20px 24px">'+
+        '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">'+VERT_CFG[v].ico+' Configurar: '+esc(v)+'</div>'+
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Selecione os KPIs que aparecerão nesta vertente.</div>'+
+        '<input type="text" placeholder="🔍 Buscar KPI..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:10px;background:var(--bg2)" oninput="document.querySelectorAll(\'#fin82-modal-list label\').forEach(function(l){l.style.display=l.textContent.toLowerCase().indexOf(this.value.toLowerCase())>=0?\'flex\':\'none\';}.bind(this))">'+
+        '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)" id="fin82-modal-list">'+optsHtml+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'+
+          '<button class="btn btn-ghost" onclick="document.getElementById(\'fin82-modal\').style.display=\'none\'">Cancelar</button>'+
+          '<button class="btn btn-primary" onclick="window.dmxFin82Save(\''+esc(v)+'\')">✓ Salvar</button>'+
+        '</div>'+
+      '</div></div>';
+    modal.style.display='flex';
+    modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; };
+  };
+
+  window.dmxFin82Save=function(v){
+    var cfg=loadCfg();
+    cfg[v]=Array.from(document.querySelectorAll('#fin82-modal input[type=checkbox]:checked')).map(function(c){ return c.value; });
+    saveCfg(cfg);
+    document.getElementById('fin82-modal').style.display='none';
+    abaAtiva=v; localStorage.setItem(MODO_KEY,v);
+    renderFin();
+    if(typeof window.showToast==='function') window.showToast('✓ Configuração salva');
+  };
+
+  // ── Compatibilidade com patches antigos ───────────────────────────────────
+  window.dmxOpenFinanceiro=function(el){ openFin(el); };
+  window.dmxRenderPainelFinanceiro=function(){ renderFin(); };
+
+  // ── Carrega config do Sheets ──────────────────────────────────────────────
+  setTimeout(function(){
+    try{
+      var ag=typeof window.apiGet==='function'?window.apiGet:null; if(!ag) return;
+      ag('config_painel_executivo').then(function(r){
+        if(!r||!r.ok) return; var rows=r.rows||r.data||[]; if(!rows.length) return;
+        var cfg={}; ABAS.forEach(function(v){ cfg[v]=[]; });
+        rows.filter(function(x){ return x.ativo!==false&&x.ativo!=='false'; })
+          .sort(function(a,b){ return Number(a.ordem||0)-Number(b.ordem||0); })
+          .forEach(function(x){ if(x.vertente&&cfg[x.vertente]) cfg[x.vertente].push(x.kpi_id); });
+        if(Object.values(cfg).some(function(v){ return v.length>0; })){
+          localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
+          if(window.currentPage==='financeiro') renderFin();
+        }
+      }).catch(function(){});
+    }catch(e){}
+  },3000);
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  function boot(){ ensurePage(); ensureNav(); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  setTimeout(boot,500); setTimeout(boot,1500);
+  console.log('[DMX] Painel Executivo v82b instalado');
+})();
+
+</script>
+
+<!-- PATCH v82 — PPR Mensal -->
+
+
+
+
+
+
+
+
+<!-- PATCH v82 — PPR v4 (Mensal+Semestral independentes + Tabela Transparência) -->
+<script>
+(function(){
+  if(window.__dmxPprV4) return;
+  window.__dmxPprV4 = true;
+
+  var CFG_SEM_KEY = 'dmx_ppr_config_v1';
+  var CFG_MES_KEY = 'dmx_ppr_config_mensal_v1';
+  var MODO_KEY    = 'dmx_ppr_modo_v82';
+  var modoAtual   = localStorage.getItem(MODO_KEY) || 'semestral';
+
+  var MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function pct(v,d){ d=(d===undefined?1:d); return v==null||!isFinite(Number(v))?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%'; }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function getCfg(modo){
+    try{ return JSON.parse(localStorage.getItem(modo==='mensal'?CFG_MES_KEY:CFG_SEM_KEY)||'{}'); }catch(e){ return {}; }
+  }
+  function setCfg(modo,cfg){ localStorage.setItem(modo==='mensal'?CFG_MES_KEY:CFG_SEM_KEY, JSON.stringify(cfg)); }
+
+  function kpisAll(){ return window.kpis||[]; }
+  function kpiById(id){ return kpisAll().filter(function(k){ return String(k.id)===String(id); })[0]; }
+
+  function getAreaList(){
+    return (typeof areas485==='function'?areas485():
+      [...new Set(kpisAll().map(function(k){ return k.area; }).filter(Boolean))].sort())
+      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
+  }
+
+  // ── Atingimento de um KPI num intervalo ───────────────────────────────────
+  function calcAting(kpiId, ano, ini, fim){
+    try{
+      var k=kpiById(kpiId); if(!k||!kpiId) return null;
+      // launches é global, não window.launches
+      var all = (typeof launches!=='undefined' ? launches : (window.LAUNCHES||window.launches||[]));
+      var list=all.filter(function(l){
+        var m=Number(l.mes_num||l.mes||0);
+        return String(l.id_kpi)===String(kpiId) && Number(l.ano)===Number(ano) &&
+               m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
+      });
+      if(!list.length) return null;
+      var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
+      var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
+      var real=isS?sum('realizado'):sum('realizado')/list.length;
+      var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
+      if(!metaOk.length) return null;
+      var meta=isS?sum('meta'):sum('meta')/list.length;
+      if(!meta) return null;
+      return (real/meta)*100;
+    }catch(e){ return null; }
+  }
+
+  // ── Índice da área ────────────────────────────────────────────────────────
+  function calcIndiceArea(area, mes, ano){
+    try{
+      if(typeof window.dmxIndiceArea==='function'){
+        var r=window.dmxIndiceArea(area,mes,ano); return r?r.indiceAcum:null;
+      }
+      return null;
+    }catch(e){ return null; }
+  }
+
+  // ── Detalha PPR por área ──────────────────────────────────────────────────
+  function calcPPRDetalhado(area, ano, ini, fim, cfg){
+    var c1=calcAting(cfg.kpi1,ano,ini,fim), p1=Number(cfg.peso1||0);
+    var c2=calcAting(cfg.kpi2,ano,ini,fim), p2=Number(cfg.peso2||0);
+    var c3=calcAting(cfg.kpi3,ano,ini,fim), p3=Number(cfg.peso3||0);
+    var ci=calcIndiceArea(area,fim,ano),    pi=Number(cfg.pesoArea||0);
+    var total=0, peso=0;
+    if(c1!=null&&p1>0){ total+=c1*p1/100; peso+=p1; }
+    if(c2!=null&&p2>0){ total+=c2*p2/100; peso+=p2; }
+    if(c3!=null&&p3>0){ total+=c3*p3/100; peso+=p3; }
+    if(ci!=null&&pi>0){ total+=ci*pi/100; peso+=pi; }
+    return {
+      area:area,
+      kpi1:{v:c1,p:p1,contrib:c1!=null?c1*p1/100:null},
+      kpi2:{v:c2,p:p2,contrib:c2!=null?c2*p2/100:null},
+      kpi3:{v:c3,p:p3,contrib:c3!=null?c3*p3/100:null},
+      indice:{v:ci,p:pi,contrib:ci!=null?ci*pi/100:null},
+      total:peso?total:null
+    };
+  }
+
+  // ── Célula da tabela ──────────────────────────────────────────────────────
+  function celula(comp){
+    if(!comp||comp.v==null)
+      return '<td style="text-align:center;padding:6px 10px;color:var(--muted);font-size:12px">—</td>';
+    var cor=comp.v>=100?'var(--green)':comp.v>=80?'var(--amber)':'var(--red)';
+    return '<td style="text-align:center;padding:6px 10px;vertical-align:middle;border-right:1px solid #F0F2F8">'+
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:'+cor+'">'+pct(comp.v)+'</div>'+
+      '<div style="font-size:9px;color:var(--muted);margin-top:1px">&times;'+pct(comp.p,0)+' = <b>'+pct(comp.contrib)+'</b></div>'+
+    '</td>';
+  }
+
+  // ── Tabela de transparência ───────────────────────────────────────────────
+  function renderTabela(dados, cfg, periodoLabel){
+    if(!dados.length)
+      return '<div style="padding:24px;color:var(--muted);text-align:center;font-size:13px">Sem dados suficientes para o período.</div>';
+    var k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3);
+    var th=function(txt,sub){
+      return '<th style="text-align:center;padding:8px 10px;font-size:10px;font-weight:700;line-height:1.4;border-right:1px solid var(--border)">'+
+        esc(txt)+(sub?'<br><span style="font-weight:400;opacity:.65;font-size:9px">'+sub+'</span>':'')+
+      '</th>';
+    };
+    var header='<tr style="background:var(--bg3)">'+
+      '<th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700">ÁREA</th>'+
+      th(k1?k1.indicador:'KPI Global 1','peso '+pct(Number(cfg.peso1||0),0))+
+      th(k2?k2.indicador:'KPI Global 2','peso '+pct(Number(cfg.peso2||0),0))+
+      th(k3?k3.indicador:'KPI Global 3','peso '+pct(Number(cfg.peso3||0),0))+
+      th('Índice da Área','peso '+pct(Number(cfg.pesoArea||0),0))+
+      '<th style="text-align:center;padding:8px 10px;font-size:10px;font-weight:700">ÍNDICE PPR</th>'+
+    '</tr>';
+
+    var rows=dados.map(function(d){
+      var cor=d.total!=null?(d.total>=100?'var(--green)':d.total>=80?'var(--amber)':'var(--red)'):'var(--muted)';
+      var ico=d.total!=null?(d.total>=100?'✅':d.total>=80?'⚠️':'❌'):'—';
+      return '<tr style="border-bottom:1px solid #F0F2F8">'+
+        '<td style="padding:7px 12px;font-weight:600;font-size:12px;border-right:1px solid #F0F2F8">'+esc(d.area)+'</td>'+
+        celula(d.kpi1)+celula(d.kpi2)+celula(d.kpi3)+celula(d.indice)+
+        '<td style="text-align:center;padding:6px 10px">'+
+          '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:'+cor+'">'+pct(d.total)+'</div>'+
+          '<div style="font-size:14px;margin-top:1px">'+ico+'</div>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    return '<div class="block-card" style="padding:0;overflow:hidden;margin-bottom:16px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#0D0D0D;color:#fff">'+
+        '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📊 Demonstrativo dos Resultados PPR</span>'+
+        '<span style="font-size:11px;opacity:.7">'+esc(periodoLabel)+'</span>'+
+      '</div>'+
+      '<div style="padding:6px 14px;background:#F8FAFF;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'+
+        '<b>Fórmula:</b> Índice PPR = (Ating. KPI1 × Peso1) + (Ating. KPI2 × Peso2) + (Ating. KPI3 × Peso3) + (Índice Área × Peso Área)'+
+      '</div>'+
+      '<div style="overflow-x:auto">'+
+        '<table class="data-table" style="min-width:700px"><thead>'+header+'</thead><tbody>'+rows+'</tbody></table>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Card de composição dinâmico (substitui o estático do patch v16) ────────
+  function updateComposicaoCard(modo){
+    var cfg=getCfg(modo);
+    var block=document.getElementById('ppr-composicao-card');
+    if(!block) return;
+    var k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3);
+    var row=function(label,kpi,peso){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'+
+        '<span style="font-size:12px;color:var(--muted)">'+label+'</span>'+
+        '<div style="text-align:right">'+
+          '<span style="font-weight:700;font-size:13px">'+(kpi?esc(kpi.indicador):'—')+'</span>'+
+          (kpi?'<span class="tag tag-area" style="margin-left:6px">'+esc(kpi.area)+'</span>':'')+
+          '<span style="font-size:11px;color:var(--muted);margin-left:8px">peso '+pct(peso,0)+'</span>'+
+        '</div>'+
+      '</div>';
+    };
+    var modoLabel=modo==='mensal'?'📅 Mensal':'🗓️ Semestral';
+    block.innerHTML=
+      '<div class="section-header" style="margin-bottom:10px">'+
+        '<div>'+
+          '<div class="section-title">Composição do PPR</div>'+
+          '<div class="text-muted text-sm mt-1">Configuração <b>'+modoLabel+'</b> · Gerenciada pelo Administrador na aba <strong>Admin / Sheets</strong>.</div>'+
+        '</div>'+
+      '</div>'+
+      row('KPI Global 1',k1,cfg.peso1)+
+      row('KPI Global 2',k2,cfg.peso2)+
+      row('KPI Global 3',k3,cfg.peso3)+
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">'+
+        '<span style="font-size:12px;color:var(--muted)">Índice PPR da Área</span>'+
+        '<span style="font-size:11px;color:var(--muted)">automático · peso '+pct(cfg.pesoArea,0)+'</span>'+
+      '</div>';
+  }
+
+  // ── Prepara o block-card de composição com ID fixo ────────────────────────
+  function ensureComposicaoCard(){
+    if(document.getElementById('ppr-composicao-card')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var block=page.querySelector('.block-card');
+    if(block){ block.id='ppr-composicao-card'; block.dataset.v16ro='1'; }
+  }
+
+  // ── Racional ──────────────────────────────────────────────────────────────
+  function injectRacional(){
+    if(document.getElementById('ppr-racional')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var div=document.createElement('div');
+    div.id='ppr-racional';
+    div.style.cssText='margin-bottom:16px;padding:14px 16px;background:linear-gradient(135deg,#F0F9FF,#EFF6FF);border:1px solid #BAE6FD;border-radius:10px';
+    div.innerHTML=
+      '<div style="display:flex;align-items:flex-start;gap:12px">'+
+        '<div style="font-size:24px;flex-shrink:0">📋</div>'+
+        '<div>'+
+          '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#0369A1;margin-bottom:6px">Como funciona o Plano PPR</div>'+
+          '<div style="font-size:12px;color:#0C4A6E;line-height:1.7">'+
+            'O índice PPR de cada área combina <b>3 KPIs globais</b> (iguais para todas as áreas) com o <b>Índice de Eficiência da própria área</b>, '+
+            'cada um com peso definido pelo Administrador (soma = 100%).<br>'+
+            '<b>Fórmula:</b> Índice PPR = (Ating. KPI1 × Peso1) + (Ating. KPI2 × Peso2) + (Ating. KPI3 × Peso3) + (Índice Área × Peso Área)<br>'+
+            '<span style="display:inline-flex;gap:16px;margin-top:5px;padding:4px 10px;background:#DBEAFE;border-radius:5px;font-size:11px">'+
+              '<span>🗓️ <b>Semestral:</b> acumula os meses do semestre, com KPIs e pesos próprios</span>'+
+              '<span>📅 <b>Mensal:</b> avalia cada mês individualmente, com KPIs e pesos independentes</span>'+
+            '</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    var bar=document.getElementById('ppr-periodo-bar');
+    if(bar) page.insertBefore(div,bar); else page.insertBefore(div,page.firstChild);
+  }
+
+  // ── Barra de período ──────────────────────────────────────────────────────
+  function injectBar(){
+    if(document.getElementById('ppr-periodo-bar')) return;
+    var page=document.getElementById('page-ppr'); if(!page) return;
+    var bar=document.createElement('div');
+    bar.id='ppr-periodo-bar';
+    bar.style.cssText='display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px';
+    bar.innerHTML=
+      '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#0369A1">📅 Período PPR</span>'+
+      '<div style="display:flex;border:1px solid #BAE6FD;border-radius:6px;overflow:hidden">'+
+        '<button id="ppr-btn-sem" onclick="window.dmxPprSetModo(\'semestral\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Semestral</button>'+
+        '<button id="ppr-btn-mes" onclick="window.dmxPprSetModo(\'mensal\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Mensal</button>'+
+      '</div>'+
+      '<select id="ppr-sem-sel2" class="filter-input" style="width:200px;margin:0" onchange="window.dmxPprCalcSem()">'+
+        '<option value="1">1º Semestre — Jan a Jun</option>'+
+        '<option value="2">2º Semestre — Jul a Dez</option>'+
+      '</select>'+
+      '<select id="ppr-mes-sel2" class="filter-input" style="width:140px;margin:0;display:none" onchange="window.dmxPprCalcMes()">'+
+        '<option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>'+
+        '<option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>'+
+        '<option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>'+
+        '<option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>'+
+      '</select>'+
+      '<div id="ppr-periodo-out" style="font-size:12px;color:var(--muted);flex:1">← Selecione o período</div>';
+    var cards=document.getElementById('ppr-cards');
+    if(cards) page.insertBefore(bar,cards); else page.appendChild(bar);
+    // container tabela mensal
+    var divMes=document.createElement('div');
+    divMes.id='ppr-mensal-res'; divMes.style.cssText='display:none;margin-top:0';
+    if(cards) page.insertBefore(divMes,cards); else page.appendChild(divMes);
+    var ms=document.getElementById('ppr-mes-sel2');
+    if(ms) ms.value=String(window.currentMes||5);
+  }
+
+  // ── Aplica modo ───────────────────────────────────────────────────────────
+  function aplicaModo(modo){
+    modoAtual=modo; localStorage.setItem(MODO_KEY,modo);
+    var ativo='background:#0369A1;color:#fff;', inativo='background:transparent;color:#0369A1;';
+    var base='padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;';
+    var btnS=document.getElementById('ppr-btn-sem'), btnM=document.getElementById('ppr-btn-mes');
+    var selS=document.getElementById('ppr-sem-sel2'), selM=document.getElementById('ppr-mes-sel2');
+    var cards=document.getElementById('ppr-cards');
+    var semBloco=document.getElementById('ppr-semestral-bloco');
+    var semTabela=document.getElementById('ppr-sem-tabela-transp');
+    var res=document.getElementById('ppr-mensal-res');
+    var oldBar=document.getElementById('ppr-sem-bar');
+    if(oldBar) oldBar.style.display='none';
+    // Atualiza card de composição para o modo atual
+    ensureComposicaoCard();
+    updateComposicaoCard(modo);
+    if(modo==='semestral'){
+      if(btnS) btnS.style.cssText=base+ativo; if(btnM) btnM.style.cssText=base+inativo;
+      if(selS) selS.style.display=''; if(selM) selM.style.display='none';
+      if(cards) cards.style.display='none'; // oculta cards individuais (substituídos pela tabela)
+      if(semBloco) semBloco.style.display='';
+      if(semTabela) semTabela.style.display='';
+      if(res) res.style.display='none';
+      document.getElementById('ppr-periodo-out').textContent='← Selecione o semestre';
+      window.dmxPprCalcSem();
+    } else {
+      if(btnS) btnS.style.cssText=base+inativo; if(btnM) btnM.style.cssText=base+ativo;
+      if(selS) selS.style.display='none'; if(selM) selM.style.display='';
+      if(cards) cards.style.display='none';
+      if(semBloco) semBloco.style.display='none';
+      if(semTabela) semTabela.style.display='none';
+      if(res) res.style.display='';
+      document.getElementById('ppr-periodo-out').textContent='← Selecione o mês';
+      window.dmxPprCalcMes();
+    }
+  }
+
+  window.dmxPprSetModo=function(modo){ aplicaModo(modo); };
+
+  // ── Cálculo semestral ─────────────────────────────────────────────────────
+  window.dmxPprCalcSem=function(){
+    var SEMS={1:{label:'1º Semestre',short:'Jan–Jun',ini:1,fim:6},2:{label:'2º Semestre',short:'Jul–Dez',ini:7,fim:12}};
+    var v=Number(document.getElementById('ppr-sem-sel2')?.value||1);
+    var sem=SEMS[v]||SEMS[1], ano=Number(window.currentAno||2026);
+    var cfg=getCfg('semestral');
+    var out=document.getElementById('ppr-periodo-out'); if(!out) return;
+    var areas=getAreaList();
+    var dados=areas.map(function(a){ return calcPPRDetalhado(a,ano,sem.ini,sem.fim,cfg); })
+                   .filter(function(d){ return d.total!=null; });
+    if(!dados.length){ out.textContent='Sem dados para esse semestre.'; return; }
+    var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
+    var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
+    out.innerHTML='<strong>'+sem.label+' ('+sem.short+')/'+ano+'</strong> &nbsp;·&nbsp; '+
+      'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
+      'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
+      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+    // Tabela de transparência dentro do semestral-bloco
+    var semBloco=document.getElementById('ppr-semestral-bloco'); if(!semBloco) return;
+    var tabId='ppr-sem-tabela-transp';
+    var tabDiv=document.getElementById(tabId)||document.createElement('div');
+    tabDiv.id=tabId;
+    tabDiv.innerHTML=renderTabela(sorted,cfg,sem.label+' — '+sem.short+'/'+ano);
+    if(!document.getElementById(tabId)){
+      var areaTab=document.getElementById('ppr-area-tables');
+      // Insere ANTES do ppr-area-tables e oculta o antigo
+      if(areaTab){ semBloco.insertBefore(tabDiv,areaTab); areaTab.style.display='none'; }
+      else semBloco.appendChild(tabDiv);
+    }
+    // Garante que ppr-area-tables fique oculto (layout antigo)
+    var at=document.getElementById('ppr-area-tables'); if(at) at.style.display='none';
+    var sh=semBloco.querySelector('.section-header'); if(sh) sh.style.display='none';
+  };
+
+  // ── Cálculo mensal ────────────────────────────────────────────────────────
+  window.dmxPprCalcMes=function(){
+    var mes=Number(document.getElementById('ppr-mes-sel2')?.value||window.currentMes||5);
+    var ano=Number(window.currentAno||2026);
+    var cfg=getCfg('mensal');
+    var cfgSem=getCfg('semestral');
+    var out=document.getElementById('ppr-periodo-out');
+    var res=document.getElementById('ppr-mensal-res');
+    if(!out||!res) return;
+    var areas=getAreaList();
+    var cfgUsar=cfg.kpi1?cfg:cfgSem; // fallback para semestral se mensal não configurado
+    var dados=areas.map(function(a){ return calcPPRDetalhado(a,ano,mes,mes,cfgUsar); })
+                   .filter(function(d){ return d.total!=null; });
+    var periodoLabel=MESES_LABEL[mes]+'/'+ano;
+    if(!dados.length){ out.innerHTML='<span style="color:var(--muted)">Sem dados para '+esc(periodoLabel)+'.</span>'; res.innerHTML=''; return; }
+    var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
+    var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
+    out.innerHTML='<strong>'+esc(periodoLabel)+'</strong> &nbsp;·&nbsp; '+
+      'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
+      'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
+      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+    var aviso=(!cfg.kpi1&&!cfg.kpi2&&!cfg.kpi3)?
+      '<div style="padding:9px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:12px;color:#92400E;margin-bottom:12px">'+
+      '⚠️ <b>Configuração mensal não definida.</b> Configure os KPIs do programa mensal em <b>Admin / Sheets</b>. Exibindo com config semestral como prévia.'+
+      '</div>':'';
+    res.innerHTML=aviso+renderTabela(sorted,cfgUsar,MESES_LABEL[mes]+'/'+ano+' — Mensal');
+  };
+
+  // ── Config mensal no Admin ────────────────────────────────────────────────
+  function buildAdminMensalPanel(){
+    var cfg=getCfg('mensal');
+    var metas=(window.kpis||[]).filter(function(k){ return String(k.vertente||'').toLowerCase().indexOf('meta')>=0; });
+    var opts='<option value="">— Selecione um KPI —</option>'+
+      metas.map(function(k){ return '<option value="'+esc(k.id)+'">'+esc(k.id)+' · '+esc(k.area)+' · '+esc(k.indicador)+'</option>'; }).join('');
+    function row(label,kpiId,pesoId,val){
+      return '<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">'+
+        '<div><div class="card-label">'+label+'</div><select class="filter-input" id="'+kpiId+'" style="width:100%">'+opts+'</select></div>'+
+        '<div><div class="card-label">Peso (%)</div><input class="filter-input" id="'+pesoId+'" type="text" inputmode="decimal" value="'+val+'" style="width:100%"></div>'+
+      '</div>';
+    }
+    return '<div id="dmx-ppr-mensal-admin" style="margin-top:24px;padding-top:20px;border-top:2px dashed var(--border)">'+
+      '<div class="section-header" style="margin-bottom:12px">'+
+        '<div><div class="section-title">📅 Configuração PPR Mensal</div>'+
+        '<div class="text-muted text-sm mt-1">KPIs e pesos independentes do semestral. Para incentivar metas pontuais mensais.</div></div>'+
+        '<button class="btn btn-primary btn-sm" onclick="window.dmxSalvarPPRMensal()">Salvar Config Mensal</button>'+
+      '</div>'+
+      row('KPI Global 1 (Mensal)','ppr-mes-kpi1','ppr-mes-p1',cfg.peso1!=null?cfg.peso1:20)+
+      row('KPI Global 2 (Mensal)','ppr-mes-kpi2','ppr-mes-p2',cfg.peso2!=null?cfg.peso2:20)+
+      row('KPI Global 3 (Mensal)','ppr-mes-kpi3','ppr-mes-p3',cfg.peso3!=null?cfg.peso3:20)+
+      '<div style="display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:end;margin-bottom:8px">'+
+        '<div><div class="card-label">Índice da Área</div><div class="filter-input" style="background:#F8FAFC;color:var(--muted)">Automático</div></div>'+
+        '<div><div class="card-label">Peso (%)</div><input class="filter-input" id="ppr-mes-parea" type="text" inputmode="decimal" value="'+(cfg.pesoArea!=null?cfg.pesoArea:40)+'" style="width:100%"></div>'+
+      '</div>'+
+      '<div id="ppr-mes-valid" style="font-size:12px;margin-top:6px"></div>'+
+    '</div>';
+  }
+
+  function fillAdminMensal(){
+    var cfg=getCfg('mensal');
+    ['1','2','3'].forEach(function(i){
+      var el=document.getElementById('ppr-mes-kpi'+i); if(el) el.value=cfg['kpi'+i]||'';
+    });
+    ['ppr-mes-kpi1','ppr-mes-kpi2','ppr-mes-kpi3','ppr-mes-p1','ppr-mes-p2','ppr-mes-p3','ppr-mes-parea']
+      .forEach(function(id){
+        var el=document.getElementById(id);
+        if(el&&!el.dataset.mensalBound){ el.dataset.mensalBound='1'; el.addEventListener('input',validaMensal); }
+      });
+    validaMensal();
+  }
+
+  function validaMensal(){
+    var v=document.getElementById('ppr-mes-valid'); if(!v) return;
+    function n(id){ return Number(String(document.getElementById(id)?.value||'0').replace(',','.')); }
+    var tot=n('ppr-mes-p1')+n('ppr-mes-p2')+n('ppr-mes-p3')+n('ppr-mes-parea');
+    v.innerHTML=Math.abs(tot-100)<0.01
+      ?'<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>'
+      :'<span style="color:var(--red);font-weight:700">⚠ Soma: '+tot.toFixed(1)+'% (precisa ser 100%)</span>';
+  }
+
+  window.dmxSalvarPPRMensal=function(){
+    function n(id){ return Number(String(document.getElementById(id)?.value||'0').replace(',','.')); }
+    var cfg={kpi1:document.getElementById('ppr-mes-kpi1')?.value||'',peso1:n('ppr-mes-p1'),
+             kpi2:document.getElementById('ppr-mes-kpi2')?.value||'',peso2:n('ppr-mes-p2'),
+             kpi3:document.getElementById('ppr-mes-kpi3')?.value||'',peso3:n('ppr-mes-p3'),pesoArea:n('ppr-mes-parea')};
+    setCfg('mensal',cfg);
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var rows=[
+        {id:'mes_kpi1',mes_ref:'mensal_kpi1',area:'__global__',kpi_id:cfg.kpi1,peso:cfg.peso1,ativo:true},
+        {id:'mes_kpi2',mes_ref:'mensal_kpi2',area:'__global__',kpi_id:cfg.kpi2,peso:cfg.peso2,ativo:true},
+        {id:'mes_kpi3',mes_ref:'mensal_kpi3',area:'__global__',kpi_id:cfg.kpi3,peso:cfg.peso3,ativo:true},
+        {id:'mes_parea',mes_ref:'mensal_pesoArea',area:'__global__',kpi_id:'__area__',peso:cfg.pesoArea,ativo:true},
+      ];
+      api('salvarConfigPPRMensal',{rows:rows}).catch(function(){});
+    }
+    if(typeof window.showToast==='function') window.showToast('✓ Config PPR Mensal salva');
+    if(modoAtual==='mensal') window.dmxPprCalcMes();
+  };
+
+  function patchAdmin(){
+    var orig=window.renderAdminDMX;
+    if(typeof orig!=='function'||orig.__dmxPprV4Admin) return;
+    window.renderAdminDMX=async function(){
+      var r=await orig.apply(this,arguments);
+      setTimeout(function(){
+        var host=document.getElementById('admin-root'); if(!host) return;
+        if(!document.getElementById('dmx-ppr-mensal-admin')){
+          var wrap=document.createElement('div'); wrap.innerHTML=buildAdminMensalPanel();
+          var semPanel=document.getElementById('dmx-ppr-admin-panel');
+          if(semPanel) semPanel.parentElement.appendChild(wrap); else host.appendChild(wrap);
+        }
+        fillAdminMensal();
+      },150);
+      return r;
+    };
+    window.renderAdminDMX.__dmxPprV4Admin=true;
+    Object.assign(window.renderAdminDMX,orig);
+    window.renderAdminDMX.__dmxPprV4Admin=true;
+  }
+
+  function wrapRenderPPR(){
+    var orig=window.renderPPR;
+    if(typeof orig!=='function'||orig.__dmxPprV4) return;
+    window.renderPPR=function(){
+      var r=orig.apply(this,arguments);
+      setTimeout(function(){
+        var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
+        ensureComposicaoCard();
+        injectRacional();
+        injectBar();
+        aplicaModo(modoAtual);
+      },130);
+      return r;
+    };
+    window.renderPPR.__dmxPprV4=true;
+  }
+
+  setTimeout(function(){
+    wrapRenderPPR();
+    patchAdmin();
+    if(window.currentPage==='ppr'){
+      var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
+      ensureComposicaoCard();
+      injectRacional();
+      injectBar();
+      aplicaModo(modoAtual);
+    }
+  },900);
+
+  console.log('[DMX] PPR v4 instalado');
+})();
+
+</script>
+
+
+
+
+
+
+<!-- PATCH v82 — Oculta CEO/Painel Financeiro da seção ÁREA -->
+<script>
+(function(){
+  if(window.__dmxHideFinArea) return;
+  window.__dmxHideFinArea = true;
+
+  var HIDE = /^(CEO|Painel Financeiro|Painel Executivo|__fin_interno__)\s*$/i;
+
+  function hideFinArea(){
+    // Remove do container area-nav-items (onde buildSidebar coloca as áreas)
+    var cont = document.getElementById('area-nav-items');
+    if(cont){
+      cont.querySelectorAll('.nav-item[data-area]').forEach(function(el){
+        if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+      });
+    }
+    // Remove da sidebar geral por data-area
+    document.querySelectorAll('.sidebar-nav .nav-item[data-area]').forEach(function(el){
+      if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+    });
+  }
+
+  // Roda após buildSidebar sem substituí-lo
+  var origBuild = window.buildSidebar;
+  if(typeof origBuild === 'function' && !origBuild.__dmxHideFinWrapped){
+    window.buildSidebar = function(){
+      var r = origBuild.apply(this, arguments);
+      hideFinArea();
+      return r;
+    };
+    // Copia todas as propriedades e flags do original
+    Object.keys(origBuild).forEach(function(k){ window.buildSidebar[k] = origBuild[k]; });
+    window.buildSidebar.__dmxHideFinWrapped = true;
+  }
+
+  [200, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
+
+  console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
+})();
+</script>
 </body>
 </html>
