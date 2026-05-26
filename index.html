@@ -15492,6 +15492,9 @@ setTimeout(()=>{
     var orig=window.renderPPR;
     if(typeof orig!=='function'||orig.__dmxPprV4) return;
     window.renderPPR=function(){
+      // Oculta a page imediatamente para evitar flash do layout antigo
+      var page=document.getElementById('page-ppr');
+      if(page){ page.style.opacity='0'; page.style.transition='none'; }
       var r=orig.apply(this,arguments);
       setTimeout(function(){
         var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
@@ -15499,6 +15502,8 @@ setTimeout(()=>{
         injectRacional();
         injectBar();
         aplicaModo(modoAtual);
+        // Revela com fade suave após o novo layout estar pronto
+        if(page){ page.style.transition='opacity .15s ease'; page.style.opacity='1'; }
       },130);
       return r;
     };
@@ -16659,6 +16664,9 @@ setTimeout(()=>{
     var orig=window.renderPPR;
     if(typeof orig!=='function'||orig.__dmxPprV4) return;
     window.renderPPR=function(){
+      // Oculta a page imediatamente para evitar flash do layout antigo
+      var page=document.getElementById('page-ppr');
+      if(page){ page.style.opacity='0'; page.style.transition='none'; }
       var r=orig.apply(this,arguments);
       setTimeout(function(){
         var old=document.getElementById('ppr-sem-bar'); if(old) old.style.display='none';
@@ -16666,6 +16674,8 @@ setTimeout(()=>{
         injectRacional();
         injectBar();
         aplicaModo(modoAtual);
+        // Revela com fade suave após o novo layout estar pronto
+        if(page){ page.style.transition='opacity .15s ease'; page.style.opacity='1'; }
       },130);
       return r;
     };
