@@ -6037,11 +6037,8 @@ window.buildShareSection = function(kpiId){
         const at   = (l && typeof calcAting==='function') ? calcAting(k.sentido, l.realizado, ref.meta) : null;
         const atp  = at!==null ? at*100 : null;
         const contrib = atp==null ? 0 : atp*peso/100;
-        r.itens.push({kpi:k, lanc:l, atingPct:atp, peso, contrib, contribMes:contrib, contribAcum:contrib, _shared:true});
-        r.indice     = (r.indice     ||0)+contrib;
-        r.indiceAcum = (r.indiceAcum ||0)+contrib;
-        r.indiceMes  = (r.indiceMes  ||0)+contrib;
-        r.somaPesos  = (r.somaPesos  ||0)+peso;
+        // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
+        r.itens.push({kpi:k, lanc:l, atingPct:atp, peso:0, contrib:0, contribMes:0, contribAcum:0, _shared:true});
       });
       return r;
     };
@@ -7216,8 +7213,8 @@ function sharedEntriesFor(area){
         const at=(l&&typeof calcAting==='function')?calcAting(k.sentido,l.realizado,ref.meta):null;
         const atp=at!==null?at*100:null;
         const contrib=atp==null?0:atp*peso/100;
-        r.itens.push({kpi:k,lanc:l,atingPct:atp,peso,contrib,contribMes:contrib,contribAcum:contrib,_shared:true});
-        r.indice=(r.indice||0)+contrib; r.indiceMes=(r.indiceMes||0)+contrib; r.indiceAcum=(r.indiceAcum||0)+contrib; r.somaPesos=(r.somaPesos||0)+peso;
+        // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
+        r.itens.push({kpi:k,lanc:l,atingPct:atp,peso:0,contrib:0,contribMes:0,contribAcum:0,_shared:true});
       });
       return r;
     };
@@ -10483,8 +10480,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         const at=(l && typeof calcAting==='function') ? calcAting(k.sentido,l.realizado,ref.meta) : null;
         const atp=at!==null ? at*100 : null;
         const contrib=atp==null ? 0 : atp*peso/100;
-        r.itens.push({kpi:k,lanc:l,atingPct:atp,peso,contrib,contribMes:contrib,contribAcum:contrib,_shared:true});
-        r.indice=(r.indice||0)+contrib; r.indiceMes=(r.indiceMes||0)+contrib; r.indiceAcum=(r.indiceAcum||0)+contrib; r.somaPesos=(r.somaPesos||0)+peso;
+        // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
+        r.itens.push({kpi:k,lanc:l,atingPct:atp,peso:0,contrib:0,contribMes:0,contribAcum:0,_shared:true});
       });
       return r;
     };
