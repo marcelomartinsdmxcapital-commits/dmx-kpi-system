@@ -2,13 +2,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v81.57",data:"25/05/2026",build:"kpi-objetivo+2cols+admin-stable+fix-card+fin-panel"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v82.0",data:"25/05/2026",build:"painel-financeiro-retorno-risco-eficiencia"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DMX Capital · Sistema de Gestão de Performance v57 F5 Financeiro Corrigido</title>
+<title>DMX Capital · Sistema de Gestão de Performance v82</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
@@ -6370,7 +6370,9 @@ window.buildShareSection = function(kpiId){
     try { window.currentArea = FIN_LABEL; currentArea = FIN_LABEL; } catch(e) {}
     const t = document.getElementById('topbar-title');
     if(t) t.textContent = 'Painel Financeiro';
-    if(typeof window.dmxFinanceiroPainel === 'function') {
+    if(typeof window.dmxRenderPainelFinanceiro === 'function') {
+      window.dmxRenderPainelFinanceiro();
+    } else if(typeof window.dmxFinanceiroPainel === 'function') {
       window.dmxFinanceiroPainel();
     } else {
       if(typeof window.renderAreaDetail === 'function') window.renderAreaDetail(FIN_LABEL);
@@ -10632,6 +10634,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     try{
       if(page==='dashboard' && typeof renderDashboard==='function') renderDashboard();
       else if(page==='diretoria' && typeof renderDiretoria==='function') renderDiretoria();
+      else if(page==='financeiro' && typeof dmxRenderPainelFinanceiro==='function') dmxRenderPainelFinanceiro();
       else if(page==='financeiro' && typeof dmxRenderFinanceiro==='function') dmxRenderFinanceiro();
       else if(page==='kpis' && typeof renderKPICatalog==='function') renderKPICatalog();
       else if(page==='atualizar' && typeof renderAtualizar==='function') renderAtualizar();
