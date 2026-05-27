@@ -16500,7 +16500,10 @@ setTimeout(()=>{
                 '<div style="flex-shrink:0;font-weight:700;color:var(--text)">'+esc(h.autor)+'</div>'+
                 '<div style="color:var(--muted);font-size:11px;margin-top:1px;white-space:nowrap">'+fmtData(h.ts.split('T')[0])+'</div>'+
                 '<div style="color:var(--text);flex:1">'+esc(h.txt)+'</div>'+
-                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px" title="Excluir comentário">✕</button>'+
+                '<div style="display:flex;gap:2px;flex-shrink:0">'+
+                '<button onclick="event.stopPropagation();dmxEditarComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 3px" title="Editar comentário">✏️</button>'+
+                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 3px" title="Excluir comentário">✕</button>'+
+                '</div>'+
               '</div>';
             }).join('')+
             (hist.length>5?'<div style="font-size:11px;color:var(--muted)">+ '+(hist.length-5)+' comentário(s) anteriores</div>':'')+
@@ -16523,10 +16526,10 @@ setTimeout(()=>{
           '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
         '</td>'+
         '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
-          '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
-          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer">✏️ Editar</button>'+
-          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer">💬</button>'+
-          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:6px;cursor:pointer">🗑️</button>'+
+          '<div style="display:flex;gap:4px;align-items:center;white-space:nowrap">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:11px;padding:4px 8px;background:var(--teal);color:#fff;border:none;border-radius:5px;cursor:pointer">✏️</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:11px;padding:4px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;cursor:pointer">💬</button>'+
+          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:11px;padding:4px 8px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:5px;cursor:pointer">🗑️</button>'+
           '</div>'+
         '</td>'+
       '</tr>'+comentHtml;
@@ -16547,7 +16550,7 @@ setTimeout(()=>{
     }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;max-height:calc(100vh - 32px);display:flex;flex-direction:column">'+
+      '<div style="background:var(--bg);border-radius:14px;width:calc(100% - 32px);max-width:1400px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
           '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
@@ -16674,7 +16677,7 @@ setTimeout(()=>{
         plano_vinculado:vinculo||null,atualizado_em:new Date().toISOString()});
     } else {
       var novaAcao={
-        id:gid+'-001',id_plano:gid,id_kpi:id_kpi,
+        id:gid+'-001',id_plano:gid,acao_num:1,id_kpi:id_kpi,
         kpi_nome:k?k.indicador:'',area:k?k.area:'',
         problema:problema,why:problema,causa_raiz:causa,prioridade:prio,
         acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
@@ -16758,7 +16761,9 @@ setTimeout(()=>{
       if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
     } else {
       var num=g.acoes.length+1;
-      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,id_kpi:g.id_kpi,kpi_nome:g.id_kpi,area:g.area||'',
+      var kpiObj2=typeof getKPI==='function'?getKPI(g.id_kpi):null;
+      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,acao_num:num,
+        id_kpi:g.id_kpi,kpi_nome:kpiObj2?kpiObj2.indicador:g.id_kpi,area:g.area||'',
         problema:g.problema,causa_raiz:g.causa_raiz,prioridade:g.prioridade,
         acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,
         criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()});
@@ -16977,11 +16982,48 @@ setTimeout(()=>{
     var hist=getHist(acaoId);
     hist.splice(idx,1);
     saveHist(acaoId,hist);
-    // Recarrega o detalhe
     var gid=window._dmxDetalheGidAtivo;
     var det=document.getElementById('dmx-detalhe-plano');
     if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
     if(typeof showToast==='function') showToast('Comentário excluído');
+  };
+
+  window.dmxEditarComentario = function(acaoId, idx){
+    var hist=getHist(acaoId);
+    if(!hist[idx]) return;
+    var modal=document.getElementById('dmx-coment-modal');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-coment-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px'; document.body.appendChild(modal); }
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
+        '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
+          '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:16px 18px">'+
+          '<textarea id="dmx-coment-txt" class="filter-input" style="width:100%;height:96px;resize:vertical;font-size:13px">'+hist[idx].txt+'</textarea>'+
+        '</div>'+
+        '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarEdicaoComentario(&quot;'+acaoId+'&quot;,'+idx+')" class="btn btn-primary">Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
+    setTimeout(function(){ var t=document.getElementById('dmx-coment-txt'); if(t) t.focus(); },80);
+  };
+
+  window.dmxSalvarEdicaoComentario = function(acaoId, idx){
+    var txt=(document.getElementById('dmx-coment-txt')||{}).value||'';
+    if(!txt.trim()){ alert('Comentário não pode ficar vazio.'); return; }
+    var hist=getHist(acaoId);
+    if(!hist[idx]) return;
+    hist[idx].txt = txt.trim();
+    hist[idx].editadoEm = new Date().toISOString();
+    saveHist(acaoId,hist);
+    document.getElementById('dmx-coment-modal').style.display='none';
+    var gid=window._dmxDetalheGidAtivo;
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    if(typeof showToast==='function') showToast('Comentário editado');
   };
 
   // ── Wrap de dmxSalvarAcao para recarregar detalhe ─────────
@@ -17951,7 +17993,10 @@ setTimeout(()=>{
                 '<div style="flex-shrink:0;font-weight:700;color:var(--text)">'+esc(h.autor)+'</div>'+
                 '<div style="color:var(--muted);font-size:11px;margin-top:1px;white-space:nowrap">'+fmtData(h.ts.split('T')[0])+'</div>'+
                 '<div style="color:var(--text);flex:1">'+esc(h.txt)+'</div>'+
-                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px" title="Excluir comentário">✕</button>'+
+                '<div style="display:flex;gap:2px;flex-shrink:0">'+
+                '<button onclick="event.stopPropagation();dmxEditarComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 3px" title="Editar comentário">✏️</button>'+
+                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 3px" title="Excluir comentário">✕</button>'+
+                '</div>'+
               '</div>';
             }).join('')+
             (hist.length>5?'<div style="font-size:11px;color:var(--muted)">+ '+(hist.length-5)+' comentário(s) anteriores</div>':'')+
@@ -17974,10 +18019,10 @@ setTimeout(()=>{
           '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
         '</td>'+
         '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
-          '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
-          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer">✏️ Editar</button>'+
-          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer">💬</button>'+
-          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:6px;cursor:pointer">🗑️</button>'+
+          '<div style="display:flex;gap:4px;align-items:center;white-space:nowrap">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:11px;padding:4px 8px;background:var(--teal);color:#fff;border:none;border-radius:5px;cursor:pointer">✏️</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:11px;padding:4px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:5px;cursor:pointer">💬</button>'+
+          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:11px;padding:4px 8px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:5px;cursor:pointer">🗑️</button>'+
           '</div>'+
         '</td>'+
       '</tr>'+comentHtml;
@@ -17998,7 +18043,7 @@ setTimeout(()=>{
     }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;max-height:calc(100vh - 32px);display:flex;flex-direction:column">'+
+      '<div style="background:var(--bg);border-radius:14px;width:calc(100% - 32px);max-width:1400px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
           '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
@@ -18125,7 +18170,7 @@ setTimeout(()=>{
         plano_vinculado:vinculo||null,atualizado_em:new Date().toISOString()});
     } else {
       var novaAcao={
-        id:gid+'-001',id_plano:gid,id_kpi:id_kpi,
+        id:gid+'-001',id_plano:gid,acao_num:1,id_kpi:id_kpi,
         kpi_nome:k?k.indicador:'',area:k?k.area:'',
         problema:problema,why:problema,causa_raiz:causa,prioridade:prio,
         acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
@@ -18209,7 +18254,9 @@ setTimeout(()=>{
       if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
     } else {
       var num=g.acoes.length+1;
-      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,id_kpi:g.id_kpi,kpi_nome:g.id_kpi,area:g.area||'',
+      var kpiObj2=typeof getKPI==='function'?getKPI(g.id_kpi):null;
+      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,acao_num:num,
+        id_kpi:g.id_kpi,kpi_nome:kpiObj2?kpiObj2.indicador:g.id_kpi,area:g.area||'',
         problema:g.problema,causa_raiz:g.causa_raiz,prioridade:g.prioridade,
         acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,
         criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()});
@@ -18428,11 +18475,48 @@ setTimeout(()=>{
     var hist=getHist(acaoId);
     hist.splice(idx,1);
     saveHist(acaoId,hist);
-    // Recarrega o detalhe
     var gid=window._dmxDetalheGidAtivo;
     var det=document.getElementById('dmx-detalhe-plano');
     if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
     if(typeof showToast==='function') showToast('Comentário excluído');
+  };
+
+  window.dmxEditarComentario = function(acaoId, idx){
+    var hist=getHist(acaoId);
+    if(!hist[idx]) return;
+    var modal=document.getElementById('dmx-coment-modal');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-coment-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px'; document.body.appendChild(modal); }
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
+        '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
+          '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:16px 18px">'+
+          '<textarea id="dmx-coment-txt" class="filter-input" style="width:100%;height:96px;resize:vertical;font-size:13px">'+hist[idx].txt+'</textarea>'+
+        '</div>'+
+        '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarEdicaoComentario(&quot;'+acaoId+'&quot;,'+idx+')" class="btn btn-primary">Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
+    setTimeout(function(){ var t=document.getElementById('dmx-coment-txt'); if(t) t.focus(); },80);
+  };
+
+  window.dmxSalvarEdicaoComentario = function(acaoId, idx){
+    var txt=(document.getElementById('dmx-coment-txt')||{}).value||'';
+    if(!txt.trim()){ alert('Comentário não pode ficar vazio.'); return; }
+    var hist=getHist(acaoId);
+    if(!hist[idx]) return;
+    hist[idx].txt = txt.trim();
+    hist[idx].editadoEm = new Date().toISOString();
+    saveHist(acaoId,hist);
+    document.getElementById('dmx-coment-modal').style.display='none';
+    var gid=window._dmxDetalheGidAtivo;
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    if(typeof showToast==='function') showToast('Comentário editado');
   };
 
   // ── Wrap de dmxSalvarAcao para recarregar detalhe ─────────
