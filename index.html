@@ -16820,8 +16820,16 @@ setTimeout(()=>{
   function isSessionValid(){
     try{
       var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
-      if(!s || !s.email || !s.loginEm) return false;
-      if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      if(!s || !s.email) return false;
+      // Aceita qualquer formato de timestamp de sessão
+      var ts = s.loginEm || s.lastActivity || s.criadoEm || s.expiresAt || null;
+      if(!ts) return false;
+      // Se tem expiresAt, verifica se ainda não expirou
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) return false;
+      // Se tem loginEm, verifica se está dentro de 8 horas
+      if(s.loginEm && !s.expiresAt){
+        if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      }
       return true;
     }catch(e){ return false; }
   }
@@ -18149,8 +18157,16 @@ setTimeout(()=>{
   function isSessionValid(){
     try{
       var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
-      if(!s || !s.email || !s.loginEm) return false;
-      if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      if(!s || !s.email) return false;
+      // Aceita qualquer formato de timestamp de sessão
+      var ts = s.loginEm || s.lastActivity || s.criadoEm || s.expiresAt || null;
+      if(!ts) return false;
+      // Se tem expiresAt, verifica se ainda não expirou
+      if(s.expiresAt && new Date(s.expiresAt).getTime() < Date.now()) return false;
+      // Se tem loginEm, verifica se está dentro de 8 horas
+      if(s.loginEm && !s.expiresAt){
+        if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      }
       return true;
     }catch(e){ return false; }
   }
