@@ -15420,7 +15420,7 @@ setTimeout(()=>{
       '<div style="padding:6px 14px;background:#F8FAFF;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'+
         '<b>Fórmula:</b> Índice PPR = (Ating. KPI1 × Peso1) + (Ating. KPI2 × Peso2) + (Ating. KPI3 × Peso3) + (Índice Área × Peso Área)'+
       '</div>'+
-      '<div style="overflow-x:auto">'+
+      '<div style="overflow-x:auto;overflow-y:auto;flex:1">'+
         '<table class="data-table" style="min-width:700px"><thead>'+header+'</thead><tbody>'+rows+'</tbody></table>'+
       '</div>'+
     '</div>';
@@ -16495,11 +16495,12 @@ setTimeout(()=>{
         comentHtml='<tr style="background:var(--bg2);border-bottom:1px solid var(--border)">'+
           '<td style="padding:0 14px 8px 42px" colspan="6">'+
             '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;padding-top:6px">💬 Comentários</div>'+
-            hist.slice(0,5).map(function(h){
-              return '<div style="display:flex;gap:8px;margin-bottom:5px;font-size:12px">'+
+            hist.slice(0,5).map(function(h,ci){
+              return '<div style="display:flex;gap:8px;margin-bottom:5px;font-size:12px;align-items:flex-start">'+
                 '<div style="flex-shrink:0;font-weight:700;color:var(--text)">'+esc(h.autor)+'</div>'+
-                '<div style="color:var(--muted);font-size:11px;margin-top:1px">'+fmtData(h.ts.split('T')[0])+'</div>'+
-                '<div style="color:var(--text)">'+esc(h.txt)+'</div>'+
+                '<div style="color:var(--muted);font-size:11px;margin-top:1px;white-space:nowrap">'+fmtData(h.ts.split('T')[0])+'</div>'+
+                '<div style="color:var(--text);flex:1">'+esc(h.txt)+'</div>'+
+                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px" title="Excluir comentário">✕</button>'+
               '</div>';
             }).join('')+
             (hist.length>5?'<div style="font-size:11px;color:var(--muted)">+ '+(hist.length-5)+' comentário(s) anteriores</div>':'')+
@@ -16522,9 +16523,11 @@ setTimeout(()=>{
           '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
         '</td>'+
         '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
-          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">✏️ Editar</button>'+
-          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">💬</button>'+
-          (acao.status!=='Concluído'?'<button onclick="event.stopPropagation();dmxConcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC;border-radius:6px;cursor:pointer;margin-bottom:3px">✅ Concluir</button>':'')+
+          '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer">✏️ Editar</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer">💬</button>'+
+          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:6px;cursor:pointer">🗑️</button>'+
+          '</div>'+
         '</td>'+
       '</tr>'+comentHtml;
     }).join('');
@@ -16544,7 +16547,7 @@ setTimeout(()=>{
     }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:900px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+      '<div style="background:var(--bg);border-radius:14px;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;max-height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
           '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
@@ -16565,7 +16568,7 @@ setTimeout(()=>{
           '<div style="color:var(--text);font-weight:500">'+esc(g.causa_raiz||'—')+'</div></div>'+
         '</div>'+
         // Tabela de ações
-        '<div style="overflow-x:auto">'+
+        '<div style="overflow-x:auto;overflow-y:auto;flex:1">'+
           '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
             '<thead><tr style="background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--text);font-weight:700;letter-spacing:.4px">'+
               '<th style="padding:9px 14px;text-align:left;width:40px">#</th>'+
@@ -16931,6 +16934,72 @@ setTimeout(()=>{
   });
 
   console.log('[DMX] Auth hardening ativo');
+})();
+</script>
+
+<!-- PATCH v82 — Melhorias Planos de Ação: excluir ação/comentário + reload automático -->
+<script>
+(function(){
+  if(window.__dmxPlanosExtras) return;
+  window.__dmxPlanosExtras = true;
+
+  function getAutor(){ try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; } }
+  function getHist(id){ try{ return (JSON.parse(localStorage.getItem('dmx_planos_hist_v2')||'{}')||{})[id]||[]; }catch(e){ return []; } }
+  function saveHist(id,arr){ try{ var h=JSON.parse(localStorage.getItem('dmx_planos_hist_v2')||'{}')||{}; h[id]=arr; localStorage.setItem('dmx_planos_hist_v2',JSON.stringify(h)); }catch(e){} }
+  function agruparPlanos(){ var ps=Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]); var grupos={},ordem=[]; ps.forEach(function(p){ var gid=p.id_plano||p.id; if(!grupos[gid]){grupos[gid]={id_plano:gid,id_kpi:p.id_kpi,problema:p.problema||p.why||'',causa_raiz:p.causa_raiz||'',prioridade:p.prioridade||'Média',area:p.area||'',criado_em:p.criado_em||'',acoes:[]}; ordem.push(gid);} grupos[gid].acoes.push(p); }); return {grupos:grupos,ordem:ordem}; }
+
+  // ── Excluir ação ──────────────────────────────────────────
+  window.dmxExcluirAcao = function(gid, idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    if(!confirm('Excluir esta ação?')) return;
+    var acaoRef=g.acoes[idx];
+    if(!Array.isArray(window.planos)) return;
+    window.planos=window.planos.filter(function(p){ return p.id!==acaoRef.id; });
+    try{ planos=window.planos; }catch(e){}
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api) api('salvarPlano',{id:acaoRef.id,excluir:true,deleted:true}).catch(function(){});
+    // Recarrega o detalhe
+    var det=document.getElementById('dmx-detalhe-plano');
+    var grupos2=agruparPlanos().grupos;
+    if(det&&det.style.display!=='none'&&grupos2[gid]){
+      window.dmxAbrirDetalhePlano(gid);
+    } else if(det&&det.style.display!=='none'){
+      det.style.display='none';
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Ação excluída');
+  };
+
+  // ── Excluir comentário ────────────────────────────────────
+  window.dmxExcluirComentario = function(acaoId, idx){
+    if(!confirm('Excluir este comentário?')) return;
+    var hist=getHist(acaoId);
+    hist.splice(idx,1);
+    saveHist(acaoId,hist);
+    // Recarrega o detalhe
+    var gid=window._dmxDetalheGidAtivo;
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    if(typeof showToast==='function') showToast('Comentário excluído');
+  };
+
+  // ── Wrap de dmxSalvarAcao para recarregar detalhe ─────────
+  var origSalvarAcao=window.dmxSalvarAcao;
+  if(typeof origSalvarAcao==='function'&&!origSalvarAcao.__reloadWrapped){
+    window.dmxSalvarAcao=function(){
+      var gid=window._dmxAcaoGrupoId;
+      origSalvarAcao.apply(this,arguments);
+      // Recarrega o detalhe automaticamente após salvar
+      setTimeout(function(){
+        var det=document.getElementById('dmx-detalhe-plano');
+        if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+      },200);
+    };
+    window.dmxSalvarAcao.__reloadWrapped=true;
+  }
+
+  console.log('[DMX] Planos extras instalado');
 })();
 </script>
 </body>
@@ -17877,11 +17946,12 @@ setTimeout(()=>{
         comentHtml='<tr style="background:var(--bg2);border-bottom:1px solid var(--border)">'+
           '<td style="padding:0 14px 8px 42px" colspan="6">'+
             '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;padding-top:6px">💬 Comentários</div>'+
-            hist.slice(0,5).map(function(h){
-              return '<div style="display:flex;gap:8px;margin-bottom:5px;font-size:12px">'+
+            hist.slice(0,5).map(function(h,ci){
+              return '<div style="display:flex;gap:8px;margin-bottom:5px;font-size:12px;align-items:flex-start">'+
                 '<div style="flex-shrink:0;font-weight:700;color:var(--text)">'+esc(h.autor)+'</div>'+
-                '<div style="color:var(--muted);font-size:11px;margin-top:1px">'+fmtData(h.ts.split('T')[0])+'</div>'+
-                '<div style="color:var(--text)">'+esc(h.txt)+'</div>'+
+                '<div style="color:var(--muted);font-size:11px;margin-top:1px;white-space:nowrap">'+fmtData(h.ts.split('T')[0])+'</div>'+
+                '<div style="color:var(--text);flex:1">'+esc(h.txt)+'</div>'+
+                '<button onclick="event.stopPropagation();dmxExcluirComentario(&quot;'+(acao.id||gid)+'&quot;,'+ci+')" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:0 2px" title="Excluir comentário">✕</button>'+
               '</div>';
             }).join('')+
             (hist.length>5?'<div style="font-size:11px;color:var(--muted)">+ '+(hist.length-5)+' comentário(s) anteriores</div>':'')+
@@ -17904,9 +17974,11 @@ setTimeout(()=>{
           '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
         '</td>'+
         '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
-          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">✏️ Editar</button>'+
-          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">💬</button>'+
-          (acao.status!=='Concluído'?'<button onclick="event.stopPropagation();dmxConcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC;border-radius:6px;cursor:pointer;margin-bottom:3px">✅ Concluir</button>':'')+
+          '<div style="display:flex;flex-wrap:wrap;gap:4px">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer">✏️ Editar</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer">💬</button>'+
+          '<button onclick="event.stopPropagation();dmxExcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#FEF2F2;color:#DC2626;border:1px solid #FCA5A5;border-radius:6px;cursor:pointer">🗑️</button>'+
+          '</div>'+
         '</td>'+
       '</tr>'+comentHtml;
     }).join('');
@@ -17926,7 +17998,7 @@ setTimeout(()=>{
     }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:900px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+      '<div style="background:var(--bg);border-radius:14px;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;max-height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
           '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
@@ -18313,6 +18385,72 @@ setTimeout(()=>{
   });
 
   console.log('[DMX] Auth hardening ativo');
+})();
+</script>
+
+<!-- PATCH v82 — Melhorias Planos de Ação: excluir ação/comentário + reload automático -->
+<script>
+(function(){
+  if(window.__dmxPlanosExtras) return;
+  window.__dmxPlanosExtras = true;
+
+  function getAutor(){ try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; } }
+  function getHist(id){ try{ return (JSON.parse(localStorage.getItem('dmx_planos_hist_v2')||'{}')||{})[id]||[]; }catch(e){ return []; } }
+  function saveHist(id,arr){ try{ var h=JSON.parse(localStorage.getItem('dmx_planos_hist_v2')||'{}')||{}; h[id]=arr; localStorage.setItem('dmx_planos_hist_v2',JSON.stringify(h)); }catch(e){} }
+  function agruparPlanos(){ var ps=Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]); var grupos={},ordem=[]; ps.forEach(function(p){ var gid=p.id_plano||p.id; if(!grupos[gid]){grupos[gid]={id_plano:gid,id_kpi:p.id_kpi,problema:p.problema||p.why||'',causa_raiz:p.causa_raiz||'',prioridade:p.prioridade||'Média',area:p.area||'',criado_em:p.criado_em||'',acoes:[]}; ordem.push(gid);} grupos[gid].acoes.push(p); }); return {grupos:grupos,ordem:ordem}; }
+
+  // ── Excluir ação ──────────────────────────────────────────
+  window.dmxExcluirAcao = function(gid, idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    if(!confirm('Excluir esta ação?')) return;
+    var acaoRef=g.acoes[idx];
+    if(!Array.isArray(window.planos)) return;
+    window.planos=window.planos.filter(function(p){ return p.id!==acaoRef.id; });
+    try{ planos=window.planos; }catch(e){}
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api) api('salvarPlano',{id:acaoRef.id,excluir:true,deleted:true}).catch(function(){});
+    // Recarrega o detalhe
+    var det=document.getElementById('dmx-detalhe-plano');
+    var grupos2=agruparPlanos().grupos;
+    if(det&&det.style.display!=='none'&&grupos2[gid]){
+      window.dmxAbrirDetalhePlano(gid);
+    } else if(det&&det.style.display!=='none'){
+      det.style.display='none';
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Ação excluída');
+  };
+
+  // ── Excluir comentário ────────────────────────────────────
+  window.dmxExcluirComentario = function(acaoId, idx){
+    if(!confirm('Excluir este comentário?')) return;
+    var hist=getHist(acaoId);
+    hist.splice(idx,1);
+    saveHist(acaoId,hist);
+    // Recarrega o detalhe
+    var gid=window._dmxDetalheGidAtivo;
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    if(typeof showToast==='function') showToast('Comentário excluído');
+  };
+
+  // ── Wrap de dmxSalvarAcao para recarregar detalhe ─────────
+  var origSalvarAcao=window.dmxSalvarAcao;
+  if(typeof origSalvarAcao==='function'&&!origSalvarAcao.__reloadWrapped){
+    window.dmxSalvarAcao=function(){
+      var gid=window._dmxAcaoGrupoId;
+      origSalvarAcao.apply(this,arguments);
+      // Recarrega o detalhe automaticamente após salvar
+      setTimeout(function(){
+        var det=document.getElementById('dmx-detalhe-plano');
+        if(gid&&det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+      },200);
+    };
+    window.dmxSalvarAcao.__reloadWrapped=true;
+  }
+
+  console.log('[DMX] Planos extras instalado');
 })();
 </script>
 </body>
