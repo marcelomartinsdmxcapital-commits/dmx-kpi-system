@@ -755,16 +755,25 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 
     <!-- PLANOS -->
     <div class="page" id="page-planos">
-      <div class="filter-row">
-        <select class="filter-input" id="plano-area-filter" onchange="renderPlanos()"><option value="">Todas as áreas</option></select>
-        <select class="filter-input" id="plano-status-filter" onchange="renderPlanos()">
-          <option value="">Todos os Status</option><option value="Em andamento">Em Andamento</option>
-          <option value="Concluído">Concluído</option><option value="Atrasado">Atrasado</option><option value="Não iniciado">Não Iniciado</option>
+      <div class="filter-row" style="flex-wrap:wrap;gap:8px">
+        <select class="filter-input" id="plano-area-filter" onchange="renderPlanos()" style="width:160px"><option value="">Todas as áreas</option></select>
+        <select class="filter-input" id="plano-status-filter" onchange="renderPlanos()" style="width:150px">
+          <option value="">Todos os status</option>
+          <option value="Não iniciado">Não iniciado</option>
+          <option value="Em andamento">Em andamento</option>
+          <option value="Concluído">Concluído</option>
+          <option value="Cancelado">Cancelado</option>
         </select>
-        <input class="filter-input" type="text" id="plano-search" placeholder="🔍  Buscar..." oninput="renderPlanos()" style="flex:1">
+        <select class="filter-input" id="plano-prio-filter" onchange="renderPlanos()" style="width:140px">
+          <option value="">Todas prioridades</option>
+          <option value="Alta">Alta</option>
+          <option value="Média">Média</option>
+          <option value="Baixa">Baixa</option>
+        </select>
+        <input class="filter-input" type="text" id="plano-search" placeholder="🔍 Buscar KPI, responsável..." oninput="renderPlanos()" style="flex:1;min-width:180px">
         <button class="btn btn-primary" onclick="openNewPlano()">+ Novo Plano</button>
       </div>
-      <div id="planos-board"></div>
+      <div id="planos-board" style="margin-top:12px"></div>
     </div>
 
     <!-- SEMANAL OPERACIONAL -->
@@ -15678,29 +15687,35 @@ setTimeout(()=>{
 
 
 
-<!-- PATCH v82 — Oculta CEO/Painel Financeiro da seção ÁREA -->
+<!-- PATCH v82 — Oculta CEO/Painel Financeiro/Painel Executivo da seção ÁREA -->
 <script>
 (function(){
   if(window.__dmxHideFinArea) return;
   window.__dmxHideFinArea = true;
 
-  var HIDE = /^(CEO|Painel Financeiro|Painel Executivo|__fin_interno__)\s*$/i;
+  var HIDE_AREAS = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+
+  function injectCSS(){
+    if(document.getElementById('dmx-hide-fin-css')) return;
+    var s = document.createElement('style');
+    s.id = 'dmx-hide-fin-css';
+    s.textContent = HIDE_AREAS.map(function(a){
+      return '.nav-item[data-area="'+a+'"]{ display:none !important; }';
+    }).join('');
+    (document.head || document.documentElement).appendChild(s);
+  }
+  injectCSS();
 
   function hideFinArea(){
-    // Remove do container area-nav-items (onde buildSidebar coloca as áreas)
-    var cont = document.getElementById('area-nav-items');
-    if(cont){
-      cont.querySelectorAll('.nav-item[data-area]').forEach(function(el){
-        if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
-      });
-    }
-    // Remove da sidebar geral por data-area
-    document.querySelectorAll('.sidebar-nav .nav-item[data-area]').forEach(function(el){
-      if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+    injectCSS();
+    document.querySelectorAll('.sidebar-nav .nav-item').forEach(function(el){
+      var area = String(el.dataset.area||el.getAttribute('data-area')||'').trim();
+      if(HIDE_AREAS.indexOf(area)>=0){
+        el.style.setProperty('display','none','important');
+      }
     });
   }
 
-  // Roda após buildSidebar sem substituí-lo
   var origBuild = window.buildSidebar;
   if(typeof origBuild === 'function' && !origBuild.__dmxHideFinWrapped){
     window.buildSidebar = function(){
@@ -15708,14 +15723,13 @@ setTimeout(()=>{
       hideFinArea();
       return r;
     };
-    // Copia todas as propriedades e flags do original
     Object.keys(origBuild).forEach(function(k){ window.buildSidebar[k] = origBuild[k]; });
     window.buildSidebar.__dmxHideFinWrapped = true;
   }
 
-  [200, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
+  [0, 300, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
 
-  console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
+  console.log('[DMX] CEO/PainelFinanceiro/PainelExecutivo ocultos da seção AREA');
 })();
 </script>
 
@@ -16139,6 +16153,512 @@ setTimeout(()=>{
   console.log('[DMX] Tabela de metas mensais instalada');
 })();
 </script>
+
+
+<!-- PATCH v82 — Planos de Ação v2 -->
+<script>
+// ============================================================
+//  DMX Planos de Ação v2
+//  - Campos diretos: problema, ação, causa raiz, responsável,
+//    co-responsável, prioridade, prazo, % progresso, status
+//  - Histórico de comentários em localStorage
+//  - Painel de métricas
+//  - Alertas visuais por prazo e reincidência
+//  - Gatilhos automáticos para KPIs críticos
+// ============================================================
+(function(){
+  if(window.__dmxPlanosV2) return;
+  window.__dmxPlanosV2 = true;
+
+  // ── Constantes ────────────────────────────────────────────
+  var HIST_KEY = 'dmx_planos_hist_v2';
+  var STATUS_COR = {
+    'Não iniciado': {bg:'#F1F5F9', txt:'#475569', border:'#CBD5E1'},
+    'Em andamento': {bg:'#EFF6FF', txt:'#1D4ED8', border:'#93C5FD'},
+    'Concluído':    {bg:'#F0FDF4', txt:'#15803D', border:'#86EFAC'},
+    'Cancelado':    {bg:'#FEF2F2', txt:'#DC2626', border:'#FCA5A5'}
+  };
+  var PRIO_COR = {
+    'Alta':  {bg:'#FEF2F2', txt:'#DC2626'},
+    'Média': {bg:'#FFF7ED', txt:'#D97706'},
+    'Baixa': {bg:'#F0FDF4', txt:'#16A34A'}
+  };
+  var MESES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function today(){ return new Date().toISOString().split('T')[0]; }
+  function diasAte(prazo){ if(!prazo) return null; var d=new Date(prazo)-new Date(today()); return Math.ceil(d/86400000); }
+  function fmtData(d){ if(!d) return '—'; var p=String(d).split('T')[0].split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
+  function allPlanos(){ return Array.isArray(window.planos)?window.planos:[]; }
+  function getKPI(id){ return (window.kpis||[]).find(function(k){ return k.id===id; })||null; }
+
+  // ── Histórico em localStorage ─────────────────────────────
+  function getHist(id){
+    try{ return (JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{})[id]||[]; }catch(e){ return []; }
+  }
+  function addHist(id, texto, autor){
+    try{
+      var h=JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{};
+      if(!h[id]) h[id]=[];
+      h[id].unshift({txt:texto, autor:autor||'Usuário', ts:new Date().toISOString()});
+      if(h[id].length>30) h[id]=h[id].slice(0,30);
+      localStorage.setItem(HIST_KEY,JSON.stringify(h));
+    }catch(e){}
+  }
+  function getAutor(){
+    try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; }
+  }
+
+  // ── Novo ID de plano ─────────────────────────────────────
+  function nextPlanoId(){
+    var max = allPlanos().reduce(function(m,p){ return Math.max(m, parseInt((p.id+'').replace(/\D/g,'')||0)); }, 0);
+    return 'AC'+String(max+1).padStart(3,'0');
+  }
+
+  // ── Calcula métricas ──────────────────────────────────────
+  function calcMetricas(){
+    var ps = allPlanos();
+    var total = ps.length;
+    var concluidos = ps.filter(function(p){ return p.status==='Concluído'; }).length;
+    var atrasados  = ps.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
+    var andamento  = ps.filter(function(p){ return p.status==='Em andamento'; }).length;
+    var semPlano   = (window.kpis||[]).filter(function(k){
+      return typeof isOutOfRange==='function' && isOutOfRange(k, window.currentMes||5, window.currentAno||2026) &&
+             !allPlanos().some(function(p){ return p.id_kpi===k.id && p.status!=='Concluído'&&p.status!=='Cancelado'; });
+    }).length;
+    // Tempo médio de resolução (dias)
+    var resolvidos = ps.filter(function(p){ return p.status==='Concluído'&&p.criado_em&&p.prazo; });
+    var tmedio = resolvidos.length ? Math.round(resolvidos.reduce(function(s,p){
+      return s + Math.max(0,(new Date(p.prazo)-new Date(p.criado_em.split('T')[0]))/86400000);
+    },0)/resolvidos.length) : null;
+    return {total:total, concluidos:concluidos, atrasados:atrasados, andamento:andamento, semPlano:semPlano, tmedio:tmedio,
+            taxaConclusao: total ? Math.round(concluidos/total*100) : 0};
+  }
+
+  // ── Renderiza painel principal ────────────────────────────
+  window.renderPlanos = function(){
+    var board = document.getElementById('planos-board'); if(!board) return;
+    var af  = (document.getElementById('plano-area-filter')||{}).value||'';
+    var sf  = (document.getElementById('plano-status-filter')||{}).value||'';
+    var pf  = (document.getElementById('plano-prio-filter')||{}).value||'';
+    var srch= ((document.getElementById('plano-search')||{}).value||'').toLowerCase();
+    var met = calcMetricas();
+
+    // Filtros adicionais
+    var filterBar = document.getElementById('plano-extra-filters');
+    if(!filterBar){
+      var oldBar = document.querySelector('#page-planos .filter-row');
+      if(oldBar){
+        var extra = document.createElement('select');
+        extra.id='plano-prio-filter'; extra.className='filter-input';
+        extra.style.width='140px'; extra.onchange=window.renderPlanos;
+        extra.innerHTML='<option value="">Todas prioridades</option>'+
+          ['Alta','Média','Baixa'].map(function(p){ return '<option>'+p+'</option>'; }).join('');
+        oldBar.insertBefore(extra, oldBar.querySelector('button'));
+      }
+    }
+
+    // ── Métricas ─────────────────────────────────────────────
+    var metrHtml =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">'+
+      metCard('📋 Total','planos',met.total,'var(--text)','var(--bg2)')+
+      metCard('✅ Concluídos',met.taxaConclusao+'%',met.concluidos+' planos','var(--green)','#F0FDF4')+
+      metCard('⏱️ Em andamento','',met.andamento+' planos','#1D4ED8','#EFF6FF')+
+      metCard('🚨 Atrasados','',met.atrasados+' planos',met.atrasados>0?'var(--red)':'var(--muted)',met.atrasados>0?'#FEF2F2':'var(--bg2)')+
+      metCard('⚠️ Sem plano','',met.semPlano+' KPIs críticos',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
+      (met.tmedio!==null?metCard('⏱️ Tempo médio',met.tmedio+' dias','para resolver','var(--muted)','var(--bg2)'):'') +
+      '</div>';
+
+    // ── Gatilhos automáticos ──────────────────────────────────
+    var kpisComPlanoAtivo = {};
+    allPlanos().forEach(function(p){
+      if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlanoAtivo[p.id_kpi]=true;
+    });
+    var gatilhos = (window.kpis||[]).filter(function(k){
+      if(af && k.area!==af) return false;
+      return typeof isOutOfRange==='function' && isOutOfRange(k,window.currentMes||5,window.currentAno||2026) && !kpisComPlanoAtivo[k.id];
+    });
+
+    var gatHtml = '';
+    if(gatilhos.length){
+      gatHtml = '<div style="margin-bottom:16px;padding:14px 16px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:10px">'+
+          '⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' crítico'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">'+
+        gatilhos.map(function(k){
+          var l = typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
+          var ref = typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+          var real = l?l.realizado:'—';
+          var limite = k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
+          return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+            '<div>'+
+              '<div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+              '<div style="font-size:12px;font-weight:600;margin:2px 0">'+esc(k.indicador)+'</div>'+
+              '<div style="font-size:10px;color:var(--muted)">Realizado: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div>'+
+            '</div>'+
+            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:5px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">+ Criar Plano</button>'+
+          '</div>';
+        }).join('')+
+        '</div></div>';
+    }
+
+    // ── Planos existentes ─────────────────────────────────────
+    var ps = allPlanos().filter(function(p){
+      var k = getKPI(p.id_kpi);
+      var area = k?k.area:(p.area||'');
+      if(af && area!==af) return false;
+      if(sf && p.status!==sf) return false;
+      if(pf && p.prioridade!==pf) return false;
+      if(srch && !(p.id_kpi||'').toLowerCase().includes(srch) &&
+                 !(p.problema||p.why||'').toLowerCase().includes(srch) &&
+                 !(p.acao||p.what||'').toLowerCase().includes(srch) &&
+                 !(p.responsavel||p.who||'').toLowerCase().includes(srch)) return false;
+      return true;
+    });
+
+    // Ordena: atrasados primeiro, depois por prazo
+    ps.sort(function(a,b){
+      var da=diasAte(a.prazo), db=diasAte(b.prazo);
+      var atA=a.status!=='Concluído'&&a.status!=='Cancelado'&&da!==null&&da<0;
+      var atB=b.status!=='Concluído'&&b.status!=='Cancelado'&&db!==null&&db<0;
+      if(atA&&!atB) return -1; if(atB&&!atA) return 1;
+      if(da!==null&&db!==null) return da-db;
+      return 0;
+    });
+
+    // Agrupa por área
+    var grouped = {};
+    ps.forEach(function(p){
+      var k=getKPI(p.id_kpi); var area=k?k.area:(p.area||'Sem área');
+      if(!grouped[area]) grouped[area]=[];
+      grouped[area].push(p);
+    });
+
+    var planosHtml = '';
+    if(!ps.length && !gatilhos.length){
+      planosHtml = '<div style="text-align:center;color:var(--muted);padding:48px;font-size:13px">✅ Nenhum plano encontrado.</div>';
+    } else if(ps.length){
+      planosHtml = Object.keys(grouped).sort().map(function(area){
+        var areaPs = grouped[area];
+        var nAt = areaPs.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
+        return '<div style="margin-bottom:20px">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 0;border-bottom:2px solid var(--border)">'+
+            '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800">▪ '+esc(area)+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">('+areaPs.length+' plano'+(areaPs.length>1?'s':'')+')</span>'+
+            (nAt?'<span style="font-size:10px;font-weight:700;color:var(--red);background:#FEF2F2;padding:2px 8px;border-radius:10px">🚨 '+nAt+' atrasado'+(nAt>1?'s':'')+'</span>':'')+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">'+
+          areaPs.map(function(p){ return renderPlanoCard(p); }).join('')+
+          '</div></div>';
+      }).join('');
+    }
+
+    board.innerHTML = metrHtml + gatHtml + planosHtml;
+    updatePlanosBadge();
+  };
+
+  // ── Card de plano ─────────────────────────────────────────
+  function renderPlanoCard(p){
+    var dias = diasAte(p.prazo);
+    var atrasado = p.status!=='Concluído'&&p.status!=='Cancelado'&&dias!==null&&dias<0;
+    var venceHoje = dias===0; var venceBreve = dias!==null&&dias>0&&dias<=3;
+    var sc = STATUS_COR[p.status]||STATUS_COR['Não iniciado'];
+    var pc = PRIO_COR[p.prioridade]||PRIO_COR['Média'];
+    var prog = Number(p.progresso||0);
+    var k = getKPI(p.id_kpi);
+    var hist = getHist(p.id);
+    var borderColor = atrasado?'#DC2626':(venceBreve?'#D97706':'var(--border)');
+
+    return '<div class="plano-card-v2" style="background:var(--bg2);border:1px solid '+borderColor+';border-left:4px solid '+borderColor+';border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+
+            '<span style="font-size:10px;font-weight:700;color:var(--teal)">'+esc(p.id)+'</span>'+
+            '<span style="font-size:10px;font-weight:700;color:var(--muted)">·</span>'+
+            '<span style="font-size:10px;font-weight:700;color:var(--muted)">'+esc(p.id_kpi)+'</span>'+
+            (k?'<span style="font-size:9px;background:var(--bg3);padding:1px 6px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
+          '</div>'+
+          '<div style="font-size:13px;font-weight:700;line-height:1.3">'+esc(p.acao||p.what||'Sem descrição')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(p.status||'Não iniciado')+'</span>'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(p.prioridade||'Média')+'</span>'+
+        '</div>'+
+      '</div>'+
+      // Problema / Causa raiz
+      (p.problema||p.why?'<div style="font-size:11px;color:var(--muted);background:var(--bg3);padding:6px 10px;border-radius:6px;line-height:1.5">'+
+        '<b>Problema:</b> '+esc(p.problema||p.why)+
+        (p.causa_raiz?'<br><b>Causa raiz:</b> '+esc(p.causa_raiz):'')+'</div>':'')+
+      // Responsável + prazo
+      '<div style="display:flex;gap:12px;font-size:11px;flex-wrap:wrap">'+
+        '<span>👤 <b>'+esc(p.responsavel||p.who||'—')+'</b>'+
+          (p.co_responsavel?'<span style="color:var(--muted)"> + '+esc(p.co_responsavel)+'</span>':'')+
+        '</span>'+
+        (p.prazo?'<span style="color:'+(atrasado?'var(--red)':venceBreve?'var(--amber)':'var(--muted)')+'">'+
+          '📅 '+(atrasado?'🚨 ATRASADO — ':venceHoje?'🔔 Vence HOJE — ':venceBreve?'⚠️ ':'')+fmtData(p.prazo)+
+          (dias!==null&&!atrasado&&dias>0?' ('+dias+'d)':'')+
+        '</span>':'')+
+      '</div>'+
+      // Barra de progresso
+      '<div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">'+
+          '<span>Progresso</span><span style="font-weight:700;color:var(--text)">'+prog+'%</span>'+
+        '</div>'+
+        '<div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">'+
+          '<div style="height:100%;width:'+prog+'%;background:'+(prog>=100?'var(--green)':prog>=60?'#2563EB':'#D97706')+';border-radius:3px;transition:width .3s"></div>'+
+        '</div>'+
+      '</div>'+
+      // Comentários recentes
+      (hist.length?'<div style="font-size:10px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px">'+
+        '💬 <b>'+hist[0].autor+'</b> · '+fmtData(hist[0].ts.split('T')[0])+': '+esc(hist[0].txt.slice(0,80))+(hist[0].txt.length>80?'…':'')+
+      '</div>':'')+
+      // Ações
+      '<div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:8px">'+
+        '<button onclick="dmxOpenPlanoModal(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✏️ Editar</button>'+
+        '<button onclick="dmxAddComentario(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">💬 Comentar</button>'+
+        '<button onclick="dmxConcluirPlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#F0FDF4;color:var(--green);border:1px solid #86EFAC;border-radius:6px;font-size:11px;cursor:pointer" title="Marcar como concluído">✅</button>'+
+        '<button onclick="dmxDeletePlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#FEF2F2;color:var(--red);border:1px solid #FCA5A5;border-radius:6px;font-size:11px;cursor:pointer" title="Remover">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Card de métrica ───────────────────────────────────────
+  function metCard(titulo, valor, sub, cor, bg){
+    return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:12px 14px">'+
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+titulo+'</div>'+
+      (valor?'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:'+cor+'">'+valor+'</div>':'')+
+      '<div style="font-size:11px;color:var(--muted)">'+sub+'</div>'+
+    '</div>';
+  }
+
+  // ── Modal de criação/edição ───────────────────────────────
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+    var p = id ? allPlanos().find(function(x){ return x.id===id; })||{} : {};
+    var isEdit = !!id;
+    window._dmxEditingPlanoId = id||null;
+    var kpiOpts = (window.kpis||[]).map(function(k){
+      var sel = (kpiIdPreset&&k.id===kpiIdPreset)||(p.id_kpi&&k.id===p.id_kpi)?'selected':'';
+      return '<option value="'+esc(k.id)+'" '+sel+'>'+esc(k.id)+' — '+esc(k.indicador)+' ('+esc(k.area)+')</option>';
+    }).join('');
+    var prazoVal = p.prazo?String(p.prazo).split('T')[0]:'';
+    var hist = id?getHist(id):[];
+    var histHtml = hist.length ? hist.map(function(h){
+      return '<div style="padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px">'+
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:2px"><b>'+esc(h.autor)+'</b> · '+fmtData(h.ts.split('T')[0])+'</div>'+
+        '<div style="font-size:12px">'+esc(h.txt)+'</div>'+
+      '</div>';
+    }).join('') : '<div style="color:var(--muted);font-size:12px;padding:8px">Nenhum comentário ainda.</div>';
+
+    var modal = document.getElementById('dmx-plano-modal-v2');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'dmx-plano-modal-v2';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+      document.body.appendChild(modal);
+      modal.onclick = function(e){ if(e.target===modal) modal.style.display='none'; };
+    }
+
+    modal.innerHTML =
+      '<div style="background:var(--bg);border-radius:14px;max-width:680px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        '<div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">'+(isEdit?'✏️ Editar Plano '+esc(id):'🆕 Novo Plano de Ação')+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">'+
+          // KPI
+          '<div><div class="card-label">KPI Vinculado</div>'+
+          '<select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
+          // Problema + Ação
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Problema (o que está errado)</div>'+
+            '<textarea id="pv2-problema" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Ação a tomar</div>'+
+            '<textarea id="pv2-acao" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '</div>'+
+          // Causa raiz
+          '<div><div class="card-label">Causa Raiz</div>'+
+          '<input id="pv2-causa" class="filter-input" style="width:100%" value="'+esc(p.causa_raiz||'')+'"></div>'+
+          // Responsáveis + Prioridade
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Responsável</div>'+
+            '<input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
+            '<div><div class="card-label">Co-responsável</div>'+
+            '<input id="pv2-coresp" class="filter-input" style="width:100%" value="'+esc(p.co_responsavel||'')+'"></div>'+
+            '<div><div class="card-label">Prioridade</div>'+
+            '<select id="pv2-prio" class="filter-input" style="width:100%">'+
+            ['Alta','Média','Baixa'].map(function(x){ return '<option '+(p.prioridade===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+          '</div>'+
+          // Prazo + Progresso + Status
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Prazo</div>'+
+            '<input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+prazoVal+'"></div>'+
+            '<div><div class="card-label">Progresso %</div>'+
+            '<input id="pv2-prog" class="filter-input" type="number" min="0" max="100" style="width:100%" value="'+esc(p.progresso||0)+'"></div>'+
+            '<div><div class="card-label">Status</div>'+
+            '<select id="pv2-status" class="filter-input" style="width:100%">'+
+            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+          '</div>'+
+          // Novo comentário
+          '<div style="border-top:1px solid var(--border);padding-top:12px">'+
+            '<div class="card-label">Adicionar comentário / atualização</div>'+
+            '<div style="display:flex;gap:8px">'+
+              '<input id="pv2-comentario" class="filter-input" style="flex:1" placeholder="Digite um comentário...">'+
+              '<button onclick="dmxSalvarComentarioModal()" style="padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Adicionar</button>'+
+            '</div>'+
+          '</div>'+
+          // Histórico
+          (isEdit?'<div><div class="card-label">Histórico ('+hist.length+')</div>'+
+          '<div style="max-height:160px;overflow-y:auto">'+histHtml+'</div></div>':'')+
+        '</div>'+
+        '<div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarPlanoV2()" class="btn btn-primary">💾 Salvar Plano</button>'+
+        '</div>'+
+      '</div>';
+
+    modal.style.display = 'flex';
+  };
+
+  // ── Salva comentário direto do modal ──────────────────────
+  window.dmxSalvarComentarioModal = function(){
+    var txt = (document.getElementById('pv2-comentario')||{}).value||'';
+    if(!txt.trim()) return;
+    var id = window._dmxEditingPlanoId;
+    if(id){ addHist(id, txt.trim(), getAutor()); }
+    document.getElementById('pv2-comentario').value='';
+    if(typeof showToast==='function') showToast('Comentário adicionado');
+  };
+
+  // ── Salva plano ───────────────────────────────────────────
+  window.dmxSalvarPlanoV2 = async function(){
+    var id_kpi   = (document.getElementById('pv2-kpi')||{}).value||'';
+    var problema = (document.getElementById('pv2-problema')||{}).value||'';
+    var acao     = (document.getElementById('pv2-acao')||{}).value||'';
+    var causa    = (document.getElementById('pv2-causa')||{}).value||'';
+    var resp     = (document.getElementById('pv2-resp')||{}).value||'';
+    var coresp   = (document.getElementById('pv2-coresp')||{}).value||'';
+    var prio     = (document.getElementById('pv2-prio')||{}).value||'Média';
+    var prazo    = (document.getElementById('pv2-prazo')||{}).value||'';
+    var prog     = Number((document.getElementById('pv2-prog')||{}).value||0);
+    var status   = (document.getElementById('pv2-status')||{}).value||'Não iniciado';
+    var coment   = (document.getElementById('pv2-comentario')||{}).value||'';
+
+    if(!id_kpi){ alert('Selecione o KPI.'); return; }
+    if(!acao.trim()){ alert('Informe a ação a tomar.'); return; }
+
+    var k = getKPI(id_kpi);
+    var editId = window._dmxEditingPlanoId;
+    var data = {
+      id_kpi:id_kpi, kpi_nome:k?k.indicador:'', area:k?k.area:'',
+      problema:problema, what:acao, acao:acao, why:problema,
+      causa_raiz:causa,
+      responsavel:resp, who:resp, co_responsavel:coresp,
+      prioridade:prio, prazo:prazo, progresso:prog, status:status,
+      atualizado_em: new Date().toISOString()
+    };
+
+    if(editId){
+      var i = window.planos.findIndex(function(p){ return p.id===editId; });
+      if(i>=0) window.planos[i] = Object.assign({}, window.planos[i], data);
+    } else {
+      data.id = nextPlanoId();
+      data.criado_em = new Date().toISOString();
+      window.planos.push(data);
+    }
+
+    if(coment.trim()) addHist(editId||data.id, coment.trim(), getAutor());
+
+    // Persiste
+    if(typeof persist==='function') persist();
+
+    // Sheets
+    var api = typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var row = Object.assign({}, editId?window.planos.find(function(p){ return p.id===editId; }):data);
+      api('salvarPlano', row).catch(function(){});
+    }
+
+    document.getElementById('dmx-plano-modal-v2').style.display='none';
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Plano salvo');
+  };
+
+  // ── Comentário rápido (botão no card) ────────────────────
+  window.dmxAddComentario = function(id){
+    var txt = prompt('Comentário / atualização:');
+    if(!txt||!txt.trim()) return;
+    addHist(id, txt.trim(), getAutor());
+    // Atualiza progresso se digitou "% XX"
+    var m = txt.match(/%\s*(\d+)/);
+    if(m){
+      var i = window.planos.findIndex(function(p){ return p.id===id; });
+      if(i>=0){ window.planos[i].progresso=Number(m[1]); if(typeof persist==='function') persist(); }
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Comentário adicionado');
+  };
+
+  // ── Concluir rapidamente ─────────────────────────────────
+  window.dmxConcluirPlano = function(id){
+    if(!confirm('Marcar plano '+id+' como concluído?')) return;
+    var i = window.planos.findIndex(function(p){ return p.id===id; });
+    if(i>=0){
+      window.planos[i].status='Concluído';
+      window.planos[i].progresso=100;
+      window.planos[i].atualizado_em=new Date().toISOString();
+      addHist(id,'Plano marcado como concluído.',getAutor());
+      if(typeof persist==='function') persist();
+      var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+      if(api) api('salvarPlano',window.planos[i]).catch(function(){});
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Plano concluído!');
+  };
+
+  // ── Deletar ───────────────────────────────────────────────
+  window.dmxDeletePlano = function(id){
+    if(!confirm('Remover plano '+id+'? Esta ação não pode ser desfeita.')) return;
+    window.planos = window.planos.filter(function(p){ return p.id!==id; });
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api) api('salvarPlano',{id:id,excluir:true}).catch(function(){});
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Plano removido');
+  };
+
+  // ── Badge de pendências ───────────────────────────────────
+  window.updatePlanosBadge = function(){
+    var el = document.getElementById('planos-badge'); if(!el) return;
+    var n = allPlanos().filter(function(p){
+      return p.status==='Em andamento'||
+             (p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0);
+    }).length;
+    el.textContent = n||'';
+    el.style.background = n>0?'var(--red)':'';
+  };
+
+  // ── Compatibilidade com funções antigas ──────────────────
+  window.openNewPlano = function(){ dmxOpenPlanoModal(null,null); };
+  window.openNewPlanoForKPI = function(kpiId){ dmxOpenPlanoModal(null,kpiId); };
+  window.openEditPlano = function(id){ dmxOpenPlanoModal(id,null); };
+  window.savePlano = function(){ dmxSalvarPlanoV2(); };
+  window.deletePlano = function(id){ dmxDeletePlano(id); };
+
+  // ── CSS ───────────────────────────────────────────────────
+  if(!document.getElementById('dmx-planos-v2-css')){
+    var s=document.createElement('style'); s.id='dmx-planos-v2-css';
+    s.textContent='.plano-card-v2:hover{box-shadow:0 4px 16px rgba(0,0,0,.10)!important;transform:translateY(-1px);transition:all .15s}';
+    document.head.appendChild(s);
+  }
+
+  console.log('[DMX] Planos de Ação v2 instalado');
+})();
+
+</script>
+
 </body>
 </html>
 
@@ -17279,29 +17799,35 @@ setTimeout(()=>{
 
 
 
-<!-- PATCH v82 — Oculta CEO/Painel Financeiro da seção ÁREA -->
+<!-- PATCH v82 — Oculta CEO/Painel Financeiro/Painel Executivo da seção ÁREA -->
 <script>
 (function(){
   if(window.__dmxHideFinArea) return;
   window.__dmxHideFinArea = true;
 
-  var HIDE = /^(CEO|Painel Financeiro|Painel Executivo|__fin_interno__)\s*$/i;
+  var HIDE_AREAS = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+
+  function injectCSS(){
+    if(document.getElementById('dmx-hide-fin-css')) return;
+    var s = document.createElement('style');
+    s.id = 'dmx-hide-fin-css';
+    s.textContent = HIDE_AREAS.map(function(a){
+      return '.nav-item[data-area="'+a+'"]{ display:none !important; }';
+    }).join('');
+    (document.head || document.documentElement).appendChild(s);
+  }
+  injectCSS();
 
   function hideFinArea(){
-    // Remove do container area-nav-items (onde buildSidebar coloca as áreas)
-    var cont = document.getElementById('area-nav-items');
-    if(cont){
-      cont.querySelectorAll('.nav-item[data-area]').forEach(function(el){
-        if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
-      });
-    }
-    // Remove da sidebar geral por data-area
-    document.querySelectorAll('.sidebar-nav .nav-item[data-area]').forEach(function(el){
-      if(HIDE.test(String(el.dataset.area||'').trim())) el.style.display='none';
+    injectCSS();
+    document.querySelectorAll('.sidebar-nav .nav-item').forEach(function(el){
+      var area = String(el.dataset.area||el.getAttribute('data-area')||'').trim();
+      if(HIDE_AREAS.indexOf(area)>=0){
+        el.style.setProperty('display','none','important');
+      }
     });
   }
 
-  // Roda após buildSidebar sem substituí-lo
   var origBuild = window.buildSidebar;
   if(typeof origBuild === 'function' && !origBuild.__dmxHideFinWrapped){
     window.buildSidebar = function(){
@@ -17309,14 +17835,13 @@ setTimeout(()=>{
       hideFinArea();
       return r;
     };
-    // Copia todas as propriedades e flags do original
     Object.keys(origBuild).forEach(function(k){ window.buildSidebar[k] = origBuild[k]; });
     window.buildSidebar.__dmxHideFinWrapped = true;
   }
 
-  [200, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
+  [0, 300, 800, 2000].forEach(function(ms){ setTimeout(hideFinArea, ms); });
 
-  console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
+  console.log('[DMX] CEO/PainelFinanceiro/PainelExecutivo ocultos da seção AREA');
 })();
 </script>
 
@@ -17740,5 +18265,511 @@ setTimeout(()=>{
   console.log('[DMX] Tabela de metas mensais instalada');
 })();
 </script>
+
+
+<!-- PATCH v82 — Planos de Ação v2 -->
+<script>
+// ============================================================
+//  DMX Planos de Ação v2
+//  - Campos diretos: problema, ação, causa raiz, responsável,
+//    co-responsável, prioridade, prazo, % progresso, status
+//  - Histórico de comentários em localStorage
+//  - Painel de métricas
+//  - Alertas visuais por prazo e reincidência
+//  - Gatilhos automáticos para KPIs críticos
+// ============================================================
+(function(){
+  if(window.__dmxPlanosV2) return;
+  window.__dmxPlanosV2 = true;
+
+  // ── Constantes ────────────────────────────────────────────
+  var HIST_KEY = 'dmx_planos_hist_v2';
+  var STATUS_COR = {
+    'Não iniciado': {bg:'#F1F5F9', txt:'#475569', border:'#CBD5E1'},
+    'Em andamento': {bg:'#EFF6FF', txt:'#1D4ED8', border:'#93C5FD'},
+    'Concluído':    {bg:'#F0FDF4', txt:'#15803D', border:'#86EFAC'},
+    'Cancelado':    {bg:'#FEF2F2', txt:'#DC2626', border:'#FCA5A5'}
+  };
+  var PRIO_COR = {
+    'Alta':  {bg:'#FEF2F2', txt:'#DC2626'},
+    'Média': {bg:'#FFF7ED', txt:'#D97706'},
+    'Baixa': {bg:'#F0FDF4', txt:'#16A34A'}
+  };
+  var MESES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function today(){ return new Date().toISOString().split('T')[0]; }
+  function diasAte(prazo){ if(!prazo) return null; var d=new Date(prazo)-new Date(today()); return Math.ceil(d/86400000); }
+  function fmtData(d){ if(!d) return '—'; var p=String(d).split('T')[0].split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
+  function allPlanos(){ return Array.isArray(window.planos)?window.planos:[]; }
+  function getKPI(id){ return (window.kpis||[]).find(function(k){ return k.id===id; })||null; }
+
+  // ── Histórico em localStorage ─────────────────────────────
+  function getHist(id){
+    try{ return (JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{})[id]||[]; }catch(e){ return []; }
+  }
+  function addHist(id, texto, autor){
+    try{
+      var h=JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{};
+      if(!h[id]) h[id]=[];
+      h[id].unshift({txt:texto, autor:autor||'Usuário', ts:new Date().toISOString()});
+      if(h[id].length>30) h[id]=h[id].slice(0,30);
+      localStorage.setItem(HIST_KEY,JSON.stringify(h));
+    }catch(e){}
+  }
+  function getAutor(){
+    try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; }
+  }
+
+  // ── Novo ID de plano ─────────────────────────────────────
+  function nextPlanoId(){
+    var max = allPlanos().reduce(function(m,p){ return Math.max(m, parseInt((p.id+'').replace(/\D/g,'')||0)); }, 0);
+    return 'AC'+String(max+1).padStart(3,'0');
+  }
+
+  // ── Calcula métricas ──────────────────────────────────────
+  function calcMetricas(){
+    var ps = allPlanos();
+    var total = ps.length;
+    var concluidos = ps.filter(function(p){ return p.status==='Concluído'; }).length;
+    var atrasados  = ps.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
+    var andamento  = ps.filter(function(p){ return p.status==='Em andamento'; }).length;
+    var semPlano   = (window.kpis||[]).filter(function(k){
+      return typeof isOutOfRange==='function' && isOutOfRange(k, window.currentMes||5, window.currentAno||2026) &&
+             !allPlanos().some(function(p){ return p.id_kpi===k.id && p.status!=='Concluído'&&p.status!=='Cancelado'; });
+    }).length;
+    // Tempo médio de resolução (dias)
+    var resolvidos = ps.filter(function(p){ return p.status==='Concluído'&&p.criado_em&&p.prazo; });
+    var tmedio = resolvidos.length ? Math.round(resolvidos.reduce(function(s,p){
+      return s + Math.max(0,(new Date(p.prazo)-new Date(p.criado_em.split('T')[0]))/86400000);
+    },0)/resolvidos.length) : null;
+    return {total:total, concluidos:concluidos, atrasados:atrasados, andamento:andamento, semPlano:semPlano, tmedio:tmedio,
+            taxaConclusao: total ? Math.round(concluidos/total*100) : 0};
+  }
+
+  // ── Renderiza painel principal ────────────────────────────
+  window.renderPlanos = function(){
+    var board = document.getElementById('planos-board'); if(!board) return;
+    var af  = (document.getElementById('plano-area-filter')||{}).value||'';
+    var sf  = (document.getElementById('plano-status-filter')||{}).value||'';
+    var pf  = (document.getElementById('plano-prio-filter')||{}).value||'';
+    var srch= ((document.getElementById('plano-search')||{}).value||'').toLowerCase();
+    var met = calcMetricas();
+
+    // Filtros adicionais
+    var filterBar = document.getElementById('plano-extra-filters');
+    if(!filterBar){
+      var oldBar = document.querySelector('#page-planos .filter-row');
+      if(oldBar){
+        var extra = document.createElement('select');
+        extra.id='plano-prio-filter'; extra.className='filter-input';
+        extra.style.width='140px'; extra.onchange=window.renderPlanos;
+        extra.innerHTML='<option value="">Todas prioridades</option>'+
+          ['Alta','Média','Baixa'].map(function(p){ return '<option>'+p+'</option>'; }).join('');
+        oldBar.insertBefore(extra, oldBar.querySelector('button'));
+      }
+    }
+
+    // ── Métricas ─────────────────────────────────────────────
+    var metrHtml =
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">'+
+      metCard('📋 Total','planos',met.total,'var(--text)','var(--bg2)')+
+      metCard('✅ Concluídos',met.taxaConclusao+'%',met.concluidos+' planos','var(--green)','#F0FDF4')+
+      metCard('⏱️ Em andamento','',met.andamento+' planos','#1D4ED8','#EFF6FF')+
+      metCard('🚨 Atrasados','',met.atrasados+' planos',met.atrasados>0?'var(--red)':'var(--muted)',met.atrasados>0?'#FEF2F2':'var(--bg2)')+
+      metCard('⚠️ Sem plano','',met.semPlano+' KPIs críticos',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
+      (met.tmedio!==null?metCard('⏱️ Tempo médio',met.tmedio+' dias','para resolver','var(--muted)','var(--bg2)'):'') +
+      '</div>';
+
+    // ── Gatilhos automáticos ──────────────────────────────────
+    var kpisComPlanoAtivo = {};
+    allPlanos().forEach(function(p){
+      if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlanoAtivo[p.id_kpi]=true;
+    });
+    var gatilhos = (window.kpis||[]).filter(function(k){
+      if(af && k.area!==af) return false;
+      return typeof isOutOfRange==='function' && isOutOfRange(k,window.currentMes||5,window.currentAno||2026) && !kpisComPlanoAtivo[k.id];
+    });
+
+    var gatHtml = '';
+    if(gatilhos.length){
+      gatHtml = '<div style="margin-bottom:16px;padding:14px 16px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:10px">'+
+          '⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' crítico'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">'+
+        gatilhos.map(function(k){
+          var l = typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
+          var ref = typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+          var real = l?l.realizado:'—';
+          var limite = k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
+          return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+            '<div>'+
+              '<div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+              '<div style="font-size:12px;font-weight:600;margin:2px 0">'+esc(k.indicador)+'</div>'+
+              '<div style="font-size:10px;color:var(--muted)">Realizado: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div>'+
+            '</div>'+
+            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:5px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">+ Criar Plano</button>'+
+          '</div>';
+        }).join('')+
+        '</div></div>';
+    }
+
+    // ── Planos existentes ─────────────────────────────────────
+    var ps = allPlanos().filter(function(p){
+      var k = getKPI(p.id_kpi);
+      var area = k?k.area:(p.area||'');
+      if(af && area!==af) return false;
+      if(sf && p.status!==sf) return false;
+      if(pf && p.prioridade!==pf) return false;
+      if(srch && !(p.id_kpi||'').toLowerCase().includes(srch) &&
+                 !(p.problema||p.why||'').toLowerCase().includes(srch) &&
+                 !(p.acao||p.what||'').toLowerCase().includes(srch) &&
+                 !(p.responsavel||p.who||'').toLowerCase().includes(srch)) return false;
+      return true;
+    });
+
+    // Ordena: atrasados primeiro, depois por prazo
+    ps.sort(function(a,b){
+      var da=diasAte(a.prazo), db=diasAte(b.prazo);
+      var atA=a.status!=='Concluído'&&a.status!=='Cancelado'&&da!==null&&da<0;
+      var atB=b.status!=='Concluído'&&b.status!=='Cancelado'&&db!==null&&db<0;
+      if(atA&&!atB) return -1; if(atB&&!atA) return 1;
+      if(da!==null&&db!==null) return da-db;
+      return 0;
+    });
+
+    // Agrupa por área
+    var grouped = {};
+    ps.forEach(function(p){
+      var k=getKPI(p.id_kpi); var area=k?k.area:(p.area||'Sem área');
+      if(!grouped[area]) grouped[area]=[];
+      grouped[area].push(p);
+    });
+
+    var planosHtml = '';
+    if(!ps.length && !gatilhos.length){
+      planosHtml = '<div style="text-align:center;color:var(--muted);padding:48px;font-size:13px">✅ Nenhum plano encontrado.</div>';
+    } else if(ps.length){
+      planosHtml = Object.keys(grouped).sort().map(function(area){
+        var areaPs = grouped[area];
+        var nAt = areaPs.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
+        return '<div style="margin-bottom:20px">'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 0;border-bottom:2px solid var(--border)">'+
+            '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800">▪ '+esc(area)+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">('+areaPs.length+' plano'+(areaPs.length>1?'s':'')+')</span>'+
+            (nAt?'<span style="font-size:10px;font-weight:700;color:var(--red);background:#FEF2F2;padding:2px 8px;border-radius:10px">🚨 '+nAt+' atrasado'+(nAt>1?'s':'')+'</span>':'')+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">'+
+          areaPs.map(function(p){ return renderPlanoCard(p); }).join('')+
+          '</div></div>';
+      }).join('');
+    }
+
+    board.innerHTML = metrHtml + gatHtml + planosHtml;
+    updatePlanosBadge();
+  };
+
+  // ── Card de plano ─────────────────────────────────────────
+  function renderPlanoCard(p){
+    var dias = diasAte(p.prazo);
+    var atrasado = p.status!=='Concluído'&&p.status!=='Cancelado'&&dias!==null&&dias<0;
+    var venceHoje = dias===0; var venceBreve = dias!==null&&dias>0&&dias<=3;
+    var sc = STATUS_COR[p.status]||STATUS_COR['Não iniciado'];
+    var pc = PRIO_COR[p.prioridade]||PRIO_COR['Média'];
+    var prog = Number(p.progresso||0);
+    var k = getKPI(p.id_kpi);
+    var hist = getHist(p.id);
+    var borderColor = atrasado?'#DC2626':(venceBreve?'#D97706':'var(--border)');
+
+    return '<div class="plano-card-v2" style="background:var(--bg2);border:1px solid '+borderColor+';border-left:4px solid '+borderColor+';border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+        '<div style="min-width:0;flex:1">'+
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+
+            '<span style="font-size:10px;font-weight:700;color:var(--teal)">'+esc(p.id)+'</span>'+
+            '<span style="font-size:10px;font-weight:700;color:var(--muted)">·</span>'+
+            '<span style="font-size:10px;font-weight:700;color:var(--muted)">'+esc(p.id_kpi)+'</span>'+
+            (k?'<span style="font-size:9px;background:var(--bg3);padding:1px 6px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
+          '</div>'+
+          '<div style="font-size:13px;font-weight:700;line-height:1.3">'+esc(p.acao||p.what||'Sem descrição')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(p.status||'Não iniciado')+'</span>'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(p.prioridade||'Média')+'</span>'+
+        '</div>'+
+      '</div>'+
+      // Problema / Causa raiz
+      (p.problema||p.why?'<div style="font-size:11px;color:var(--muted);background:var(--bg3);padding:6px 10px;border-radius:6px;line-height:1.5">'+
+        '<b>Problema:</b> '+esc(p.problema||p.why)+
+        (p.causa_raiz?'<br><b>Causa raiz:</b> '+esc(p.causa_raiz):'')+'</div>':'')+
+      // Responsável + prazo
+      '<div style="display:flex;gap:12px;font-size:11px;flex-wrap:wrap">'+
+        '<span>👤 <b>'+esc(p.responsavel||p.who||'—')+'</b>'+
+          (p.co_responsavel?'<span style="color:var(--muted)"> + '+esc(p.co_responsavel)+'</span>':'')+
+        '</span>'+
+        (p.prazo?'<span style="color:'+(atrasado?'var(--red)':venceBreve?'var(--amber)':'var(--muted)')+'">'+
+          '📅 '+(atrasado?'🚨 ATRASADO — ':venceHoje?'🔔 Vence HOJE — ':venceBreve?'⚠️ ':'')+fmtData(p.prazo)+
+          (dias!==null&&!atrasado&&dias>0?' ('+dias+'d)':'')+
+        '</span>':'')+
+      '</div>'+
+      // Barra de progresso
+      '<div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">'+
+          '<span>Progresso</span><span style="font-weight:700;color:var(--text)">'+prog+'%</span>'+
+        '</div>'+
+        '<div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">'+
+          '<div style="height:100%;width:'+prog+'%;background:'+(prog>=100?'var(--green)':prog>=60?'#2563EB':'#D97706')+';border-radius:3px;transition:width .3s"></div>'+
+        '</div>'+
+      '</div>'+
+      // Comentários recentes
+      (hist.length?'<div style="font-size:10px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px">'+
+        '💬 <b>'+hist[0].autor+'</b> · '+fmtData(hist[0].ts.split('T')[0])+': '+esc(hist[0].txt.slice(0,80))+(hist[0].txt.length>80?'…':'')+
+      '</div>':'')+
+      // Ações
+      '<div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:8px">'+
+        '<button onclick="dmxOpenPlanoModal(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✏️ Editar</button>'+
+        '<button onclick="dmxAddComentario(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">💬 Comentar</button>'+
+        '<button onclick="dmxConcluirPlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#F0FDF4;color:var(--green);border:1px solid #86EFAC;border-radius:6px;font-size:11px;cursor:pointer" title="Marcar como concluído">✅</button>'+
+        '<button onclick="dmxDeletePlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#FEF2F2;color:var(--red);border:1px solid #FCA5A5;border-radius:6px;font-size:11px;cursor:pointer" title="Remover">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  // ── Card de métrica ───────────────────────────────────────
+  function metCard(titulo, valor, sub, cor, bg){
+    return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:12px 14px">'+
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+titulo+'</div>'+
+      (valor?'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:'+cor+'">'+valor+'</div>':'')+
+      '<div style="font-size:11px;color:var(--muted)">'+sub+'</div>'+
+    '</div>';
+  }
+
+  // ── Modal de criação/edição ───────────────────────────────
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+    var p = id ? allPlanos().find(function(x){ return x.id===id; })||{} : {};
+    var isEdit = !!id;
+    window._dmxEditingPlanoId = id||null;
+    var kpiOpts = (window.kpis||[]).map(function(k){
+      var sel = (kpiIdPreset&&k.id===kpiIdPreset)||(p.id_kpi&&k.id===p.id_kpi)?'selected':'';
+      return '<option value="'+esc(k.id)+'" '+sel+'>'+esc(k.id)+' — '+esc(k.indicador)+' ('+esc(k.area)+')</option>';
+    }).join('');
+    var prazoVal = p.prazo?String(p.prazo).split('T')[0]:'';
+    var hist = id?getHist(id):[];
+    var histHtml = hist.length ? hist.map(function(h){
+      return '<div style="padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px">'+
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:2px"><b>'+esc(h.autor)+'</b> · '+fmtData(h.ts.split('T')[0])+'</div>'+
+        '<div style="font-size:12px">'+esc(h.txt)+'</div>'+
+      '</div>';
+    }).join('') : '<div style="color:var(--muted);font-size:12px;padding:8px">Nenhum comentário ainda.</div>';
+
+    var modal = document.getElementById('dmx-plano-modal-v2');
+    if(!modal){
+      modal = document.createElement('div');
+      modal.id = 'dmx-plano-modal-v2';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+      document.body.appendChild(modal);
+      modal.onclick = function(e){ if(e.target===modal) modal.style.display='none'; };
+    }
+
+    modal.innerHTML =
+      '<div style="background:var(--bg);border-radius:14px;max-width:680px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        '<div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">'+(isEdit?'✏️ Editar Plano '+esc(id):'🆕 Novo Plano de Ação')+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">'+
+          // KPI
+          '<div><div class="card-label">KPI Vinculado</div>'+
+          '<select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
+          // Problema + Ação
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Problema (o que está errado)</div>'+
+            '<textarea id="pv2-problema" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Ação a tomar</div>'+
+            '<textarea id="pv2-acao" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '</div>'+
+          // Causa raiz
+          '<div><div class="card-label">Causa Raiz</div>'+
+          '<input id="pv2-causa" class="filter-input" style="width:100%" value="'+esc(p.causa_raiz||'')+'"></div>'+
+          // Responsáveis + Prioridade
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Responsável</div>'+
+            '<input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
+            '<div><div class="card-label">Co-responsável</div>'+
+            '<input id="pv2-coresp" class="filter-input" style="width:100%" value="'+esc(p.co_responsavel||'')+'"></div>'+
+            '<div><div class="card-label">Prioridade</div>'+
+            '<select id="pv2-prio" class="filter-input" style="width:100%">'+
+            ['Alta','Média','Baixa'].map(function(x){ return '<option '+(p.prioridade===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+          '</div>'+
+          // Prazo + Progresso + Status
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Prazo</div>'+
+            '<input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+prazoVal+'"></div>'+
+            '<div><div class="card-label">Progresso %</div>'+
+            '<input id="pv2-prog" class="filter-input" type="number" min="0" max="100" style="width:100%" value="'+esc(p.progresso||0)+'"></div>'+
+            '<div><div class="card-label">Status</div>'+
+            '<select id="pv2-status" class="filter-input" style="width:100%">'+
+            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+          '</div>'+
+          // Novo comentário
+          '<div style="border-top:1px solid var(--border);padding-top:12px">'+
+            '<div class="card-label">Adicionar comentário / atualização</div>'+
+            '<div style="display:flex;gap:8px">'+
+              '<input id="pv2-comentario" class="filter-input" style="flex:1" placeholder="Digite um comentário...">'+
+              '<button onclick="dmxSalvarComentarioModal()" style="padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Adicionar</button>'+
+            '</div>'+
+          '</div>'+
+          // Histórico
+          (isEdit?'<div><div class="card-label">Histórico ('+hist.length+')</div>'+
+          '<div style="max-height:160px;overflow-y:auto">'+histHtml+'</div></div>':'')+
+        '</div>'+
+        '<div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarPlanoV2()" class="btn btn-primary">💾 Salvar Plano</button>'+
+        '</div>'+
+      '</div>';
+
+    modal.style.display = 'flex';
+  };
+
+  // ── Salva comentário direto do modal ──────────────────────
+  window.dmxSalvarComentarioModal = function(){
+    var txt = (document.getElementById('pv2-comentario')||{}).value||'';
+    if(!txt.trim()) return;
+    var id = window._dmxEditingPlanoId;
+    if(id){ addHist(id, txt.trim(), getAutor()); }
+    document.getElementById('pv2-comentario').value='';
+    if(typeof showToast==='function') showToast('Comentário adicionado');
+  };
+
+  // ── Salva plano ───────────────────────────────────────────
+  window.dmxSalvarPlanoV2 = async function(){
+    var id_kpi   = (document.getElementById('pv2-kpi')||{}).value||'';
+    var problema = (document.getElementById('pv2-problema')||{}).value||'';
+    var acao     = (document.getElementById('pv2-acao')||{}).value||'';
+    var causa    = (document.getElementById('pv2-causa')||{}).value||'';
+    var resp     = (document.getElementById('pv2-resp')||{}).value||'';
+    var coresp   = (document.getElementById('pv2-coresp')||{}).value||'';
+    var prio     = (document.getElementById('pv2-prio')||{}).value||'Média';
+    var prazo    = (document.getElementById('pv2-prazo')||{}).value||'';
+    var prog     = Number((document.getElementById('pv2-prog')||{}).value||0);
+    var status   = (document.getElementById('pv2-status')||{}).value||'Não iniciado';
+    var coment   = (document.getElementById('pv2-comentario')||{}).value||'';
+
+    if(!id_kpi){ alert('Selecione o KPI.'); return; }
+    if(!acao.trim()){ alert('Informe a ação a tomar.'); return; }
+
+    var k = getKPI(id_kpi);
+    var editId = window._dmxEditingPlanoId;
+    var data = {
+      id_kpi:id_kpi, kpi_nome:k?k.indicador:'', area:k?k.area:'',
+      problema:problema, what:acao, acao:acao, why:problema,
+      causa_raiz:causa,
+      responsavel:resp, who:resp, co_responsavel:coresp,
+      prioridade:prio, prazo:prazo, progresso:prog, status:status,
+      atualizado_em: new Date().toISOString()
+    };
+
+    if(editId){
+      var i = window.planos.findIndex(function(p){ return p.id===editId; });
+      if(i>=0) window.planos[i] = Object.assign({}, window.planos[i], data);
+    } else {
+      data.id = nextPlanoId();
+      data.criado_em = new Date().toISOString();
+      window.planos.push(data);
+    }
+
+    if(coment.trim()) addHist(editId||data.id, coment.trim(), getAutor());
+
+    // Persiste
+    if(typeof persist==='function') persist();
+
+    // Sheets
+    var api = typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var row = Object.assign({}, editId?window.planos.find(function(p){ return p.id===editId; }):data);
+      api('salvarPlano', row).catch(function(){});
+    }
+
+    document.getElementById('dmx-plano-modal-v2').style.display='none';
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Plano salvo');
+  };
+
+  // ── Comentário rápido (botão no card) ────────────────────
+  window.dmxAddComentario = function(id){
+    var txt = prompt('Comentário / atualização:');
+    if(!txt||!txt.trim()) return;
+    addHist(id, txt.trim(), getAutor());
+    // Atualiza progresso se digitou "% XX"
+    var m = txt.match(/%\s*(\d+)/);
+    if(m){
+      var i = window.planos.findIndex(function(p){ return p.id===id; });
+      if(i>=0){ window.planos[i].progresso=Number(m[1]); if(typeof persist==='function') persist(); }
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Comentário adicionado');
+  };
+
+  // ── Concluir rapidamente ─────────────────────────────────
+  window.dmxConcluirPlano = function(id){
+    if(!confirm('Marcar plano '+id+' como concluído?')) return;
+    var i = window.planos.findIndex(function(p){ return p.id===id; });
+    if(i>=0){
+      window.planos[i].status='Concluído';
+      window.planos[i].progresso=100;
+      window.planos[i].atualizado_em=new Date().toISOString();
+      addHist(id,'Plano marcado como concluído.',getAutor());
+      if(typeof persist==='function') persist();
+      var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+      if(api) api('salvarPlano',window.planos[i]).catch(function(){});
+    }
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Plano concluído!');
+  };
+
+  // ── Deletar ───────────────────────────────────────────────
+  window.dmxDeletePlano = function(id){
+    if(!confirm('Remover plano '+id+'? Esta ação não pode ser desfeita.')) return;
+    window.planos = window.planos.filter(function(p){ return p.id!==id; });
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api) api('salvarPlano',{id:id,excluir:true}).catch(function(){});
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Plano removido');
+  };
+
+  // ── Badge de pendências ───────────────────────────────────
+  window.updatePlanosBadge = function(){
+    var el = document.getElementById('planos-badge'); if(!el) return;
+    var n = allPlanos().filter(function(p){
+      return p.status==='Em andamento'||
+             (p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0);
+    }).length;
+    el.textContent = n||'';
+    el.style.background = n>0?'var(--red)':'';
+  };
+
+  // ── Compatibilidade com funções antigas ──────────────────
+  window.openNewPlano = function(){ dmxOpenPlanoModal(null,null); };
+  window.openNewPlanoForKPI = function(kpiId){ dmxOpenPlanoModal(null,kpiId); };
+  window.openEditPlano = function(id){ dmxOpenPlanoModal(id,null); };
+  window.savePlano = function(){ dmxSalvarPlanoV2(); };
+  window.deletePlano = function(id){ dmxDeletePlano(id); };
+
+  // ── CSS ───────────────────────────────────────────────────
+  if(!document.getElementById('dmx-planos-v2-css')){
+    var s=document.createElement('style'); s.id='dmx-planos-v2-css';
+    s.textContent='.plano-card-v2:hover{box-shadow:0 4px 16px rgba(0,0,0,.10)!important;transform:translateY(-1px);transition:all .15s}';
+    document.head.appendChild(s);
+  }
+
+  console.log('[DMX] Planos de Ação v2 instalado');
+})();
+
+</script>
+
 </body>
 </html>
