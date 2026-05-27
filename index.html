@@ -1122,7 +1122,13 @@ function dmxApiToKpi(row, idx) {
 
 function dmxApiUrlWithTipo(url, tipo) {
   const base = String(url || '').trim().replace(/\?tipo=[^&]*/,'').replace(/&tipo=[^&]*/,'');
-  return base + (base.includes('?') ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  let result = base + (base.includes('?') ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
+  // Injeta chave de API em todas as chamadas
+  try {
+    const key = (localStorage.getItem('dmx_api_key_v1')||'').trim();
+    if (key) result += '&key=' + encodeURIComponent(key);
+  } catch(e) {}
+  return result;
 }
 
 function dmxApiToLaunch(row) {
