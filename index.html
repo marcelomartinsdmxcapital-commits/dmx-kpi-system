@@ -1013,6 +1013,23 @@ function configurarApiDMX() {
   dmxCarregarCatalogoDaAPI(true);
 }
 
+function configurarApiKeyDMX() {
+  const atual = (localStorage.getItem('dmx_api_key_v1')||'').trim();
+  const key = prompt('Cole aqui a Chave de API (DMX_API_KEY das Script Properties). Deixe em branco para remover.', atual);
+  if (key === null) return;
+  const clean = String(key || '').trim();
+  try { localStorage.setItem('dmx_api_key_v1', clean); } catch(e) {}
+  if (clean) {
+    showToast('✓ Chave de API salva com sucesso');
+  } else {
+    showToast('⚠️ Chave de API removida — chamadas sem autenticação');
+  }
+}
+
+function dmxGetApiKey() {
+  try { return (localStorage.getItem('dmx_api_key_v1') || '').trim(); } catch(e) { return ''; }
+}
+
 const DMX_KPI_SHEET_HEADERS = ['id','area','pilar','abrangencia','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','compartilhar','fonte','sentido','acumulado','peso_indice','peso_ebitda','status_impl','ativo','selecao_semanal','atualizado_em','atualizado_por'];
 function dmxObjectFromSheetArray(row) {
   if (!Array.isArray(row)) return row;
@@ -6616,7 +6633,12 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
     const n = Number(s); return Number.isFinite(n) ? n : def;
   }
   function getUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
-  function withTipo(tipo){ return typeof dmxApiUrlWithTipo === 'function' ? dmxApiUrlWithTipo(getUrl(), tipo) : getUrl() + (getUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo); }
+  function getApiKey(){ try{ return (localStorage.getItem('dmx_api_key_v1')||'').trim(); }catch(e){ return ''; } }
+  function withTipo(tipo){
+    var base = typeof dmxApiUrlWithTipo === 'function' ? dmxApiUrlWithTipo(getUrl(), tipo) : getUrl() + (getUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo);
+    var key = getApiKey();
+    return key ? base + '&key=' + encodeURIComponent(key) : base;
+  }
   function toast(m){ if(typeof showToast === 'function') showToast(m); }
   function refresh(){
     try { if (typeof persist === 'function') persist(); } catch(e) {}
@@ -6916,7 +6938,11 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
 
   function toast(msg){ if(typeof showToast==='function') showToast(msg); else console.log(msg); }
   function getApiUrl(){ return (typeof dmxGetApiUrl === 'function' ? dmxGetApiUrl() : (localStorage.getItem('dmx_google_sheets_api_url_v1')||'')).trim(); }
-  function withTipo(tipo){ return (typeof dmxApiUrlWithTipo === 'function') ? dmxApiUrlWithTipo(getApiUrl(), tipo) : getApiUrl() + (getApiUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo); }
+  function withTipo(tipo){
+    var base = (typeof dmxApiUrlWithTipo === 'function') ? dmxApiUrlWithTipo(getApiUrl(), tipo) : getApiUrl() + (getApiUrl().includes('?')?'&':'?') + 'tipo=' + encodeURIComponent(tipo);
+    var key = (typeof getApiKey==='function') ? getApiKey() : (localStorage.getItem('dmx_api_key_v1')||'').trim();
+    return key ? base + '&key=' + encodeURIComponent(key) : base;
+  }
   function esc(v){ return String(v ?? '').replace(/[&<>'"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m])); }
   async function getArray(tipo){
     const url = getApiUrl();
@@ -7031,7 +7057,7 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
           <div class="section-header"><div><div class="section-title">Base oficial Google Sheets</div><div class="text-muted text-sm mt-1">Acesso rápido à planilha oficial usada pelo sistema.</div></div></div>
           <div class="filter-row" style="margin-bottom:10px">
             <button class="btn btn-primary" onclick="dmxOpenSheet()">↗ Abrir Google Sheets</button>
-            <button class="btn btn-ghost" onclick="configurarApiDMX()">☁ Configurar API</button>
+            <button class="btn btn-ghost" onclick="configurarApiDMX()">☁ Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação da API" style="font-size:11px">🔑 API Key</button>
             <button class="btn btn-ghost" onclick="dmxSetSheetUrl()">Configurar link da base</button>
             <button class="btn btn-ghost" onclick="dmxCarregarCatalogoDaAPI(true)">↻ Sincronizar agora</button>
             <button class="btn btn-danger" onclick="dmxRestaurarDatabaseMaster()">⚠ Restaurar base pelo sistema</button>
@@ -7704,7 +7730,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return `<div class="block-card" style="margin-top:16px">
       <div class="section-header">
         <div><div class="section-title">Painel de Administração de KPIs</div><div class="dmx-admin-compact-note">Painel leve: logs de alterações retirados desta tela.</div><div class="text-muted text-sm mt-1">Centro único para cadastro, nome, meta, mínimo, máximo, peso e regras críticas. Logs de alterações não são carregados no Admin para manter a tela rápida.</div><div class="text-muted text-sm mt-1"><b>KPIs carregados para edição:</b> ${rows.length}</div></div>
-        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button></div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
       </div>
       <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(window.dmxGetApiUrl ? window.dmxGetApiUrl() : '') || 'não configurada'}</span><br>
@@ -8361,7 +8387,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <div class="dmx-admin-compact-note">Ordenado por ID para facilitar conferência. O Admin vê 100% dos KPIs, inclusive os ainda sem governança configurada.</div>
           <div class="text-muted text-sm mt-1"><b>KPIs carregados:</b> ${rows.length} ${semGov?` · <b style="color:var(--amber)">${semGov} com governança incompleta</b>`:''}</div>
         </div>
-        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button></div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
       </div>
       <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(apiUrl()) || 'não configurada'}</span><br>
