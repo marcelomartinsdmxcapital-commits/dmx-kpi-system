@@ -4545,17 +4545,34 @@ window.addEventListener('DOMContentLoaded', init);
     return toNum(ls[0][field]);
   }
 
-  // Referência mensal robusta: se meta/mín/máx vier 0 ou vazio no mês, busca referência válida do próprio KPI no ano.
+  // Referência mensal: busca SOMENTE em Dados_Mensais.
+  // Meta/mín/máx do Cadastro_KPIs são usados apenas como valor inicial no cadastro.
+  // Hierarquia: 1) mês exato em Dados_Mensais → 2) outro mês do mesmo ano em Dados_Mensais
   window.resolveRef = resolveRef = function(kpi, mes, ano){
     const l=getLaunch(kpi.id,mes,ano);
     function pick(field){
+      // 1) Mês exato
       const lv=l?toNum(l[field]):null;
-      // Para todos os campos, zero é inválido (campo vazio/não preenchido)
+      if(lv!==null && lv!==0) return lv;
+      // 2) Outro mês do mesmo ano em Dados_Mensais (findAnyRef)
+      const fallback=findAnyRef(kpi,field,ano,mes);
+      if(fallback!==null && fallback!==0) return fallback;
+      // 3) Fallback final: Cadastro_KPIs (só para KPIs sem nenhum dado mensal ainda)
+      const kv=toNum(kpi[field]);
+      if(kv!==null && kv!==0) return kv;
+      return null;
+    }
+    return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
+  };
+
+  // Versão sem fallback para catálogo — para uso futuro quando Dados_Mensais estiver completo
+  window.resolveRefStrict = function(kpi, mes, ano){
+    const l=getLaunch(kpi.id,mes,ano);
+    function pick(field){
+      const lv=l?toNum(l[field]):null;
       if(lv!==null && lv!==0) return lv;
       const fallback=findAnyRef(kpi,field,ano,mes);
       if(fallback!==null && fallback!==0) return fallback;
-      const kv=toNum(kpi[field]);
-      if(kv!==null && kv!==0) return kv;
       return null;
     }
     return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
@@ -7503,6 +7520,40 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">Objetivo</span><textarea id="adm-kpi-objetivo" class="filter-input" style="width:100%;height:78px">${esc(k.objetivo||'')}</textarea></label>
           <label><span class="card-label">Fórmula</span><textarea id="adm-kpi-formula" class="filter-input" style="width:100%;height:78px">${esc(k.formula||'')}</textarea></label>
         </div>
+
+        <!-- Tabela de Metas Mensais -->
+        <div style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">
+            <div>
+              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📅 Metas Mensais</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:8px">Meta, Mínimo e Máximo por mês — fonte oficial: Dados_Mensais</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--muted)">Ano:</span>
+              <select id="adm-kpi-meta-ano" class="filter-input" style="width:90px;margin:0;padding:4px 8px;font-size:12px" onchange="dmxAdminCarregarMetasMensais('${esc(k.id||'')}')">
+                ${[2024,2025,2026,2027,2028,2029,2030].map(y=>`<option value="${y}" ${y===(window.currentAno||2026)?'selected':''}>${y}</option>`).join('')}
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="dmxAdminSalvarMetasMensais('${esc(k.id||'')}')" style="font-size:11px">💾 Salvar Metas</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px" id="adm-kpi-meta-tabela">
+              <thead>
+                <tr style="background:var(--bg2)">
+                  <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase;width:80px">Mês</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#2563EB;font-size:10px;text-transform:uppercase">Meta</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#DC2626;font-size:10px;text-transform:uppercase">Mínimo</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#DC2626;font-size:10px;text-transform:uppercase">Máximo</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody id="adm-kpi-meta-tbody">
+                <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="filter-row" style="margin-top:12px;align-items:center">
           <label style="font-size:12px"><input id="adm-kpi-ativo" type="checkbox" ${(String(k.ativo||'SIM').toUpperCase()!=='NAO'&&String(k.ativo||'SIM').toUpperCase()!=='FALSE')?'checked':''}> KPI ativo</label>
           <label style="font-size:12px"><input id="adm-kpi-semanal" type="checkbox" ${String(k.selecao_semanal||'').toUpperCase()==='SIM'?'checked':''}> Levar para semanal</label>
@@ -7531,6 +7582,54 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const r = await dmxApiPost('editarKPI', payload);
       ok = !!(r && r.ok !== false);
     }
+
+    // ── Replica meta/mín/máx para Dados_Mensais nos meses sem valor ─────────
+    // Para cada mês que já tem um lançamento do KPI mas sem meta/mín/máx,
+    // grava o valor do catálogo naquele mês.
+    if(typeof dmxApiPost === 'function' && payload.id_kpi){
+      const anoAtual = window.currentAno || new Date().getFullYear();
+      const mesAtual = window.currentMes || new Date().getMonth()+1;
+      const mesesParaReplicar = [];
+      // Verifica meses de jan até o mês atual do ano corrente
+      for(let m=1; m<=mesAtual; m++){
+        const l = typeof getLaunch==='function' ? getLaunch(payload.id_kpi, m, anoAtual) : null;
+        // Só replica se o mês já tem lançamento mas meta/mín/máx está vazio/zero
+        if(l){
+          const metaVazia = !l.meta || Number(l.meta)===0;
+          const minVazio  = !l.minimo || Number(l.minimo)===0;
+          const maxVazio  = !l.maximo || Number(l.maximo)===0;
+          if(metaVazia || minVazio || maxVazio){
+            mesesParaReplicar.push(m);
+          }
+        }
+      }
+      if(mesesParaReplicar.length > 0){
+        // Replica em paralelo — não bloqueia o fluxo principal
+        Promise.all(mesesParaReplicar.map(m => {
+          const l = getLaunch(payload.id_kpi, m, anoAtual);
+          const rowUpdate = {
+            id_kpi: payload.id_kpi,
+            ano: anoAtual,
+            mes_num: m,
+            meta:   (!l.meta   || Number(l.meta)===0)   ? payload.meta   : l.meta,
+            minimo: (!l.minimo || Number(l.minimo)===0)  ? payload.minimo : l.minimo,
+            maximo: (!l.maximo || Number(l.maximo)===0)  ? payload.maximo : l.maximo,
+            atualizado_em: new Date().toISOString(),
+            atualizado_por: 'Admin'
+          };
+          // Atualiza localmente também
+          if(l){ l.meta=rowUpdate.meta; l.minimo=rowUpdate.minimo; l.maximo=rowUpdate.maximo; }
+          return dmxApiPost('salvarMensal', rowUpdate);
+        })).then(results => {
+          const ok2 = results.every(r => r && r.ok !== false);
+          if(mesesParaReplicar.length > 0){
+            toast('✓ Meta/mín/máx replicados para ' + mesesParaReplicar.length + ' mês(es) em Dados_Mensais');
+          }
+        }).catch(()=>{});
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     try{ document.getElementById('adm-kpi-modal')?.remove(); }catch(e){}
     try{ if(typeof buildSidebar==='function') buildSidebar(); if(typeof buildFilters==='function') buildFilters(); if(typeof renderCurrentPage==='function') renderCurrentPage(); }catch(e){}
     if(document.getElementById('page-admin')?.classList.contains('active') && typeof renderAdminDMX==='function') setTimeout(()=>renderAdminDMX(true),120);
@@ -15789,6 +15888,257 @@ setTimeout(()=>{
 
 </script>
 
+
+<!-- PATCH v82 — Migração meta/mín/máx do Cadastro_KPIs para Dados_Mensais -->
+<script>
+(function(){
+  if(window.__dmxMigrMetaV1) return;
+  window.__dmxMigrMetaV1 = true;
+
+  // Replica meta/mín/máx do catálogo para todos os meses que têm lançamento
+  // mas não têm esses valores preenchidos em Dados_Mensais.
+  // Chame no console: dmxMigrarMetaParaMensal()
+  window.dmxMigrarMetaParaMensal = async function(apenasAno){
+    var ano = apenasAno || window.currentAno || new Date().getFullYear();
+    var kpis = window.kpis || [];
+    var total = 0, erros = 0;
+    var api = typeof window.dmxApiPost==='function' ? window.dmxApiPost : null;
+    if(!api){ alert('API não conectada.'); return; }
+
+    console.log('[MIGR] Iniciando migração de meta/mín/máx para ano', ano);
+
+    for(var ki=0; ki<kpis.length; ki++){
+      var k = kpis[ki];
+      var metaCat   = Number(k.meta||0);
+      var minCat    = Number(k.minimo||0);
+      var maxCat    = Number(k.maximo||0);
+      // Só migra se o catálogo tiver pelo menos a meta
+      if(!metaCat) continue;
+
+      for(var m=1; m<=12; m++){
+        var l = typeof getLaunch==='function' ? getLaunch(k.id, m, ano) : null;
+        if(!l) continue; // sem lançamento nesse mês, pula
+
+        var metaVazia = !l.meta   || Number(l.meta)===0;
+        var minVazia  = !l.minimo || Number(l.minimo)===0;
+        var maxVazia  = !l.maximo || Number(l.maximo)===0;
+        if(!metaVazia && !minVazia && !maxVazia) continue; // já tem tudo
+
+        var row = {
+          id_kpi: k.id, ano: ano, mes_num: m,
+          meta:   metaVazia  ? metaCat : l.meta,
+          minimo: minVazia   ? minCat  : l.minimo,
+          maximo: maxVazia   ? maxCat  : l.maximo,
+          atualizado_em: new Date().toISOString(),
+          atualizado_por: 'MigraçãoAdmin'
+        };
+        // Atualiza localmente
+        if(metaVazia)  l.meta   = row.meta;
+        if(minVazia)   l.minimo = row.minimo;
+        if(maxVazia)   l.maximo = row.maximo;
+
+        try{
+          await api('salvarMensal', row);
+          total++;
+        }catch(e){ erros++; }
+      }
+    }
+
+    var msg = '[MIGR] Concluído: ' + total + ' lançamento(s) atualizado(s)' + (erros?' | '+erros+' erro(s)':'');
+    console.log(msg);
+    if(typeof showToast==='function') showToast(msg);
+    else alert(msg);
+    return {total, erros};
+  };
+
+  console.log('[DMX] dmxMigrarMetaParaMensal() disponível — chame no console para migrar');
+})();
+</script>
+
+<!-- PATCH v82 — Tabela de Metas Mensais no modal de edição do KPI -->
+<script>
+(function(){
+  if(window.__dmxMetasMensaisV1) return;
+  window.__dmxMetasMensaisV1 = true;
+
+  var MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var MESES_SHORT = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function toN(v){ var n=Number(String(v||'').replace(',','.')); return isNaN(n)?null:n; }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  // ── Carrega dados do mês do Dados_Mensais ───────────────────────────────
+  window.dmxAdminCarregarMetasMensais = function(kpiId){
+    var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
+    var tbody = document.getElementById('adm-kpi-meta-tbody');
+    if(!tbody) return;
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; }) || {};
+    var sentido = String(kpi.sentido||'Maior Melhor');
+    var isMaior = sentido.toLowerCase().indexOf('maior')>=0;
+
+    var rows = '';
+    for(var m=1; m<=12; m++){
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
+      var meta   = l && l.meta   && Number(l.meta)!==0   ? l.meta   : '';
+      var minimo = l && l.minimo && Number(l.minimo)!==0 ? l.minimo : '';
+      var maximo = l && l.maximo && Number(l.maximo)!==0 ? l.maximo : '';
+      var temReal = l && l.realizado!==null && l.realizado!=='';
+      var bg = m%2===0 ? 'background:#F8FAFC' : '';
+      var statusCell = temReal
+        ? '<span style="font-size:10px;color:var(--green)">✓ tem dados</span>'
+        : '<span style="font-size:10px;color:var(--muted)">sem lançamento</span>';
+
+      // Dica de qual campo preencher conforme sentido
+      var minHint = isMaior ? 'Limite inferior' : '(N/A para Menor Melhor)';
+      var maxHint = isMaior ? '(N/A para Maior Melhor)' : 'Limite superior';
+
+      rows += '<tr style="'+bg+';border-bottom:1px solid var(--border)">' +
+        '<td style="padding:7px 12px;font-weight:600;color:var(--text)">' + MESES_SHORT[m] + '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-meta-'+m+'" value="'+esc(meta)+'" ' +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg)" ' +
+          'placeholder="Meta">' +
+        '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-min-'+m+'" value="'+esc(minimo)+'" ' +
+          (isMaior?'':'disabled title="Não se aplica para Menor Melhor" ') +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'var(--bg)':'#F1F5F9')+'" ' +
+          'placeholder="'+(isMaior?'Mínimo':'—')+'">' +
+        '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-max-'+m+'" value="'+esc(maximo)+'" ' +
+          (isMaior?'disabled title="Não se aplica para Maior Melhor" ':'') +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'#F1F5F9':'var(--bg)')+'" ' +
+          'placeholder="'+(isMaior?'—':'Máximo')+'">' +
+        '</td>' +
+        '<td style="padding:5px 12px;text-align:center">' + statusCell + '</td>' +
+      '</tr>';
+    }
+
+    // Linha de ação rápida: copiar valor de Jan para todos
+    rows += '<tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">' +
+      '<td colspan="5" style="padding:8px 12px">' +
+        '<span style="font-size:11px;color:#1E40AF">Copiar Jan para todos os meses: </span>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos()" style="font-size:11px;padding:3px 10px;background:#2563EB;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:6px">📋 Meta</button>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos(\'min\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Mín</button>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos(\'max\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Máx</button>' +
+      '</td>' +
+    '</tr>';
+
+    tbody.innerHTML = rows;
+  };
+
+  // ── Copia Janeiro para todos os meses (ação rápida) ─────────────────────
+  window.dmxAdminCopiarJanParaTodos = function(campo){
+    campo = campo || 'meta';
+    var prefix = campo==='min' ? 'admm-min-' : (campo==='max' ? 'admm-max-' : 'admm-meta-');
+    var janEl = document.getElementById(prefix+'1');
+    if(!janEl || !janEl.value) return;
+    var val = janEl.value;
+    for(var m=2; m<=12; m++){
+      var el = document.getElementById(prefix+m);
+      if(el && !el.disabled) el.value = val;
+    }
+  };
+
+  // ── Salva as metas mensais em Dados_Mensais ──────────────────────────────
+  window.dmxAdminSalvarMetasMensais = async function(kpiId){
+    var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
+    var api = typeof window.dmxApiPost==='function' ? window.dmxApiPost : null;
+    if(!api){ alert('API não conectada.'); return; }
+    if(!kpiId){ alert('Salve o KPI primeiro antes de gravar as metas mensais.'); return; }
+
+    var btn = document.querySelector('[onclick*="dmxAdminSalvarMetasMensais"]');
+    if(btn){ btn.innerHTML='⏳ Salvando...'; btn.disabled=true; }
+
+    var salvos = 0, erros = 0;
+    var promises = [];
+
+    for(var m=1; m<=12; m++){
+      var metaEl  = document.getElementById('admm-meta-'+m);
+      var minEl   = document.getElementById('admm-min-'+m);
+      var maxEl   = document.getElementById('admm-max-'+m);
+      var meta    = metaEl  ? toN(metaEl.value)  : null;
+      var minimo  = minEl   ? toN(minEl.value)   : null;
+      var maximo  = maxEl   ? toN(maxEl.value)   : null;
+
+      // Só salva meses onde pelo menos a meta foi preenchida
+      if(meta === null) continue;
+
+      var row = {
+        id_kpi: kpiId,
+        ano: ano,
+        mes_num: m,
+        meta:   meta,
+        minimo: minimo !== null ? minimo : 0,
+        maximo: maximo !== null ? maximo : 0,
+        atualizado_em: new Date().toISOString(),
+        atualizado_por: 'Admin'
+      };
+
+      // Atualiza localmente também
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
+      if(l){
+        l.meta = row.meta; l.minimo = row.minimo; l.maximo = row.maximo;
+      } else {
+        // Cria entrada local se não existir
+        if(Array.isArray(window.launches)){
+          window.launches.push(Object.assign({id_kpi:kpiId,ano:ano,mes_num:m,realizado:null}, row));
+        }
+      }
+
+      var mes = m;
+      promises.push(
+        api('salvarMensal', row)
+          .then(function(r){ if(r && r.ok!==false) salvos++; else erros++; })
+          .catch(function(){ erros++; })
+      );
+    }
+
+    await Promise.all(promises);
+
+    if(btn){
+      btn.innerHTML = erros ? '⚠️ '+erros+' erro(s)' : '✓ Salvo!';
+      btn.style.background = erros ? 'var(--amber)' : 'var(--green)';
+      setTimeout(function(){
+        btn.innerHTML = '💾 Salvar Metas';
+        btn.disabled = false;
+        btn.style.background = '';
+      }, 2000);
+    }
+
+    var msg = salvos + ' mês(es) salvos em Dados_Mensais' + (erros?' | '+erros+' erro(s)':'');
+    if(typeof showToast==='function') showToast('✓ '+msg);
+    console.log('[DMX] Metas mensais:', msg);
+  };
+
+  // ── Carrega automaticamente ao abrir o modal ─────────────────────────────
+  // Observa inserção do modal no DOM
+  var observer = new MutationObserver(function(mutations){
+    mutations.forEach(function(mut){
+      mut.addedNodes.forEach(function(node){
+        if(node.id === 'adm-kpi-modal' || (node.querySelector && node.querySelector('#adm-kpi-meta-tbody'))){
+          var tbody = node.id==='adm-kpi-modal' ? node.querySelector('#adm-kpi-meta-tbody') : node.querySelector('#adm-kpi-meta-tbody');
+          if(!tbody) return;
+          // Extrai kpiId do botão de salvar
+          var saveBtn = node.querySelector('[onclick*="dmxAdminSalvarMetasMensais"]');
+          if(!saveBtn) return;
+          var match = saveBtn.getAttribute('onclick').match(/dmxAdminSalvarMetasMensais\('([^']*)'\)/);
+          var kpiId = match ? match[1] : '';
+          setTimeout(function(){ window.dmxAdminCarregarMetasMensais(kpiId); }, 100);
+        }
+      });
+    });
+  });
+  observer.observe(document.body, {childList:true, subtree:false});
+
+  console.log('[DMX] Tabela de metas mensais instalada');
+})();
+</script>
 </body>
 </html>
 
@@ -17139,5 +17489,256 @@ setTimeout(()=>{
 
 </script>
 
+
+<!-- PATCH v82 — Migração meta/mín/máx do Cadastro_KPIs para Dados_Mensais -->
+<script>
+(function(){
+  if(window.__dmxMigrMetaV1) return;
+  window.__dmxMigrMetaV1 = true;
+
+  // Replica meta/mín/máx do catálogo para todos os meses que têm lançamento
+  // mas não têm esses valores preenchidos em Dados_Mensais.
+  // Chame no console: dmxMigrarMetaParaMensal()
+  window.dmxMigrarMetaParaMensal = async function(apenasAno){
+    var ano = apenasAno || window.currentAno || new Date().getFullYear();
+    var kpis = window.kpis || [];
+    var total = 0, erros = 0;
+    var api = typeof window.dmxApiPost==='function' ? window.dmxApiPost : null;
+    if(!api){ alert('API não conectada.'); return; }
+
+    console.log('[MIGR] Iniciando migração de meta/mín/máx para ano', ano);
+
+    for(var ki=0; ki<kpis.length; ki++){
+      var k = kpis[ki];
+      var metaCat   = Number(k.meta||0);
+      var minCat    = Number(k.minimo||0);
+      var maxCat    = Number(k.maximo||0);
+      // Só migra se o catálogo tiver pelo menos a meta
+      if(!metaCat) continue;
+
+      for(var m=1; m<=12; m++){
+        var l = typeof getLaunch==='function' ? getLaunch(k.id, m, ano) : null;
+        if(!l) continue; // sem lançamento nesse mês, pula
+
+        var metaVazia = !l.meta   || Number(l.meta)===0;
+        var minVazia  = !l.minimo || Number(l.minimo)===0;
+        var maxVazia  = !l.maximo || Number(l.maximo)===0;
+        if(!metaVazia && !minVazia && !maxVazia) continue; // já tem tudo
+
+        var row = {
+          id_kpi: k.id, ano: ano, mes_num: m,
+          meta:   metaVazia  ? metaCat : l.meta,
+          minimo: minVazia   ? minCat  : l.minimo,
+          maximo: maxVazia   ? maxCat  : l.maximo,
+          atualizado_em: new Date().toISOString(),
+          atualizado_por: 'MigraçãoAdmin'
+        };
+        // Atualiza localmente
+        if(metaVazia)  l.meta   = row.meta;
+        if(minVazia)   l.minimo = row.minimo;
+        if(maxVazia)   l.maximo = row.maximo;
+
+        try{
+          await api('salvarMensal', row);
+          total++;
+        }catch(e){ erros++; }
+      }
+    }
+
+    var msg = '[MIGR] Concluído: ' + total + ' lançamento(s) atualizado(s)' + (erros?' | '+erros+' erro(s)':'');
+    console.log(msg);
+    if(typeof showToast==='function') showToast(msg);
+    else alert(msg);
+    return {total, erros};
+  };
+
+  console.log('[DMX] dmxMigrarMetaParaMensal() disponível — chame no console para migrar');
+})();
+</script>
+
+<!-- PATCH v82 — Tabela de Metas Mensais no modal de edição do KPI -->
+<script>
+(function(){
+  if(window.__dmxMetasMensaisV1) return;
+  window.__dmxMetasMensaisV1 = true;
+
+  var MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var MESES_SHORT = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function toN(v){ var n=Number(String(v||'').replace(',','.')); return isNaN(n)?null:n; }
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  // ── Carrega dados do mês do Dados_Mensais ───────────────────────────────
+  window.dmxAdminCarregarMetasMensais = function(kpiId){
+    var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
+    var tbody = document.getElementById('adm-kpi-meta-tbody');
+    if(!tbody) return;
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; }) || {};
+    var sentido = String(kpi.sentido||'Maior Melhor');
+    var isMaior = sentido.toLowerCase().indexOf('maior')>=0;
+
+    var rows = '';
+    for(var m=1; m<=12; m++){
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
+      var meta   = l && l.meta   && Number(l.meta)!==0   ? l.meta   : '';
+      var minimo = l && l.minimo && Number(l.minimo)!==0 ? l.minimo : '';
+      var maximo = l && l.maximo && Number(l.maximo)!==0 ? l.maximo : '';
+      var temReal = l && l.realizado!==null && l.realizado!=='';
+      var bg = m%2===0 ? 'background:#F8FAFC' : '';
+      var statusCell = temReal
+        ? '<span style="font-size:10px;color:var(--green)">✓ tem dados</span>'
+        : '<span style="font-size:10px;color:var(--muted)">sem lançamento</span>';
+
+      // Dica de qual campo preencher conforme sentido
+      var minHint = isMaior ? 'Limite inferior' : '(N/A para Menor Melhor)';
+      var maxHint = isMaior ? '(N/A para Maior Melhor)' : 'Limite superior';
+
+      rows += '<tr style="'+bg+';border-bottom:1px solid var(--border)">' +
+        '<td style="padding:7px 12px;font-weight:600;color:var(--text)">' + MESES_SHORT[m] + '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-meta-'+m+'" value="'+esc(meta)+'" ' +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg)" ' +
+          'placeholder="Meta">' +
+        '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-min-'+m+'" value="'+esc(minimo)+'" ' +
+          (isMaior?'':'disabled title="Não se aplica para Menor Melhor" ') +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'var(--bg)':'#F1F5F9')+'" ' +
+          'placeholder="'+(isMaior?'Mínimo':'—')+'">' +
+        '</td>' +
+        '<td style="padding:5px 8px;text-align:center">' +
+          '<input type="number" step="0.01" inputmode="decimal" ' +
+          'id="admm-max-'+m+'" value="'+esc(maximo)+'" ' +
+          (isMaior?'disabled title="Não se aplica para Maior Melhor" ':'') +
+          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'#F1F5F9':'var(--bg)')+'" ' +
+          'placeholder="'+(isMaior?'—':'Máximo')+'">' +
+        '</td>' +
+        '<td style="padding:5px 12px;text-align:center">' + statusCell + '</td>' +
+      '</tr>';
+    }
+
+    // Linha de ação rápida: copiar valor de Jan para todos
+    rows += '<tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">' +
+      '<td colspan="5" style="padding:8px 12px">' +
+        '<span style="font-size:11px;color:#1E40AF">Copiar Jan para todos os meses: </span>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos()" style="font-size:11px;padding:3px 10px;background:#2563EB;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:6px">📋 Meta</button>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos(\'min\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Mín</button>' +
+        '<button onclick="dmxAdminCopiarJanParaTodos(\'max\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Máx</button>' +
+      '</td>' +
+    '</tr>';
+
+    tbody.innerHTML = rows;
+  };
+
+  // ── Copia Janeiro para todos os meses (ação rápida) ─────────────────────
+  window.dmxAdminCopiarJanParaTodos = function(campo){
+    campo = campo || 'meta';
+    var prefix = campo==='min' ? 'admm-min-' : (campo==='max' ? 'admm-max-' : 'admm-meta-');
+    var janEl = document.getElementById(prefix+'1');
+    if(!janEl || !janEl.value) return;
+    var val = janEl.value;
+    for(var m=2; m<=12; m++){
+      var el = document.getElementById(prefix+m);
+      if(el && !el.disabled) el.value = val;
+    }
+  };
+
+  // ── Salva as metas mensais em Dados_Mensais ──────────────────────────────
+  window.dmxAdminSalvarMetasMensais = async function(kpiId){
+    var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
+    var api = typeof window.dmxApiPost==='function' ? window.dmxApiPost : null;
+    if(!api){ alert('API não conectada.'); return; }
+    if(!kpiId){ alert('Salve o KPI primeiro antes de gravar as metas mensais.'); return; }
+
+    var btn = document.querySelector('[onclick*="dmxAdminSalvarMetasMensais"]');
+    if(btn){ btn.innerHTML='⏳ Salvando...'; btn.disabled=true; }
+
+    var salvos = 0, erros = 0;
+    var promises = [];
+
+    for(var m=1; m<=12; m++){
+      var metaEl  = document.getElementById('admm-meta-'+m);
+      var minEl   = document.getElementById('admm-min-'+m);
+      var maxEl   = document.getElementById('admm-max-'+m);
+      var meta    = metaEl  ? toN(metaEl.value)  : null;
+      var minimo  = minEl   ? toN(minEl.value)   : null;
+      var maximo  = maxEl   ? toN(maxEl.value)   : null;
+
+      // Só salva meses onde pelo menos a meta foi preenchida
+      if(meta === null) continue;
+
+      var row = {
+        id_kpi: kpiId,
+        ano: ano,
+        mes_num: m,
+        meta:   meta,
+        minimo: minimo !== null ? minimo : 0,
+        maximo: maximo !== null ? maximo : 0,
+        atualizado_em: new Date().toISOString(),
+        atualizado_por: 'Admin'
+      };
+
+      // Atualiza localmente também
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
+      if(l){
+        l.meta = row.meta; l.minimo = row.minimo; l.maximo = row.maximo;
+      } else {
+        // Cria entrada local se não existir
+        if(Array.isArray(window.launches)){
+          window.launches.push(Object.assign({id_kpi:kpiId,ano:ano,mes_num:m,realizado:null}, row));
+        }
+      }
+
+      var mes = m;
+      promises.push(
+        api('salvarMensal', row)
+          .then(function(r){ if(r && r.ok!==false) salvos++; else erros++; })
+          .catch(function(){ erros++; })
+      );
+    }
+
+    await Promise.all(promises);
+
+    if(btn){
+      btn.innerHTML = erros ? '⚠️ '+erros+' erro(s)' : '✓ Salvo!';
+      btn.style.background = erros ? 'var(--amber)' : 'var(--green)';
+      setTimeout(function(){
+        btn.innerHTML = '💾 Salvar Metas';
+        btn.disabled = false;
+        btn.style.background = '';
+      }, 2000);
+    }
+
+    var msg = salvos + ' mês(es) salvos em Dados_Mensais' + (erros?' | '+erros+' erro(s)':'');
+    if(typeof showToast==='function') showToast('✓ '+msg);
+    console.log('[DMX] Metas mensais:', msg);
+  };
+
+  // ── Carrega automaticamente ao abrir o modal ─────────────────────────────
+  // Observa inserção do modal no DOM
+  var observer = new MutationObserver(function(mutations){
+    mutations.forEach(function(mut){
+      mut.addedNodes.forEach(function(node){
+        if(node.id === 'adm-kpi-modal' || (node.querySelector && node.querySelector('#adm-kpi-meta-tbody'))){
+          var tbody = node.id==='adm-kpi-modal' ? node.querySelector('#adm-kpi-meta-tbody') : node.querySelector('#adm-kpi-meta-tbody');
+          if(!tbody) return;
+          // Extrai kpiId do botão de salvar
+          var saveBtn = node.querySelector('[onclick*="dmxAdminSalvarMetasMensais"]');
+          if(!saveBtn) return;
+          var match = saveBtn.getAttribute('onclick').match(/dmxAdminSalvarMetasMensais\('([^']*)'\)/);
+          var kpiId = match ? match[1] : '';
+          setTimeout(function(){ window.dmxAdminCarregarMetasMensais(kpiId); }, 100);
+        }
+      });
+    });
+  });
+  observer.observe(document.body, {childList:true, subtree:false});
+
+  console.log('[DMX] Tabela de metas mensais instalada');
+})();
+</script>
 </body>
 </html>
