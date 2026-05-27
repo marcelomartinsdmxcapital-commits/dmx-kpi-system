@@ -16551,6 +16551,10 @@ setTimeout(()=>{
       atualizado_em: new Date().toISOString()
     };
 
+    // Garante que window.planos está sincronizado com a variável local
+    if(!Array.isArray(window.planos)) window.planos = (typeof planos!=='undefined' && Array.isArray(planos)) ? planos : [];
+    try{ planos = window.planos; }catch(e){}
+
     if(editId){
       var i = window.planos.findIndex(function(p){ return p.id===editId; });
       if(i>=0) window.planos[i] = Object.assign({}, window.planos[i], data);
@@ -16559,7 +16563,7 @@ setTimeout(()=>{
       data.criado_em = new Date().toISOString();
       window.planos.push(data);
     }
-    // Sincroniza variável local com window.planos
+    // Mantém sync
     try{ planos = window.planos; }catch(e){}
 
     if(coment.trim()) addHist(editId||data.id, coment.trim(), getAutor());
