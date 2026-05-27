@@ -3153,14 +3153,60 @@ function renderPlanos() {
   const stCols = {'Em andamento':'AMARELO','Conclu\u00EDdo':'VERDE','Atrasado':'VERMELHO','N\u00E3o iniciado':'NA'};
   const today = new Date();
 
+  // ── Gatilho automático: KPIs fora do range sem plano ─────────────────────
+  // Para cada KPI fora do limite (Crítico) que não tem plano ativo, mostra
+  // um card de alerta laranja convidando a criar o plano 5W2H
+  const kpisComPlano = new Set(planos.map(p => p.id_kpi));
+  const gatilhos = (window.kpis||[]).filter(k => {
+    if (!af || k.area === af) {
+      const outRange = typeof isOutOfRange==='function' && isOutOfRange(k, currentMes, currentAno);
+      return outRange && !kpisComPlano.has(k.id);
+    }
+    return false;
+  });
+  if (af === '' || !af) {
+    // Sem filtro de área: mostra todos os KPIs fora do range
+  }
+  // Agrupa gatilhos por área
+  const gatilhosByArea = {};
+  gatilhos.forEach(k => {
+    if (!gatilhosByArea[k.area]) gatilhosByArea[k.area] = [];
+    gatilhosByArea[k.area].push(k);
+  });
+  // ──────────────────────────────────────────────────────────────────────────
+
   const board = document.getElementById('planos-board');
-  if (Object.keys(grouped).length === 0) {
+  if (Object.keys(grouped).length === 0 && Object.keys(gatilhosByArea).length === 0) {
     board.innerHTML = '<div style="text-align:center;color:var(--muted);padding:48px 0;font-size:13px">Nenhum plano de a\u00E7\u00E3o encontrado.</div>';
     updatePlanosBadge(); return;
   }
 
-  board.innerHTML = Object.keys(grouped).sort().map(area => {
-    const ps = grouped[area];
+  // Une áreas de planos existentes e de gatilhos
+  const todasAreas = [...new Set([...Object.keys(grouped), ...Object.keys(gatilhosByArea)])].sort();
+
+  board.innerHTML = todasAreas.map(area => {
+    const ps = grouped[area] || [];
+    // Cards de gatilho — KPIs fora do range sem plano
+    const gts = (gatilhosByArea[area] || []).map(k => {
+      const ref = typeof resolveRef==='function' ? resolveRef(k, currentMes, currentAno) : {};
+      const l = typeof getLaunch==='function' ? getLaunch(k.id, currentMes, currentAno) : null;
+      const real = l ? l.realizado : null;
+      return '<div class="plano-card" style="border-left:4px solid #D97706;background:#FFFBEB">' +
+        '<div class="plano-card-header">' +
+          '<div>' +
+            '<div class="plano-card-kpi" style="color:#D97706">⚠️ GATILHO · ' + k.id + '</div>' +
+            '<div class="plano-card-kpi-nome">' + (k.indicador||'') + '</div>' +
+            '<div style="font-size:10px;color:var(--muted);margin-top:3px">' +
+              'Realizado: <b>' + (real!==null?real:'—') + '</b> · ' +
+              'Limite: <b>' + (k.sentido&&k.sentido.toLowerCase().includes('maior') ? (ref.minimo||'—') : (ref.maximo||'—')) + '</b>' +
+            '</div>' +
+          '</div>' +
+          '<button onclick="openNewPlanoForKPI(\'' + k.id + '\')\" class="btn btn-primary btn-sm" style="font-size:11px;flex-shrink:0">+ Criar Plano</button>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#92400E;padding:8px 0 4px">Este KPI está fora do limite de tolerância e exige um Plano de Ação 5W2H.</div>' +
+      '</div>';
+    }).join('');
+
     const cards = ps.map(p => {
       const sc = stCols[p.prioridade] || 'NA';
       const prazoStr = p.prazo ? String(p.prazo).split('T')[0].split(' ')[0] : '';
@@ -3200,7 +3246,7 @@ function renderPlanos() {
         '<span style="color:var(--teal)">\u25A0</span> '+area+
         ' <span style="font-weight:400;color:var(--muted);margin-left:4px">('+ps.length+' plano'+(ps.length>1?'s':'')+')</span>' +
       '</div>' +
-      '<div class="planos-cards-grid">'+cards+'</div>' +
+      '<div class="planos-cards-grid">'+(typeof gts!=='undefined'?gts:'')+cards+'</div>' +
     '</div>';
   }).join('');
 
@@ -3612,7 +3658,7 @@ function renderPlanos() {
         '<span style="color:var(--teal)">\u25A0</span> '+area+
         ' <span style="font-weight:400;color:var(--muted);margin-left:4px">('+ps.length+' plano'+(ps.length>1?'s':'')+')</span>' +
       '</div>' +
-      '<div class="planos-cards-grid">'+cards+'</div>' +
+      '<div class="planos-cards-grid">'+(typeof gts!=='undefined'?gts:'')+cards+'</div>' +
     '</div>';
   }).join('');
 
@@ -4504,11 +4550,12 @@ window.addEventListener('DOMContentLoaded', init);
     const l=getLaunch(kpi.id,mes,ano);
     function pick(field){
       const lv=l?toNum(l[field]):null;
-      if(lv!==null && !(field==='meta' && lv===0)) return lv;
+      // Para todos os campos, zero é inválido (campo vazio/não preenchido)
+      if(lv!==null && lv!==0) return lv;
       const fallback=findAnyRef(kpi,field,ano,mes);
-      if(fallback!==null) return fallback;
+      if(fallback!==null && fallback!==0) return fallback;
       const kv=toNum(kpi[field]);
-      if(kv!==null && !(field==='meta' && kv===0)) return kv;
+      if(kv!==null && kv!==0) return kv;
       return null;
     }
     return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
@@ -15572,6 +15619,176 @@ setTimeout(()=>{
   console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
 })();
 </script>
+
+
+<!-- PATCH v82 — Feedback visual botões de salvar -->
+<script>
+// ── PATCH v82 — Feedback visual nos botões de salvar ──────────────────────
+(function(){
+  if(window.__dmxBtnLoadingV1) return;
+  window.__dmxBtnLoadingV1 = true;
+
+  // ── Função utilitária global ───────────────────────────────────────────────
+  window.dmxSetBtnLoading = function(btn, loading, originalText){
+    if(!btn) return;
+    if(loading){
+      btn._dmxOrigText = btn.innerHTML;
+      btn._dmxOrigDisabled = btn.disabled;
+      btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">' +
+        '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .7s linear infinite"></span>' +
+        'Gravando...' +
+      '</span>';
+      btn.disabled = true;
+      btn.style.opacity = '0.85';
+    } else {
+      btn.innerHTML = btn._dmxOrigText || originalText || 'Salvar';
+      btn.disabled = btn._dmxOrigDisabled || false;
+      btn.style.opacity = '';
+    }
+  };
+
+  // Injeta CSS do spinner uma vez
+  if(!document.getElementById('dmx-spinner-css')){
+    var s = document.createElement('style');
+    s.id = 'dmx-spinner-css';
+    s.textContent = '@keyframes dmx-spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+  }
+
+  // ── Helper: acha o botão pelo onclick ou pelo contexto ────────────────────
+  function findBtn(selector){
+    return typeof selector === 'string'
+      ? document.querySelector(selector)
+      : selector;
+  }
+
+  // ── Wrap de função async com loading no botão ─────────────────────────────
+  function wrapWithLoading(fnName, btnSelector, successMsg){
+    var fn = window[fnName];
+    if(typeof fn !== 'function' || fn.__dmxLoadingWrapped) return;
+    window[fnName] = async function(){
+      var btn = typeof btnSelector==='function' ? btnSelector() : findBtn(btnSelector);
+      dmxSetBtnLoading(btn, true);
+      try{
+        var r = await fn.apply(this, arguments);
+        if(btn){
+          // Flash verde de sucesso
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px">✓ Salvo!</span>';
+          btn.style.background = 'var(--green)';
+          btn.style.opacity = '';
+          setTimeout(function(){ dmxSetBtnLoading(btn, false); btn.style.background=''; }, 1800);
+        }
+        return r;
+      }catch(e){
+        dmxSetBtnLoading(btn, false);
+        if(btn){ btn.style.background=''; }
+        throw e;
+      }
+    };
+    window[fnName].__dmxLoadingWrapped = true;
+  }
+
+  // ── Wraps específicos para cada botão ─────────────────────────────────────
+  function installWraps(){
+    // Salvar Configurações Admin (números/pesos)
+    wrapWithLoading('dmxSalvarConfigAdmin',
+      function(){ return document.querySelector('[onclick*="dmxSalvarConfigAdmin"]'); });
+
+    // Salvar KPI no Admin
+    wrapWithLoading('dmxAdminSalvarKPI',
+      function(){ return document.querySelector('[onclick*="dmxAdminSalvarKPI"]'); });
+
+    // Salvar Config PPR Semestral
+    wrapWithLoading('dmxSalvarPPRAdmin',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRAdmin"]'); });
+
+    // Salvar Config PPR Mensal
+    wrapWithLoading('dmxSalvarPPRMensal',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRMensal"]'); });
+
+    // Salvar Painel Executivo (vertentes)
+    wrapWithLoading('dmxFin82Save',
+      function(){ return document.querySelector('[onclick*="dmxFin82Save"]'); });
+
+    // Salvar Lançamento (Atualizar Dados)
+    wrapWithLoading('saveLancamento',
+      function(){ return document.querySelector('[onclick*="saveLancamento"]'); });
+
+    // Salvar Plano de Ação
+    wrapWithLoading('savePlano',
+      function(){ return document.querySelector('[onclick*="savePlano"]'); });
+
+    // Salvar Tudo (Atualizar Dados em massa)
+    wrapWithLoading('saveAllUpdates',
+      function(){ return document.querySelector('[onclick*="saveAllUpdates"]'); });
+
+    // PPR Mensal save (segunda definição)
+    wrapWithLoading('dmxSalvarPPRMensal',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRMensal"]'); });
+  }
+
+  // ── Também intercepta clicks diretamente nos botões ───────────────────────
+  // Para casos onde a função é síncrona ou não retorna Promise
+  function installClickInterceptor(){
+    document.addEventListener('click', function(e){
+      var btn = e.target.closest('button.btn-primary, button.btn');
+      if(!btn || btn.__dmxClickIntercepted) return;
+      var onclick = btn.getAttribute('onclick')||'';
+
+      // Funções que sabemos serem lentas (gravação no Sheets)
+      var slowFns = ['saveAllUpdates','salvarMensal','salvarKPI','dmxSalvarUsuario',
+                     'upsert_user','salvarPermissao','dmxAdminSalvarKPI',
+                     'saveWeeklyEntry','dmxSaveWeeklySelectedStepAll',
+                     'saveWatchSelector','dmxSalvarConfigAdmin',
+                     'dmxSalvarPPRAdmin','dmxSalvarPPRMensal','dmxFin82Save',
+                     'saveLancamento','savePlano','saveAllUpdates'];
+
+      var isSlow = slowFns.some(function(f){ return onclick.includes(f); });
+      if(!isSlow) return;
+
+      // Se o botão já ficou desabilitado por outro mecanismo, pula
+      if(btn.disabled) return;
+
+      // Mostra spinner imediatamente no click
+      btn.__dmxClickIntercepted = true;
+      var origHTML = btn.innerHTML;
+      var origBg = btn.style.background;
+      btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">' +
+        '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .7s linear infinite"></span>' +
+        'Gravando...' +
+      '</span>';
+      btn.disabled = true;
+
+      // Restaura após 2.5s (tempo máximo esperado para gravação no Sheets)
+      setTimeout(function(){
+        btn.__dmxClickIntercepted = false;
+        btn.disabled = false;
+        // Se ainda mostra "Gravando..." (nenhum outro handler restaurou), restaura
+        if(btn.innerHTML.includes('Gravando')) {
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px">✓ Salvo!</span>';
+          btn.style.background = 'var(--green)';
+          setTimeout(function(){
+            btn.innerHTML = origHTML;
+            btn.style.background = origBg;
+          }, 1500);
+        }
+      }, 2500);
+    }, true); // capture phase — antes do onclick
+  }
+
+  [300, 1000, 2000].forEach(function(ms){
+    setTimeout(function(){
+      installWraps();
+    }, ms);
+  });
+
+  setTimeout(installClickInterceptor, 100);
+
+  console.log('[DMX] Feedback botões de salvar instalado');
+})();
+
+</script>
+
 </body>
 </html>
 
@@ -16752,5 +16969,175 @@ setTimeout(()=>{
   console.log('[DMX] CEO/Painel Financeiro oculto da seção ÁREA');
 })();
 </script>
+
+
+<!-- PATCH v82 — Feedback visual botões de salvar -->
+<script>
+// ── PATCH v82 — Feedback visual nos botões de salvar ──────────────────────
+(function(){
+  if(window.__dmxBtnLoadingV1) return;
+  window.__dmxBtnLoadingV1 = true;
+
+  // ── Função utilitária global ───────────────────────────────────────────────
+  window.dmxSetBtnLoading = function(btn, loading, originalText){
+    if(!btn) return;
+    if(loading){
+      btn._dmxOrigText = btn.innerHTML;
+      btn._dmxOrigDisabled = btn.disabled;
+      btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">' +
+        '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .7s linear infinite"></span>' +
+        'Gravando...' +
+      '</span>';
+      btn.disabled = true;
+      btn.style.opacity = '0.85';
+    } else {
+      btn.innerHTML = btn._dmxOrigText || originalText || 'Salvar';
+      btn.disabled = btn._dmxOrigDisabled || false;
+      btn.style.opacity = '';
+    }
+  };
+
+  // Injeta CSS do spinner uma vez
+  if(!document.getElementById('dmx-spinner-css')){
+    var s = document.createElement('style');
+    s.id = 'dmx-spinner-css';
+    s.textContent = '@keyframes dmx-spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+  }
+
+  // ── Helper: acha o botão pelo onclick ou pelo contexto ────────────────────
+  function findBtn(selector){
+    return typeof selector === 'string'
+      ? document.querySelector(selector)
+      : selector;
+  }
+
+  // ── Wrap de função async com loading no botão ─────────────────────────────
+  function wrapWithLoading(fnName, btnSelector, successMsg){
+    var fn = window[fnName];
+    if(typeof fn !== 'function' || fn.__dmxLoadingWrapped) return;
+    window[fnName] = async function(){
+      var btn = typeof btnSelector==='function' ? btnSelector() : findBtn(btnSelector);
+      dmxSetBtnLoading(btn, true);
+      try{
+        var r = await fn.apply(this, arguments);
+        if(btn){
+          // Flash verde de sucesso
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px">✓ Salvo!</span>';
+          btn.style.background = 'var(--green)';
+          btn.style.opacity = '';
+          setTimeout(function(){ dmxSetBtnLoading(btn, false); btn.style.background=''; }, 1800);
+        }
+        return r;
+      }catch(e){
+        dmxSetBtnLoading(btn, false);
+        if(btn){ btn.style.background=''; }
+        throw e;
+      }
+    };
+    window[fnName].__dmxLoadingWrapped = true;
+  }
+
+  // ── Wraps específicos para cada botão ─────────────────────────────────────
+  function installWraps(){
+    // Salvar Configurações Admin (números/pesos)
+    wrapWithLoading('dmxSalvarConfigAdmin',
+      function(){ return document.querySelector('[onclick*="dmxSalvarConfigAdmin"]'); });
+
+    // Salvar KPI no Admin
+    wrapWithLoading('dmxAdminSalvarKPI',
+      function(){ return document.querySelector('[onclick*="dmxAdminSalvarKPI"]'); });
+
+    // Salvar Config PPR Semestral
+    wrapWithLoading('dmxSalvarPPRAdmin',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRAdmin"]'); });
+
+    // Salvar Config PPR Mensal
+    wrapWithLoading('dmxSalvarPPRMensal',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRMensal"]'); });
+
+    // Salvar Painel Executivo (vertentes)
+    wrapWithLoading('dmxFin82Save',
+      function(){ return document.querySelector('[onclick*="dmxFin82Save"]'); });
+
+    // Salvar Lançamento (Atualizar Dados)
+    wrapWithLoading('saveLancamento',
+      function(){ return document.querySelector('[onclick*="saveLancamento"]'); });
+
+    // Salvar Plano de Ação
+    wrapWithLoading('savePlano',
+      function(){ return document.querySelector('[onclick*="savePlano"]'); });
+
+    // Salvar Tudo (Atualizar Dados em massa)
+    wrapWithLoading('saveAllUpdates',
+      function(){ return document.querySelector('[onclick*="saveAllUpdates"]'); });
+
+    // PPR Mensal save (segunda definição)
+    wrapWithLoading('dmxSalvarPPRMensal',
+      function(){ return document.querySelector('[onclick*="dmxSalvarPPRMensal"]'); });
+  }
+
+  // ── Também intercepta clicks diretamente nos botões ───────────────────────
+  // Para casos onde a função é síncrona ou não retorna Promise
+  function installClickInterceptor(){
+    document.addEventListener('click', function(e){
+      var btn = e.target.closest('button.btn-primary, button.btn');
+      if(!btn || btn.__dmxClickIntercepted) return;
+      var onclick = btn.getAttribute('onclick')||'';
+
+      // Funções que sabemos serem lentas (gravação no Sheets)
+      var slowFns = ['saveAllUpdates','salvarMensal','salvarKPI','dmxSalvarUsuario',
+                     'upsert_user','salvarPermissao','dmxAdminSalvarKPI',
+                     'saveWeeklyEntry','dmxSaveWeeklySelectedStepAll',
+                     'saveWatchSelector','dmxSalvarConfigAdmin',
+                     'dmxSalvarPPRAdmin','dmxSalvarPPRMensal','dmxFin82Save',
+                     'saveLancamento','savePlano','saveAllUpdates'];
+
+      var isSlow = slowFns.some(function(f){ return onclick.includes(f); });
+      if(!isSlow) return;
+
+      // Se o botão já ficou desabilitado por outro mecanismo, pula
+      if(btn.disabled) return;
+
+      // Mostra spinner imediatamente no click
+      btn.__dmxClickIntercepted = true;
+      var origHTML = btn.innerHTML;
+      var origBg = btn.style.background;
+      btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px">' +
+        '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .7s linear infinite"></span>' +
+        'Gravando...' +
+      '</span>';
+      btn.disabled = true;
+
+      // Restaura após 2.5s (tempo máximo esperado para gravação no Sheets)
+      setTimeout(function(){
+        btn.__dmxClickIntercepted = false;
+        btn.disabled = false;
+        // Se ainda mostra "Gravando..." (nenhum outro handler restaurou), restaura
+        if(btn.innerHTML.includes('Gravando')) {
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:5px">✓ Salvo!</span>';
+          btn.style.background = 'var(--green)';
+          setTimeout(function(){
+            btn.innerHTML = origHTML;
+            btn.style.background = origBg;
+          }, 1500);
+        }
+      }, 2500);
+    }, true); // capture phase — antes do onclick
+  }
+
+  [300, 1000, 2000].forEach(function(ms){
+    setTimeout(function(){
+      installWraps();
+    }, ms);
+  });
+
+  setTimeout(installClickInterceptor, 100);
+
+  console.log('[DMX] Feedback botões de salvar instalado');
+})();
+
+</script>
+
 </body>
 </html>
