@@ -7856,7 +7856,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
      validar também no Apps Script/backend.
      ═══════════════════════════════════════════════════════════════ -->
 <style id="dmx-v41-login-css">
-  body.dmx-auth-locked .app { display: none !important; pointer-events: none; user-select: none; }
+  body.dmx-auth-locked .app { visibility: hidden; pointer-events: none; user-select: none; }
+  body.dmx-auth-locked #dmx-login-overlay { visibility: visible !important; }
   .dmx-login-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg,#070707 0%,#141414 45%,#0e9e82 150%); display: none; align-items: center; justify-content: center; padding: 24px; }
   .dmx-login-overlay.open { display:flex; }
   .dmx-login-card { width: 100%; max-width: 420px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.24); border-radius: 18px; padding: 28px; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
