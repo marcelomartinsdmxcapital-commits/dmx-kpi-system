@@ -16809,45 +16809,62 @@ setTimeout(()=>{
 </script>
 
 
-<!-- PATCH segurança — MutationObserver + heartbeat de sessão -->
+<!-- PATCH segurança — heartbeat de sessão -->
 <script id="dmx-auth-hardening">
 (function(){
   'use strict';
   var SESSION_KEY = 'dmx_session_v41';
+  var _locking = false; // flag para evitar loop
 
   function isSessionValid(){
     try{
       var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
       if(!s || !s.email || !s.loginEm) return false;
-      // Expira após 8 horas
       if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
       return true;
     }catch(e){ return false; }
   }
 
   function enforceLock(){
+    if(_locking) return; // evita loop recursivo
     if(!isSessionValid()){
+      _locking = true;
       document.body.classList.add('dmx-auth-locked');
       var o = document.getElementById('dmx-login-overlay');
       if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); }
-      // Limpa sessão expirada/corrompida
       localStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem('dmx_usuario_email');
-      localStorage.removeItem('dmx_current_user_email');
+      setTimeout(function(){ _locking = false; }, 1000);
     }
   }
 
-  // Heartbeat a cada 5 segundos
-  setInterval(enforceLock, 5000);
+  // Heartbeat a cada 30 segundos (não 5s — evita sobrecarga)
+  setInterval(enforceLock, 30000);
 
+  // Re-verifica ao voltar para a aba
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) enforceLock();
+  });
+
+  // MutationObserver apenas para detectar remoção da classe (bypass via DevTools)
+  // Usa debounce para evitar loop
   document.addEventListener('DOMContentLoaded', function(){
-    // Re-trava se alguém remover a classe do body via DevTools
-    new MutationObserver(function(){ enforceLock(); }).observe(document.body, {
-      attributes: true, attributeFilter: ['class']
-    });
-    // Re-verifica ao voltar para a aba
-    document.addEventListener('visibilitychange', function(){
-      if(!document.hidden) enforceLock();
+    var _debounce = null;
+    new MutationObserver(function(mutations){
+      // Só age se a classe dmx-auth-locked foi REMOVIDA (bypass intencional)
+      mutations.forEach(function(m){
+        if(m.type==='attributes' && m.attributeName==='class'){
+          var hadLock = m.oldValue && m.oldValue.includes('dmx-auth-locked');
+          var hasLock = document.body.classList.contains('dmx-auth-locked');
+          if(hadLock && !hasLock && !isSessionValid()){
+            clearTimeout(_debounce);
+            _debounce = setTimeout(enforceLock, 200);
+          }
+        }
+      });
+    }).observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      attributeOldValue: true
     });
   });
 
@@ -18121,45 +18138,62 @@ setTimeout(()=>{
 </script>
 
 
-<!-- PATCH segurança — MutationObserver + heartbeat de sessão -->
+<!-- PATCH segurança — heartbeat de sessão -->
 <script id="dmx-auth-hardening">
 (function(){
   'use strict';
   var SESSION_KEY = 'dmx_session_v41';
+  var _locking = false; // flag para evitar loop
 
   function isSessionValid(){
     try{
       var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
       if(!s || !s.email || !s.loginEm) return false;
-      // Expira após 8 horas
       if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
       return true;
     }catch(e){ return false; }
   }
 
   function enforceLock(){
+    if(_locking) return; // evita loop recursivo
     if(!isSessionValid()){
+      _locking = true;
       document.body.classList.add('dmx-auth-locked');
       var o = document.getElementById('dmx-login-overlay');
       if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); }
-      // Limpa sessão expirada/corrompida
       localStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem('dmx_usuario_email');
-      localStorage.removeItem('dmx_current_user_email');
+      setTimeout(function(){ _locking = false; }, 1000);
     }
   }
 
-  // Heartbeat a cada 5 segundos
-  setInterval(enforceLock, 5000);
+  // Heartbeat a cada 30 segundos (não 5s — evita sobrecarga)
+  setInterval(enforceLock, 30000);
 
+  // Re-verifica ao voltar para a aba
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) enforceLock();
+  });
+
+  // MutationObserver apenas para detectar remoção da classe (bypass via DevTools)
+  // Usa debounce para evitar loop
   document.addEventListener('DOMContentLoaded', function(){
-    // Re-trava se alguém remover a classe do body via DevTools
-    new MutationObserver(function(){ enforceLock(); }).observe(document.body, {
-      attributes: true, attributeFilter: ['class']
-    });
-    // Re-verifica ao voltar para a aba
-    document.addEventListener('visibilitychange', function(){
-      if(!document.hidden) enforceLock();
+    var _debounce = null;
+    new MutationObserver(function(mutations){
+      // Só age se a classe dmx-auth-locked foi REMOVIDA (bypass intencional)
+      mutations.forEach(function(m){
+        if(m.type==='attributes' && m.attributeName==='class'){
+          var hadLock = m.oldValue && m.oldValue.includes('dmx-auth-locked');
+          var hasLock = document.body.classList.contains('dmx-auth-locked');
+          if(hadLock && !hasLock && !isSessionValid()){
+            clearTimeout(_debounce);
+            _debounce = setTimeout(enforceLock, 200);
+          }
+        }
+      });
+    }).observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      attributeOldValue: true
     });
   });
 
