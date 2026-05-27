@@ -1423,7 +1423,9 @@ function dmxReconcileLaunchesWithCatalog() {
 function persist() {
   dmxSaveCatalogToStorage();
   localStorage.setItem('dmx_launches', JSON.stringify(launches));
-  localStorage.setItem('dmx_planos', JSON.stringify(planos));
+  // Usa window.planos para pegar modificações feitas pelo patch v2
+  var planosParaSalvar = Array.isArray(window.planos) ? window.planos : planos;
+  localStorage.setItem('dmx_planos', JSON.stringify(planosParaSalvar));
   showToast('\u2713 Salvo');
 }
 
@@ -16245,19 +16247,7 @@ setTimeout(()=>{
     var srch= ((document.getElementById('plano-search')||{}).value||'').toLowerCase();
     var met = calcMetricas();
 
-    // Filtros adicionais
-    var filterBar = document.getElementById('plano-extra-filters');
-    if(!filterBar){
-      var oldBar = document.querySelector('#page-planos .filter-row');
-      if(oldBar){
-        var extra = document.createElement('select');
-        extra.id='plano-prio-filter'; extra.className='filter-input';
-        extra.style.width='140px'; extra.onchange=window.renderPlanos;
-        extra.innerHTML='<option value="">Todas prioridades</option>'+
-          ['Alta','Média','Baixa'].map(function(p){ return '<option>'+p+'</option>'; }).join('');
-        oldBar.insertBefore(extra, oldBar.querySelector('button'));
-      }
-    }
+    // filtro de prioridade já está no HTML (plano-prio-filter)
 
     // ── Métricas ─────────────────────────────────────────────
     var metrHtml =
@@ -16569,6 +16559,8 @@ setTimeout(()=>{
       data.criado_em = new Date().toISOString();
       window.planos.push(data);
     }
+    // Sincroniza variável local com window.planos
+    try{ planos = window.planos; }catch(e){}
 
     if(coment.trim()) addHist(editId||data.id, coment.trim(), getAutor());
 
