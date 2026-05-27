@@ -1930,14 +1930,49 @@ function buildKPIChart(kpi, canvas, height) {
 
   // Triangulos: vermelho = sem plano, ambar = com plano
   const alertPoints  = []; // fora do range sem plano (vermelho)
-  const planPoints   = []; // fora do range com plano (ambar)
+  const planPoints   = []; // fora do range com plano ativo (laranja)
+  const donePoints   = []; // fora do range com plano concluído (verde)
+
+  // Helper: retorna o status do plano para um mês específico
+  // Considera id_plano com mês embutido (KPI001-MAR2026) E plano_vinculado
+  function getPlanoStatusParaMes(kpiId, mes, ano) {
+    const MESES_SHORT_LOCAL = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const mesStr = (MESES_SHORT_LOCAL[mes]||'').toUpperCase() + ano;
+    // 1) Plano específico do mês (id_plano termina com MAR2026, MAI2026 etc)
+    const planosDoMes = planos.filter(p =>
+      p.id_kpi === kpiId &&
+      (String(p.id_plano||p.id).toUpperCase().includes(mesStr))
+    );
+    if (planosDoMes.length > 0) {
+      const allDone = planosDoMes.every(p => p.status === 'Concluído');
+      return allDone ? 'concluido' : 'andamento';
+    }
+    // 2) Plano vinculado (campo plano_vinculado aponta para id_plano de outro mês)
+    const vinculado = planos.find(p =>
+      p.id_kpi === kpiId &&
+      String(p.id_plano||p.id).toUpperCase().includes(mesStr) === false &&
+      p.meses_vinculados && p.meses_vinculados.includes(mes)
+    );
+    if (vinculado) {
+      const gid = vinculado.id_plano || vinculado.id;
+      const planosGrupo = planos.filter(p => (p.id_plano||p.id) === gid);
+      const allDone = planosGrupo.every(p => p.status === 'Concluído');
+      return allDone ? 'concluido' : 'andamento';
+    }
+    return 'sem_plano';
+  }
 
   outMonths.forEach(m => {
     const lm = getLaunch(kpi.id, m, currentAno);
     const yv = lm && lm.realizado !== null ? lm.realizado : resolveRef(kpi, m, currentAno).meta;
-    const mPlans = planos.filter(p => p.id_kpi === kpi.id);
-    if (mPlans.length > 0) {
-      planPoints.push({ x: MES[m], y: yv, planId: mPlans[0].id, planLabel: (mPlans[0].what || mPlans[0].acao || 'Plano').slice(0,40), mes: m });
+    const status = getPlanoStatusParaMes(kpi.id, m, currentAno);
+    if (status === 'concluido') {
+      donePoints.push({ x: MES[m], y: yv, mes: m });
+    } else if (status === 'andamento') {
+      const MESES_SHORT_LOCAL = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      const mesStr = (MESES_SHORT_LOCAL[m]||'').toUpperCase() + currentAno;
+      const p0 = planos.find(p => p.id_kpi===kpi.id && String(p.id_plano||p.id).toUpperCase().includes(mesStr));
+      planPoints.push({ x: MES[m], y: yv, planId: p0?(p0.id_plano||p0.id):'', planLabel: p0?(p0.acao||p0.what||'Plano').slice(0,40):'', mes: m });
     } else {
       alertPoints.push({ x: MES[m], y: yv, mes: m });
     }
@@ -1962,6 +1997,13 @@ function buildKPIChart(kpi, canvas, height) {
     datasets.push({ label: 'Com Plano', type: 'scatter', yAxisID: 'y',
       data: planPoints.map(p => ({ x: p.x, y: p.y })),
       borderColor: '#F59E0B', backgroundColor: '#F59E0B',
+      pointRadius: 7, pointStyle: 'triangle', showLine: false, pointHoverRadius: 10
+    });
+  }
+  if (donePoints.length) {
+    datasets.push({ label: 'Plano Concluído', type: 'scatter', yAxisID: 'y',
+      data: donePoints.map(p => ({ x: p.x, y: p.y })),
+      borderColor: '#16A34A', backgroundColor: '#16A34A',
       pointRadius: 7, pointStyle: 'triangle', showLine: false, pointHoverRadius: 10
     });
   }
@@ -7788,7 +7830,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
      validar também no Apps Script/backend.
      ═══════════════════════════════════════════════════════════════ -->
 <style id="dmx-v41-login-css">
-  body.dmx-auth-locked .app { filter: blur(2px); pointer-events: none; user-select: none; }
+  body.dmx-auth-locked .app { display: none !important; pointer-events: none; user-select: none; }
   .dmx-login-overlay { position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg,#070707 0%,#141414 45%,#0e9e82 150%); display: none; align-items: center; justify-content: center; padding: 24px; }
   .dmx-login-overlay.open { display:flex; }
   .dmx-login-card { width: 100%; max-width: 420px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.24); border-radius: 18px; padding: 28px; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
@@ -7840,12 +7882,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const hash = await crypto.subtle.digest('SHA-256', data);
     return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
-  async function defaultAdmin(){
-    return {email:'admin@dmxcapital.com', nome:'Administrador DMX', perfil:'admin', cargo:'Administrador', area:'', ativo:'SIM', senhaHash:await sha256('admin123'), trocaSenha:'SIM', criadoEm:new Date().toISOString()};
-  }
   async function getUsers(){
     let arr=[]; try{ arr=JSON.parse(localStorage.getItem(USERS_KEY)||'[]'); }catch(e){ arr=[]; }
-    if(!Array.isArray(arr) || !arr.length){ arr=[await defaultAdmin()]; localStorage.setItem(USERS_KEY, JSON.stringify(arr)); }
+    if(!Array.isArray(arr)) arr=[];
     return arr;
   }
   function saveUsers(arr){ localStorage.setItem(USERS_KEY, JSON.stringify(arr||[])); }
@@ -7875,7 +7914,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     btn?.classList.add('loading'); if(txt) txt.textContent='Validando acesso...';
     try{
       await new Promise(r=>setTimeout(r,350)); // feedback visual: comando aceito
-      const users=await getUsers(); const u=users.find(x=>norm(x.email)===email && String(x.ativo||'SIM').toUpperCase()!=='NAO');
+      const users=await getUsers();
+      if(!users.length){ if(msg) msg.textContent='Nenhum usuário cadastrado. Contate o administrador.'; return; }
+      const u=users.find(x=>norm(x.email)===email && String(x.ativo||'SIM').toUpperCase()!=='NAO');
       if(!u || u.senhaHash !== await sha256(pass)){ if(msg) msg.textContent='E-mail ou senha inválidos.'; return; }
       setSession(u); hideLogin(); refreshUserChrome(); toast('✓ Login realizado');
       if(String(u.trocaSenha||'').toUpperCase()==='SIM') setTimeout(()=>dmxOpenChangePassword(true),250);
@@ -7919,7 +7960,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <select id="adm-user-perfil" class="filter-input"><option value="admin">Admin</option><option value="editor">Editor</option><option value="leitura">Leitura</option><option value="area">Somente área</option></select>
         <select id="adm-user-cargo" class="filter-input">${cargoOptions()}</select>
         <select id="adm-user-area" class="filter-input">${areaOptions()}</select>
-        <input id="adm-user-senha" class="filter-input" placeholder="Senha provisória" value="dmx123">
+        <input id="adm-user-senha" class="filter-input" placeholder="Senha provisória (mín. 6 caracteres)">
       </div>
       <div class="filter-row"><button class="btn btn-primary" onclick="dmxAdminCreateUser()">+ Criar usuário</button><button class="btn btn-ghost" onclick="dmxRenderUserAdminPanel()">↻ Atualizar lista</button></div>
       <div class="table-wrap"><table class="data-table"><thead><tr><th>Usuário</th><th>Perfil</th><th>Cargo</th><th>Área</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
@@ -7940,7 +7981,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     toast('✓ Usuário criado/atualizado'); dmxRenderUserAdminPanel();
   };
   window.dmxAdminResetPassword = async function(email){
-    const nova=prompt('Nova senha provisória para '+email+':','dmx123'); if(nova===null) return; if(nova.length<6){ alert('Senha mínima: 6 caracteres.'); return; }
+    const nova=prompt('Nova senha provisória para '+email+' (mín. 6 caracteres):'); if(nova===null) return; if(nova.length<6){ alert('Senha mínima: 6 caracteres.'); return; }
     const users=await getUsers(); const i=users.findIndex(x=>norm(x.email)===norm(email)); if(i<0) return;
     users[i].senhaHash=await sha256(nova); users[i].trocaSenha='SIM'; saveUsers(users); toast('✓ Senha resetada'); dmxRenderUserAdminPanel();
   };
@@ -16159,503 +16200,634 @@ setTimeout(()=>{
 
 
 <!-- PATCH v82 — Planos de Ação v2 -->
-<script>
-// ============================================================
-//  DMX Planos de Ação v2
-//  - Campos diretos: problema, ação, causa raiz, responsável,
-//    co-responsável, prioridade, prazo, % progresso, status
-//  - Histórico de comentários em localStorage
-//  - Painel de métricas
-//  - Alertas visuais por prazo e reincidência
-//  - Gatilhos automáticos para KPIs críticos
-// ============================================================
-(function(){
-  if(window.__dmxPlanosV2) return;
-  window.__dmxPlanosV2 = true;
 
-  // ── Constantes ────────────────────────────────────────────
+
+
+
+<!-- PATCH v82 — Planos de Ação v3 (múltiplas ações + tabela + ID automático) -->
+
+
+
+
+<!-- PATCH v82 — Planos de Ação v4 -->
+<script>
+(function(){
+  if(window.__dmxPlanosV4) return;
+  window.__dmxPlanosV4 = true;
+
   var HIST_KEY = 'dmx_planos_hist_v2';
-  var STATUS_COR = {
-    'Não iniciado': {bg:'#F1F5F9', txt:'#475569', border:'#CBD5E1'},
-    'Em andamento': {bg:'#EFF6FF', txt:'#1D4ED8', border:'#93C5FD'},
-    'Concluído':    {bg:'#F0FDF4', txt:'#15803D', border:'#86EFAC'},
-    'Cancelado':    {bg:'#FEF2F2', txt:'#DC2626', border:'#FCA5A5'}
-  };
-  var PRIO_COR = {
-    'Alta':  {bg:'#FEF2F2', txt:'#DC2626'},
-    'Média': {bg:'#FFF7ED', txt:'#D97706'},
-    'Baixa': {bg:'#F0FDF4', txt:'#16A34A'}
-  };
-  var MESES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var MESES_SHORT = ['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 
   function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function today(){ return new Date().toISOString().split('T')[0]; }
-  function diasAte(prazo){ if(!prazo) return null; var d=new Date(prazo)-new Date(today()); return Math.ceil(d/86400000); }
+  function diasAte(prazo){ if(!prazo) return null; return Math.ceil((new Date(prazo)-new Date(today()))/86400000); }
   function fmtData(d){ if(!d) return '—'; var p=String(d).split('T')[0].split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
-  function allPlanos(){ return Array.isArray(window.planos)?window.planos:[]; }
+  function allPlanos(){ return Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]); }
   function getKPI(id){ return (window.kpis||[]).find(function(k){ return k.id===id; })||null; }
+  function getAutor(){ try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; } }
+  function syncPlanos(){ try{ planos=window.planos; }catch(e){} }
 
-  // ── Histórico em localStorage ─────────────────────────────
-  function getHist(id){
-    try{ return (JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{})[id]||[]; }catch(e){ return []; }
-  }
-  function addHist(id, texto, autor){
-    try{
-      var h=JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{};
-      if(!h[id]) h[id]=[];
-      h[id].unshift({txt:texto, autor:autor||'Usuário', ts:new Date().toISOString()});
-      if(h[id].length>30) h[id]=h[id].slice(0,30);
-      localStorage.setItem(HIST_KEY,JSON.stringify(h));
-    }catch(e){}
-  }
-  function getAutor(){
-    try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; }
+  function getHist(id){ try{ return (JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{})[id]||[]; }catch(e){ return []; } }
+  function addHist(id,txt,autor){ try{ var h=JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{}; if(!h[id]) h[id]=[]; h[id].unshift({txt:txt,autor:autor||getAutor(),ts:new Date().toISOString()}); if(h[id].length>50) h[id]=h[id].slice(0,50); localStorage.setItem(HIST_KEY,JSON.stringify(h)); }catch(e){} }
+
+  function gerarIdPlano(kpiId,mes,ano){
+    var m=Number(mes||window.currentMes||5), a=Number(ano||window.currentAno||2026);
+    return String(kpiId||'KPI').toUpperCase()+'-'+(MESES_SHORT[m]||'MES')+a;
   }
 
-  // ── Novo ID de plano ─────────────────────────────────────
-  function nextPlanoId(){
-    var max = allPlanos().reduce(function(m,p){ return Math.max(m, parseInt((p.id+'').replace(/\D/g,'')||0)); }, 0);
-    return 'AC'+String(max+1).padStart(3,'0');
+  function agruparPlanos(){
+    var ps=allPlanos(), grupos={}, ordem=[];
+    ps.forEach(function(p){
+      var gid=p.id_plano||p.id;
+      if(!grupos[gid]){
+        grupos[gid]={id_plano:gid,id_kpi:p.id_kpi,problema:p.problema||p.why||'',
+          causa_raiz:p.causa_raiz||'',prioridade:p.prioridade||'Média',
+          area:p.area||'',criado_em:p.criado_em||'',acoes:[]};
+        ordem.push(gid);
+      }
+      grupos[gid].acoes.push(p);
+    });
+    return {grupos:grupos,ordem:ordem};
   }
 
-  // ── Calcula métricas ──────────────────────────────────────
+  function statusGrupo(grupo){
+    if(!grupo.acoes.length) return 'Não iniciado';
+    if(grupo.acoes.every(function(a){ return a.status==='Concluído'; })) return 'Concluído';
+    if(grupo.acoes.some(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; })) return 'Atrasado';
+    if(grupo.acoes.some(function(a){ return a.status==='Em andamento'; })) return 'Em andamento';
+    return 'Não iniciado';
+  }
+
+  function statusCor(s){
+    return s==='Concluído'?{bg:'#F0FDF4',txt:'#15803D'}:
+           s==='Em andamento'?{bg:'#EFF6FF',txt:'#1D4ED8'}:
+           s==='Atrasado'?{bg:'#FEF2F2',txt:'#DC2626'}:
+           s==='Cancelado'?{bg:'#FEF2F2',txt:'#DC2626'}:
+           {bg:'#F1F5F9',txt:'#475569'};
+  }
+  function prioCor(p){
+    return p==='Alta'?{bg:'#FEF2F2',txt:'#DC2626'}:p==='Baixa'?{bg:'#F0FDF4',txt:'#16A34A'}:{bg:'#FFF7ED',txt:'#D97706'};
+  }
+
   function calcMetricas(){
-    var ps = allPlanos();
-    var total = ps.length;
-    var concluidos = ps.filter(function(p){ return p.status==='Concluído'; }).length;
-    var atrasados  = ps.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
-    var andamento  = ps.filter(function(p){ return p.status==='Em andamento'; }).length;
-    var semPlano   = (window.kpis||[]).filter(function(k){
-      return typeof isOutOfRange==='function' && isOutOfRange(k, window.currentMes||5, window.currentAno||2026) &&
-             !allPlanos().some(function(p){ return p.id_kpi===k.id && p.status!=='Concluído'&&p.status!=='Cancelado'; });
+    var g=agruparPlanos(), total=g.ordem.length;
+    var concluidos=g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Concluído'; }).length;
+    var atrasados =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Atrasado';  }).length;
+    var andamento =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Em andamento'; }).length;
+    var semPlano  =(window.kpis||[]).filter(function(k){
+      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&
+             !allPlanos().some(function(p){ return p.id_kpi===k.id&&p.status!=='Concluído'&&p.status!=='Cancelado'; });
     }).length;
-    // Tempo médio de resolução (dias)
-    var resolvidos = ps.filter(function(p){ return p.status==='Concluído'&&p.criado_em&&p.prazo; });
-    var tmedio = resolvidos.length ? Math.round(resolvidos.reduce(function(s,p){
-      return s + Math.max(0,(new Date(p.prazo)-new Date(p.criado_em.split('T')[0]))/86400000);
-    },0)/resolvidos.length) : null;
-    return {total:total, concluidos:concluidos, atrasados:atrasados, andamento:andamento, semPlano:semPlano, tmedio:tmedio,
-            taxaConclusao: total ? Math.round(concluidos/total*100) : 0};
+    return {total:total,concluidos:concluidos,atrasados:atrasados,andamento:andamento,semPlano:semPlano,
+            taxaConclusao:total?Math.round(concluidos/total*100):0};
   }
 
-  // ── Renderiza painel principal ────────────────────────────
+  // ── Renderiza lista compacta ──────────────────────────────
   window.renderPlanos = function(){
-    var board = document.getElementById('planos-board'); if(!board) return;
-    var af  = (document.getElementById('plano-area-filter')||{}).value||'';
-    var sf  = (document.getElementById('plano-status-filter')||{}).value||'';
-    var pf  = (document.getElementById('plano-prio-filter')||{}).value||'';
-    var srch= ((document.getElementById('plano-search')||{}).value||'').toLowerCase();
-    var met = calcMetricas();
+    var board=document.getElementById('planos-board'); if(!board) return;
+    var af  =(document.getElementById('plano-area-filter')||{}).value||'';
+    var pf  =(document.getElementById('plano-prio-filter')||{}).value||'';
+    var srch=((document.getElementById('plano-search')||{}).value||'').toLowerCase();
+    // Flag de status — padrão: não concluídos
+    var flagEl=document.getElementById('plano-flag-filter');
+    var flag=flagEl?flagEl.value:'ativos';
+    var met=calcMetricas(), g=agruparPlanos();
 
-    // filtro de prioridade já está no HTML (plano-prio-filter)
-
-    // ── Métricas ─────────────────────────────────────────────
-    var metrHtml =
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px">'+
-      metCard('📋 Total','planos',met.total,'var(--text)','var(--bg2)')+
-      metCard('✅ Concluídos',met.taxaConclusao+'%',met.concluidos+' planos','var(--green)','#F0FDF4')+
-      metCard('⏱️ Em andamento','',met.andamento+' planos','#1D4ED8','#EFF6FF')+
-      metCard('🚨 Atrasados','',met.atrasados+' planos',met.atrasados>0?'var(--red)':'var(--muted)',met.atrasados>0?'#FEF2F2':'var(--bg2)')+
-      metCard('⚠️ Sem plano','',met.semPlano+' KPIs críticos',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
-      (met.tmedio!==null?metCard('⏱️ Tempo médio',met.tmedio+' dias','para resolver','var(--muted)','var(--bg2)'):'') +
-      '</div>';
-
-    // ── Gatilhos automáticos ──────────────────────────────────
-    var kpisComPlanoAtivo = {};
-    allPlanos().forEach(function(p){
-      if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlanoAtivo[p.id_kpi]=true;
-    });
-    var gatilhos = (window.kpis||[]).filter(function(k){
-      if(af && k.area!==af) return false;
-      return typeof isOutOfRange==='function' && isOutOfRange(k,window.currentMes||5,window.currentAno||2026) && !kpisComPlanoAtivo[k.id];
-    });
-
-    var gatHtml = '';
-    if(gatilhos.length){
-      gatHtml = '<div style="margin-bottom:16px;padding:14px 16px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
-        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:10px">'+
-          '⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' crítico'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">'+
-        gatilhos.map(function(k){
-          var l = typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
-          var ref = typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
-          var real = l?l.realizado:'—';
-          var limite = k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
-          return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
-            '<div>'+
-              '<div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
-              '<div style="font-size:12px;font-weight:600;margin:2px 0">'+esc(k.indicador)+'</div>'+
-              '<div style="font-size:10px;color:var(--muted)">Realizado: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div>'+
-            '</div>'+
-            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:5px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">+ Criar Plano</button>'+
-          '</div>';
-        }).join('')+
-        '</div></div>';
+    // Populate area filter
+    var areaSel=document.getElementById('plano-area-filter');
+    if(areaSel){
+      var cur=areaSel.value;
+      var areas=[...new Set(allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); }).filter(Boolean))].sort();
+      areaSel.innerHTML='<option value="">Todas as áreas</option>'+areas.map(function(a){ return '<option value="'+esc(a)+'"'+(a===cur?' selected':'')+'>'+esc(a)+'</option>'; }).join('');
     }
 
-    // ── Planos existentes ─────────────────────────────────────
-    var ps = allPlanos().filter(function(p){
-      var k = getKPI(p.id_kpi);
-      var area = k?k.area:(p.area||'');
-      if(af && area!==af) return false;
-      if(sf && p.status!==sf) return false;
-      if(pf && p.prioridade!==pf) return false;
-      if(srch && !(p.id_kpi||'').toLowerCase().includes(srch) &&
-                 !(p.problema||p.why||'').toLowerCase().includes(srch) &&
-                 !(p.acao||p.what||'').toLowerCase().includes(srch) &&
-                 !(p.responsavel||p.who||'').toLowerCase().includes(srch)) return false;
+    // Métricas
+    var metrHtml='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px">'+
+      mc('📋 Total',met.total+' planos','var(--text)','var(--bg2)')+
+      mc('✅ Concluídos',met.taxaConclusao+'% — '+met.concluidos,'var(--green)','#F0FDF4')+
+      mc('⏱️ Andamento',met.andamento+' planos','#1D4ED8','#EFF6FF')+
+      mc('🚨 Atrasados',met.atrasados+' planos',met.atrasados>0?'var(--red)':'var(--muted)',met.atrasados>0?'#FEF2F2':'var(--bg2)')+
+      mc('⚠️ Sem plano',met.semPlano+' KPIs',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
+    '</div>';
+
+    // Gatilhos
+    var kpisComPlano={};
+    allPlanos().forEach(function(p){ if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlano[p.id_kpi]=true; });
+    var gatilhos=(window.kpis||[]).filter(function(k){
+      if(af&&k.area!==af) return false;
+      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&!kpisComPlano[k.id];
+    });
+    var gatHtml='';
+    if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
+      gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
+        gatilhos.map(function(k){
+          var l=typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
+          var ref=typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+          var real=l?l.realizado:'—', limite=k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
+          return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+            '<div style="font-size:12px;font-weight:600">'+esc(k.indicador)+'</div>'+
+            '<div style="font-size:10px;color:var(--muted)">Real: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div></div>'+
+            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
+          '</div>';
+        }).join('')+'</div></div>';
+    }
+
+    // Filtra grupos
+    var filtered=g.ordem.filter(function(gid){
+      var grupo=g.grupos[gid], k=getKPI(grupo.id_kpi);
+      var area=k?k.area:(grupo.area||'');
+      if(af&&area!==af) return false;
+      if(pf&&grupo.prioridade!==pf) return false;
+      var sg=statusGrupo(grupo);
+      if(flag==='ativos' && sg==='Concluído') return false;
+      if(flag==='andamento' && sg!=='Em andamento'&&sg!=='Atrasado') return false;
+      if(flag==='pendentes' && sg!=='Não iniciado') return false;
+      if(flag==='concluidos' && sg!=='Concluído') return false;
+      if(srch){
+        var txt=(gid+grupo.id_kpi+grupo.problema+(k?k.indicador:'')+
+          grupo.acoes.map(function(a){ return (a.responsavel||'')+(a.acao||''); }).join(' ')).toLowerCase();
+        if(!txt.includes(srch)) return false;
+      }
       return true;
     });
 
-    // Ordena: atrasados primeiro, depois por prazo
-    ps.sort(function(a,b){
-      var da=diasAte(a.prazo), db=diasAte(b.prazo);
-      var atA=a.status!=='Concluído'&&a.status!=='Cancelado'&&da!==null&&da<0;
-      var atB=b.status!=='Concluído'&&b.status!=='Cancelado'&&db!==null&&db<0;
-      if(atA&&!atB) return -1; if(atB&&!atA) return 1;
-      if(da!==null&&db!==null) return da-db;
-      return 0;
-    });
-
-    // Agrupa por área
-    var grouped = {};
-    ps.forEach(function(p){
-      var k=getKPI(p.id_kpi); var area=k?k.area:(p.area||'Sem área');
-      if(!grouped[area]) grouped[area]=[];
-      grouped[area].push(p);
-    });
-
-    var planosHtml = '';
-    if(!ps.length && !gatilhos.length){
-      planosHtml = '<div style="text-align:center;color:var(--muted);padding:48px;font-size:13px">✅ Nenhum plano encontrado.</div>';
-    } else if(ps.length){
-      planosHtml = Object.keys(grouped).sort().map(function(area){
-        var areaPs = grouped[area];
-        var nAt = areaPs.filter(function(p){ return p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0; }).length;
-        return '<div style="margin-bottom:20px">'+
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 0;border-bottom:2px solid var(--border)">'+
-            '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800">▪ '+esc(area)+'</span>'+
-            '<span style="font-size:11px;color:var(--muted)">('+areaPs.length+' plano'+(areaPs.length>1?'s':'')+')</span>'+
-            (nAt?'<span style="font-size:10px;font-weight:700;color:var(--red);background:#FEF2F2;padding:2px 8px;border-radius:10px">🚨 '+nAt+' atrasado'+(nAt>1?'s':'')+'</span>':'')+
-          '</div>'+
-          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">'+
-          areaPs.map(function(p){ return renderPlanoCard(p); }).join('')+
-          '</div></div>';
-      }).join('');
+    // Lista compacta
+    var listaHtml='';
+    if(filtered.length){
+      listaHtml='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+          '<thead><tr style="background:var(--bg3);font-size:10px;text-transform:uppercase;color:var(--muted)">'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">ID do Plano</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">KPI</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Área</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Prioridade</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Status</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Ações</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Criado em</th>'+
+          '</tr></thead>'+
+          '<tbody>'+
+          filtered.map(function(gid){
+            var grupo=g.grupos[gid], k=getKPI(grupo.id_kpi);
+            var sg=statusGrupo(grupo), sc=statusCor(sg), pc=prioCor(grupo.prioridade);
+            var nAcoes=grupo.acoes.length;
+            var nConcluidas=grupo.acoes.filter(function(a){ return a.status==='Concluído'; }).length;
+            var atrasadas=grupo.acoes.filter(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; }).length;
+            return '<tr class="plano-row" onclick="dmxAbrirDetalhePlano(\''+esc(gid)+'\')" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
+              '<td style="padding:9px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
+              '<td style="padding:9px 14px;max-width:200px;font-size:12px">'+esc(k?k.indicador:grupo.id_kpi)+'</td>'+
+              '<td style="padding:9px 14px"><span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k?k.area:grupo.area||'—')+'</span></td>'+
+              '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(grupo.prioridade)+'</span></td>'+
+              '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(sg)+'</span>'+
+                (atrasadas?'<span style="margin-left:4px;font-size:10px;color:var(--red)">🚨'+atrasadas+'</span>':'')+
+              '</td>'+
+              '<td style="padding:9px 14px;font-size:11px;color:var(--muted)">'+nConcluidas+'/'+nAcoes+' concluída'+(nAcoes!==1?'s':'')+'</td>'+
+              '<td style="padding:9px 14px;font-size:11px;color:var(--muted)">'+fmtData(grupo.criado_em?grupo.criado_em.split('T')[0]:'')+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody>'+
+        '</table>'+
+      '</div>';
+    } else if(!gatilhos.length) {
+      listaHtml='<div style="text-align:center;color:var(--muted);padding:48px;font-size:13px">✅ Nenhum plano nesta categoria.</div>';
     }
 
-    board.innerHTML = metrHtml + gatHtml + planosHtml;
+    board.innerHTML=metrHtml+gatHtml+listaHtml;
     updatePlanosBadge();
   };
 
-  // ── Card de plano ─────────────────────────────────────────
-  function renderPlanoCard(p){
-    var dias = diasAte(p.prazo);
-    var atrasado = p.status!=='Concluído'&&p.status!=='Cancelado'&&dias!==null&&dias<0;
-    var venceHoje = dias===0; var venceBreve = dias!==null&&dias>0&&dias<=3;
-    var sc = STATUS_COR[p.status]||STATUS_COR['Não iniciado'];
-    var pc = PRIO_COR[p.prioridade]||PRIO_COR['Média'];
-    var prog = Number(p.progresso||0);
-    var k = getKPI(p.id_kpi);
-    var hist = getHist(p.id);
-    var borderColor = atrasado?'#DC2626':(venceBreve?'#D97706':'var(--border)');
-
-    return '<div class="plano-card-v2" style="background:var(--bg2);border:1px solid '+borderColor+';border-left:4px solid '+borderColor+';border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
-      // Header
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
-        '<div style="min-width:0;flex:1">'+
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+
-            '<span style="font-size:10px;font-weight:700;color:var(--teal)">'+esc(p.id)+'</span>'+
-            '<span style="font-size:10px;font-weight:700;color:var(--muted)">·</span>'+
-            '<span style="font-size:10px;font-weight:700;color:var(--muted)">'+esc(p.id_kpi)+'</span>'+
-            (k?'<span style="font-size:9px;background:var(--bg3);padding:1px 6px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
-          '</div>'+
-          '<div style="font-size:13px;font-weight:700;line-height:1.3">'+esc(p.acao||p.what||'Sem descrição')+'</div>'+
-        '</div>'+
-        '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0">'+
-          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(p.status||'Não iniciado')+'</span>'+
-          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(p.prioridade||'Média')+'</span>'+
-        '</div>'+
-      '</div>'+
-      // Problema / Causa raiz
-      (p.problema||p.why?'<div style="font-size:11px;color:var(--muted);background:var(--bg3);padding:6px 10px;border-radius:6px;line-height:1.5">'+
-        '<b>Problema:</b> '+esc(p.problema||p.why)+
-        (p.causa_raiz?'<br><b>Causa raiz:</b> '+esc(p.causa_raiz):'')+'</div>':'')+
-      // Responsável + prazo
-      '<div style="display:flex;gap:12px;font-size:11px;flex-wrap:wrap">'+
-        '<span>👤 <b>'+esc(p.responsavel||p.who||'—')+'</b>'+
-          (p.co_responsavel?'<span style="color:var(--muted)"> + '+esc(p.co_responsavel)+'</span>':'')+
-        '</span>'+
-        (p.prazo?'<span style="color:'+(atrasado?'var(--red)':venceBreve?'var(--amber)':'var(--muted)')+'">'+
-          '📅 '+(atrasado?'🚨 ATRASADO — ':venceHoje?'🔔 Vence HOJE — ':venceBreve?'⚠️ ':'')+fmtData(p.prazo)+
-          (dias!==null&&!atrasado&&dias>0?' ('+dias+'d)':'')+
-        '</span>':'')+
-      '</div>'+
-      // Barra de progresso
-      '<div>'+
-        '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">'+
-          '<span>Progresso</span><span style="font-weight:700;color:var(--text)">'+prog+'%</span>'+
-        '</div>'+
-        '<div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">'+
-          '<div style="height:100%;width:'+prog+'%;background:'+(prog>=100?'var(--green)':prog>=60?'#2563EB':'#D97706')+';border-radius:3px;transition:width .3s"></div>'+
-        '</div>'+
-      '</div>'+
-      // Comentários recentes
-      (hist.length?'<div style="font-size:10px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px">'+
-        '💬 <b>'+hist[0].autor+'</b> · '+fmtData(hist[0].ts.split('T')[0])+': '+esc(hist[0].txt.slice(0,80))+(hist[0].txt.length>80?'…':'')+
-      '</div>':'')+
-      // Ações
-      '<div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:8px">'+
-        '<button onclick="dmxOpenPlanoModal(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✏️ Editar</button>'+
-        '<button onclick="dmxAddComentario(\''+esc(p.id)+'\')" style="flex:1;padding:5px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer">💬 Comentar</button>'+
-        '<button onclick="dmxConcluirPlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#F0FDF4;color:var(--green);border:1px solid #86EFAC;border-radius:6px;font-size:11px;cursor:pointer" title="Marcar como concluído">✅</button>'+
-        '<button onclick="dmxDeletePlano(\''+esc(p.id)+'\')" style="padding:5px 8px;background:#FEF2F2;color:var(--red);border:1px solid #FCA5A5;border-radius:6px;font-size:11px;cursor:pointer" title="Remover">🗑️</button>'+
-      '</div>'+
+  function mc(titulo,valor,cor,bg){
+    return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:default">'+
+      '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">'+titulo+'</div>'+
+      '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
     '</div>';
   }
 
-  // ── Card de métrica ───────────────────────────────────────
-  function metCard(titulo, valor, sub, cor, bg){
-    return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:12px 14px">'+
-      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+titulo+'</div>'+
-      (valor?'<div style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;color:'+cor+'">'+valor+'</div>':'')+
-      '<div style="font-size:11px;color:var(--muted)">'+sub+'</div>'+
-    '</div>';
+  // ── Injetar filtro de flag na barra ───────────────────────
+  function injectFlagFilter(){
+    if(document.getElementById('plano-flag-filter')) return;
+    var bar=document.querySelector('#page-planos .filter-row'); if(!bar) return;
+    var sel=document.createElement('select');
+    sel.id='plano-flag-filter'; sel.className='filter-input'; sel.style.cssText='width:170px;margin:0';
+    sel.innerHTML='<option value="ativos">📋 Não concluídos</option>'+
+      '<option value="todos">🗂️ Todos</option>'+
+      '<option value="andamento">⏱️ Em andamento</option>'+
+      '<option value="pendentes">🔲 Não iniciados</option>'+
+      '<option value="concluidos">✅ Concluídos</option>';
+    sel.onchange=window.renderPlanos;
+    bar.insertBefore(sel, bar.querySelector('button'));
   }
 
-  // ── Modal de criação/edição ───────────────────────────────
-  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
-    var p = id ? allPlanos().find(function(x){ return x.id===id; })||{} : {};
-    var isEdit = !!id;
-    window._dmxEditingPlanoId = id||null;
-    var kpiOpts = (window.kpis||[]).map(function(k){
-      var sel = (kpiIdPreset&&k.id===kpiIdPreset)||(p.id_kpi&&k.id===p.id_kpi)?'selected':'';
-      return '<option value="'+esc(k.id)+'" '+sel+'>'+esc(k.id)+' — '+esc(k.indicador)+' ('+esc(k.area)+')</option>';
-    }).join('');
-    var prazoVal = p.prazo?String(p.prazo).split('T')[0]:'';
-    var hist = id?getHist(id):[];
-    var histHtml = hist.length ? hist.map(function(h){
-      return '<div style="padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px">'+
-        '<div style="font-size:10px;color:var(--muted);margin-bottom:2px"><b>'+esc(h.autor)+'</b> · '+fmtData(h.ts.split('T')[0])+'</div>'+
-        '<div style="font-size:12px">'+esc(h.txt)+'</div>'+
-      '</div>';
-    }).join('') : '<div style="color:var(--muted);font-size:12px;padding:8px">Nenhum comentário ainda.</div>';
+  // ── Abre tela de detalhe do plano ─────────────────────────
+  window.dmxAbrirDetalhePlano = function(gid){
+    var g=agruparPlanos().grupos[gid]; if(!g) return;
+    var k=getKPI(g.id_kpi);
+    var sg=statusGrupo(g), sc=statusCor(sg), pc=prioCor(g.prioridade);
 
-    var modal = document.getElementById('dmx-plano-modal-v2');
+    var modal=document.getElementById('dmx-detalhe-plano');
     if(!modal){
-      modal = document.createElement('div');
-      modal.id = 'dmx-plano-modal-v2';
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+      modal=document.createElement('div');
+      modal.id='dmx-detalhe-plano';
+      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
       document.body.appendChild(modal);
-      modal.onclick = function(e){ if(e.target===modal) modal.style.display='none'; };
+      modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; };
     }
 
-    modal.innerHTML =
-      '<div style="background:var(--bg);border-radius:14px;max-width:680px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
-        '<div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">'+(isEdit?'✏️ Editar Plano '+esc(id):'🆕 Novo Plano de Ação')+'</span>'+
-          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
+    var acoesRows=g.acoes.map(function(acao,idx){
+      var sca=statusCor(acao.status||'Não iniciado');
+      var dias=diasAte(acao.prazo);
+      var atrasada=acao.status!=='Concluído'&&acao.status!=='Cancelado'&&dias!==null&&dias<0;
+      var hist=getHist(acao.id||gid);
+      var ultimoComent=hist.length?hist[0]:null;
+      var prog=Number(acao.progresso||0);
+      if(acao.status==='Concluído') prog=100;
+      var progCor=prog>=100?'#16A34A':prog>=60?'#2563EB':'#D97706';
+      var barraHtml='<div style="margin-top:4px;display:flex;align-items:center;gap:6px">'+
+        '<div style="flex:1;height:7px;background:var(--bg3);border-radius:4px;overflow:hidden">'+
+          '<div style="height:100%;width:'+prog+'%;background:'+progCor+';border-radius:4px;transition:width .3s"></div>'+
         '</div>'+
-        '<div style="padding:18px 22px;display:flex;flex-direction:column;gap:12px">'+
-          // KPI
-          '<div><div class="card-label">KPI Vinculado</div>'+
-          '<select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
-          // Problema + Ação
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Problema (o que está errado)</div>'+
-            '<textarea id="pv2-problema" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.problema||p.why||'')+'</textarea></div>'+
-            '<div><div class="card-label">Ação a tomar</div>'+
-            '<textarea id="pv2-acao" class="filter-input" style="width:100%;height:72px;resize:vertical">'+esc(p.acao||p.what||'')+'</textarea></div>'+
-          '</div>'+
-          // Causa raiz
-          '<div><div class="card-label">Causa Raiz</div>'+
-          '<input id="pv2-causa" class="filter-input" style="width:100%" value="'+esc(p.causa_raiz||'')+'"></div>'+
-          // Responsáveis + Prioridade
-          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Responsável</div>'+
-            '<input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
-            '<div><div class="card-label">Co-responsável</div>'+
-            '<input id="pv2-coresp" class="filter-input" style="width:100%" value="'+esc(p.co_responsavel||'')+'"></div>'+
-            '<div><div class="card-label">Prioridade</div>'+
-            '<select id="pv2-prio" class="filter-input" style="width:100%">'+
-            ['Alta','Média','Baixa'].map(function(x){ return '<option '+(p.prioridade===x?'selected':'')+'>'+x+'</option>'; }).join('')+
-            '</select></div>'+
-          '</div>'+
-          // Prazo + Progresso + Status
-          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Prazo</div>'+
-            '<input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+prazoVal+'"></div>'+
-            '<div><div class="card-label">Progresso %</div>'+
-            '<input id="pv2-prog" class="filter-input" type="number" min="0" max="100" style="width:100%" value="'+esc(p.progresso||0)+'"></div>'+
-            '<div><div class="card-label">Status</div>'+
-            '<select id="pv2-status" class="filter-input" style="width:100%">'+
-            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
-            '</select></div>'+
-          '</div>'+
-          // Novo comentário
-          '<div style="border-top:1px solid var(--border);padding-top:12px">'+
-            '<div class="card-label">Adicionar comentário / atualização</div>'+
-            '<div style="display:flex;gap:8px">'+
-              '<input id="pv2-comentario" class="filter-input" style="flex:1" placeholder="Digite um comentário...">'+
-              '<button onclick="dmxSalvarComentarioModal()" style="padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Adicionar</button>'+
-            '</div>'+
-          '</div>'+
-          // Histórico
-          (isEdit?'<div><div class="card-label">Histórico ('+hist.length+')</div>'+
-          '<div style="max-height:160px;overflow-y:auto">'+histHtml+'</div></div>':'')+
+        '<span style="font-size:11px;font-weight:700;color:'+progCor+';min-width:30px">'+prog+'%</span>'+
+      '</div>';
+      return '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:10px 14px;font-size:13px;color:var(--text);font-weight:700;vertical-align:top">'+(idx+1).toString().padStart(2,'0')+'</td>'+
+        '<td style="padding:10px 14px;max-width:240px;vertical-align:top">'+
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(acao.acao||acao.what||'—')+'</div>'+
+          barraHtml+
+        '</td>'+
+        '<td style="padding:10px 14px;font-size:13px;color:var(--text);font-weight:500;vertical-align:top">'+esc(acao.responsavel||acao.who||'—')+'</td>'+
+        '<td style="padding:10px 14px;font-size:13px;font-weight:500;color:'+(atrasada?'#DC2626':dias!==null&&dias<=3&&acao.status!=='Concluído'?'#D97706':'var(--text)')+';white-space:nowrap;vertical-align:top">'+
+          (atrasada?'🚨 ':'')+(dias!==null&&!atrasada&&dias<=3&&acao.status!=='Concluído'?'⚠️ ':'')+fmtData(acao.prazo)+
+          (dias!==null&&!atrasada&&dias>0&&acao.status!=='Concluído'?'<div style="font-size:11px;color:#D97706">'+dias+' dias restantes</div>':'')+
+        '</td>'+
+        '<td style="padding:10px 14px;vertical-align:top">'+
+          '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
+        '</td>'+
+        '<td style="padding:10px 14px;font-size:12px;color:var(--text);max-width:220px;vertical-align:top">'+
+          (ultimoComent?'<div style="font-weight:600;color:var(--text)">'+esc(ultimoComent.autor)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted)">'+fmtData(ultimoComent.ts.split('T')[0])+'</div>'+
+          '<div style="font-size:12px;margin-top:2px">'+esc(ultimoComent.txt.slice(0,70))+(ultimoComent.txt.length>70?'…':'')+'</div>':'<span style="color:var(--muted)">—</span>')+
+        '</td>'+
+        '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">✏️ Editar</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">💬</button>'+
+          (acao.status!=='Concluído'?'<button onclick="event.stopPropagation();dmxConcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC;border-radius:6px;cursor:pointer;margin-bottom:3px">✅ Concluir</button>':'')+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    // Histórico de comentários de todas as ações
+    var todosHist=[];
+    g.acoes.forEach(function(a,i){
+      var h=getHist(a.id||gid);
+      h.forEach(function(c){ todosHist.push({c:c,acaoIdx:i+1,acaoDesc:(a.acao||a.what||'').slice(0,30)}); });
+    });
+    todosHist.sort(function(a,b){ return b.c.ts.localeCompare(a.c.ts); });
+    var histHtml=todosHist.slice(0,10).map(function(x){
+      return '<div style="padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px;font-size:11px">'+
+        '<span style="color:var(--muted)">Ação '+x.acaoIdx+' · <b>'+esc(x.c.autor)+'</b> · '+fmtData(x.c.ts.split('T')[0])+'</span><br>'+
+        esc(x.c.txt)+
+      '</div>';
+    }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
+
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:14px;max-width:900px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        // Header
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
+          '<span style="font-size:13px;font-weight:600">'+esc(k?k.indicador:g.id_kpi)+'</span>'+
+          (k?'<span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(g.prioridade)+'</span>'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(sg)+'</span>'+
+          '<div style="flex:1"></div>'+
+          '<button onclick="dmxNovaAcao(\''+esc(gid)+'\')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">+ Ação</button>'+
+          '<button onclick="dmxOpenPlanoModal(\''+esc(g.acoes[0]&&g.acoes[0].id||gid)+'\')" style="padding:5px 10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">✏️ Editar</button>'+
+          '<button onclick="document.getElementById(\'dmx-detalhe-plano\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0 4px">×</button>'+
         '</div>'+
-        '<div style="padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
-          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
-          '<button onclick="dmxSalvarPlanoV2()" class="btn btn-primary">💾 Salvar Plano</button>'+
+        // Info do plano
+        '<div style="padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px">'+
+          '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">Problema</div>'+
+          '<div style="color:var(--text);font-weight:500">'+esc(g.problema||'—')+'</div></div>'+
+          '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">Causa Raiz</div>'+
+          '<div style="color:var(--text);font-weight:500">'+esc(g.causa_raiz||'—')+'</div></div>'+
+        '</div>'+
+        // Tabela de ações
+        '<div style="overflow-x:auto">'+
+          '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+            '<thead><tr style="background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--text);font-weight:700;letter-spacing:.4px">'+
+              '<th style="padding:9px 14px;text-align:left;width:40px">#</th>'+
+              '<th style="padding:9px 14px;text-align:left">Ação / Progresso</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:140px">Responsável</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:130px">Prazo</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:130px">Status</th>'+
+              '<th style="padding:9px 14px;text-align:left">Último comentário</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:160px"></th>'+
+            '</tr></thead>'+
+            '<tbody>'+acoesRows+'</tbody>'+
+          '</table>'+
+        '</div>'+
+        // Histórico
+        '<div style="padding:14px 20px;border-top:1px solid var(--border)">'+
+          '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">💬 Histórico de comentários</div>'+
+          '<div style="max-height:200px;overflow-y:auto">'+histHtml+'</div>'+
         '</div>'+
       '</div>';
 
-    modal.style.display = 'flex';
+    modal.style.display='flex';
   };
 
-  // ── Salva comentário direto do modal ──────────────────────
-  window.dmxSalvarComentarioModal = function(){
-    var txt = (document.getElementById('pv2-comentario')||{}).value||'';
-    if(!txt.trim()) return;
-    var id = window._dmxEditingPlanoId;
-    if(id){ addHist(id, txt.trim(), getAutor()); }
-    document.getElementById('pv2-comentario').value='';
-    if(typeof showToast==='function') showToast('Comentário adicionado');
+  // ── Modal novo/editar plano ───────────────────────────────
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+    var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
+    var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
+    window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
+
+    // Planos existentes para vínculo
+    var g=agruparPlanos();
+    var outrosPlanos=g.ordem.filter(function(x){ return x!==gid; });
+    var vinculoOpts='<option value="">— Plano independente —</option>'+
+      outrosPlanos.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+
+    var kpiOpts=(window.kpis||[]).map(function(k){
+      var sel=(kpiIdPreset&&k.id===kpiIdPreset)||(p.id_kpi&&k.id===p.id_kpi)?'selected':'';
+      return '<option value="'+esc(k.id)+'" '+sel+'>'+esc(k.id)+' — '+esc(k.indicador)+' ('+esc(k.area)+')</option>';
+    }).join('');
+
+    var modal=document.getElementById('dmx-plano-modal-v2');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-plano-modal-v2'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
+
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:14px;max-width:620px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
+          '<div><div class="card-label">KPI Vinculado</div><select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Prioridade</div><select id="pv2-prio" class="filter-input" style="width:100%">'+
+              ['Alta','Média','Baixa'].map(function(x){ return '<option '+((grupo.prioridade||p.prioridade)===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+            '<div><div class="card-label">Vincular a plano existente</div>'+
+            '<select id="pv2-vinculo" class="filter-input" style="width:100%">'+vinculoOpts+'</select>'+
+            '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Primeira ação</div><input id="pv2-acao" class="filter-input" style="width:100%" value="'+esc(p.acao||p.what||'')+'" placeholder="Descreva..."></div>'+
+            '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
+            '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
+          '</div>'+
+          '<div><div class="card-label">Status da primeira ação</div><select id="pv2-status" class="filter-input" style="width:100%">'+
+            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+          '</select></div>'+
+        '</div>'+
+        '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarPlanoV2()" class="btn btn-primary">💾 Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
   };
 
   // ── Salva plano ───────────────────────────────────────────
   window.dmxSalvarPlanoV2 = async function(){
-    var id_kpi   = (document.getElementById('pv2-kpi')||{}).value||'';
-    var problema = (document.getElementById('pv2-problema')||{}).value||'';
-    var acao     = (document.getElementById('pv2-acao')||{}).value||'';
-    var causa    = (document.getElementById('pv2-causa')||{}).value||'';
-    var resp     = (document.getElementById('pv2-resp')||{}).value||'';
-    var coresp   = (document.getElementById('pv2-coresp')||{}).value||'';
-    var prio     = (document.getElementById('pv2-prio')||{}).value||'Média';
-    var prazo    = (document.getElementById('pv2-prazo')||{}).value||'';
-    var prog     = Number((document.getElementById('pv2-prog')||{}).value||0);
-    var status   = (document.getElementById('pv2-status')||{}).value||'Não iniciado';
-    var coment   = (document.getElementById('pv2-comentario')||{}).value||'';
+    var id_kpi  =(document.getElementById('pv2-kpi')||{}).value||'';
+    var problema=(document.getElementById('pv2-problema')||{}).value||'';
+    var causa   =(document.getElementById('pv2-causa')||{}).value||'';
+    var prio    =(document.getElementById('pv2-prio')||{}).value||'Média';
+    var vinculo =(document.getElementById('pv2-vinculo')||{}).value||'';
+    var acao    =(document.getElementById('pv2-acao')||{}).value||'';
+    var resp    =(document.getElementById('pv2-resp')||{}).value||'';
+    var prazo   =(document.getElementById('pv2-prazo')||{}).value||'';
+    var status  =(document.getElementById('pv2-status')||{}).value||'Não iniciado';
 
     if(!id_kpi){ alert('Selecione o KPI.'); return; }
-    if(!acao.trim()){ alert('Informe a ação a tomar.'); return; }
+    if(!acao.trim()&&!vinculo){ alert('Informe a ação ou selecione um vínculo.'); return; }
 
-    var k = getKPI(id_kpi);
-    var editId = window._dmxEditingPlanoId;
-    var data = {
-      id_kpi:id_kpi, kpi_nome:k?k.indicador:'', area:k?k.area:'',
-      problema:problema, what:acao, acao:acao, why:problema,
-      causa_raiz:causa,
-      responsavel:resp, who:resp, co_responsavel:coresp,
-      prioridade:prio, prazo:prazo, progresso:prog, status:status,
-      atualizado_em: new Date().toISOString()
-    };
+    if(!Array.isArray(window.planos)) window.planos=(typeof planos!=='undefined'&&Array.isArray(planos))?planos:[];
+    syncPlanos();
 
-    // Garante que window.planos está sincronizado com a variável local
-    if(!Array.isArray(window.planos)) window.planos = (typeof planos!=='undefined' && Array.isArray(planos)) ? planos : [];
-    try{ planos = window.planos; }catch(e){}
+    var k=getKPI(id_kpi);
+    var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
+    var mes=window.currentMes||5, ano=window.currentAno||2026;
+    var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
 
     if(editId){
-      var i = window.planos.findIndex(function(p){ return p.id===editId; });
-      if(i>=0) window.planos[i] = Object.assign({}, window.planos[i], data);
+      var i=window.planos.findIndex(function(p){ return p.id===editId; });
+      if(i>=0) Object.assign(window.planos[i],{problema:problema,causa_raiz:causa,prioridade:prio,
+        acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
+        plano_vinculado:vinculo||null,atualizado_em:new Date().toISOString()});
     } else {
-      data.id = nextPlanoId();
-      data.criado_em = new Date().toISOString();
-      window.planos.push(data);
+      var novaAcao={
+        id:gid+'-001',id_plano:gid,id_kpi:id_kpi,
+        kpi_nome:k?k.indicador:'',area:k?k.area:'',
+        problema:problema,why:problema,causa_raiz:causa,prioridade:prio,
+        acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
+        plano_vinculado:vinculo||null,progresso:0,
+        criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()
+      };
+      window.planos.push(novaAcao);
     }
-    // Mantém sync
-    try{ planos = window.planos; }catch(e){}
-
-    if(coment.trim()) addHist(editId||data.id, coment.trim(), getAutor());
-
-    // Persiste
+    syncPlanos();
     if(typeof persist==='function') persist();
-
-    // Sheets
-    var api = typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
     if(api){
-      var row = Object.assign({}, editId?window.planos.find(function(p){ return p.id===editId; }):data);
-      api('salvarPlano', row).catch(function(){});
+      var item=window.planos.find(function(p){ return (p.id_plano||p.id)===gid; });
+      if(item) api('salvarPlano',item).catch(function(){});
     }
-
     document.getElementById('dmx-plano-modal-v2').style.display='none';
     window.renderPlanos();
     if(typeof showToast==='function') showToast('✓ Plano salvo');
   };
 
-  // ── Comentário rápido (botão no card) ────────────────────
-  window.dmxAddComentario = function(id){
-    var txt = prompt('Comentário / atualização:');
-    if(!txt||!txt.trim()) return;
-    addHist(id, txt.trim(), getAutor());
-    // Atualiza progresso se digitou "% XX"
-    var m = txt.match(/%\s*(\d+)/);
-    if(m){
-      var i = window.planos.findIndex(function(p){ return p.id===id; });
-      if(i>=0){ window.planos[i].progresso=Number(m[1]); if(typeof persist==='function') persist(); }
+  // ── Nova ação ─────────────────────────────────────────────
+  window.dmxNovaAcao = function(gid){
+    var g=agruparPlanos().grupos[gid]; if(!g) return;
+    window._dmxAcaoGrupoId=gid; window._dmxAcaoIdx=null;
+    var modal=document.getElementById('dmx-acao-modal');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-acao-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:12px;max-width:520px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
+        '<div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span id="acao-modal-titulo" style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" style="background:none;border:none;font-size:18px;cursor:pointer">×</button>'+
+        '</div>'+
+        '<div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">'+
+          '<div><div class="card-label">Descrição</div><input id="acao-desc" class="filter-input" style="width:100%" placeholder="O que deve ser feito?"></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Responsável</div><input id="acao-resp" class="filter-input" style="width:100%"></div>'+
+            '<div><div class="card-label">Prazo</div><input id="acao-prazo" class="filter-input" type="date" style="width:100%"></div>'+
+            '<div><div class="card-label">Status</div><select id="acao-status" class="filter-input" style="width:100%">'+
+              ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+            '<div><div class="card-label">% Progresso</div><input id="acao-prog" class="filter-input" type="number" min="0" max="100" style="width:100%" placeholder="0" value="0"></div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarAcao()" class="btn btn-primary">💾 Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
+  };
+
+  window.dmxEditarAcao=function(gid,idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    var acao=g.acoes[idx]; window.dmxNovaAcao(gid);
+    setTimeout(function(){
+      window._dmxAcaoIdx=idx;
+      var t=document.getElementById('acao-modal-titulo'); if(t) t.textContent='✏️ Editar Ação — '+gid;
+      var d=document.getElementById('acao-desc'); if(d) d.value=acao.acao||acao.what||'';
+      var r=document.getElementById('acao-resp'); if(r) r.value=acao.responsavel||acao.who||'';
+      var p=document.getElementById('acao-prazo'); if(p) p.value=acao.prazo?String(acao.prazo).split('T')[0]:'';
+      var s=document.getElementById('acao-status'); if(s) s.value=acao.status||'Não iniciado';
+      var pg=document.getElementById('acao-prog'); if(pg) pg.value=acao.progresso||0;
+    },50);
+  };
+
+  window.dmxSalvarAcao=function(){
+    var gid=window._dmxAcaoGrupoId, idx=window._dmxAcaoIdx;
+    var desc=(document.getElementById('acao-desc')||{}).value||'';
+    var resp=(document.getElementById('acao-resp')||{}).value||'';
+    var prazo=(document.getElementById('acao-prazo')||{}).value||'';
+    var st=(document.getElementById('acao-status')||{}).value||'Não iniciado';
+    var prog=Number((document.getElementById('acao-prog')||{}).value||0);
+    // Se status Concluído, força 100%
+    if(st==='Concluído') prog=100;
+    if(!desc.trim()){ alert('Informe a descrição.'); return; }
+    if(!Array.isArray(window.planos)) window.planos=[];
+    syncPlanos();
+    var g=agruparPlanos().grupos[gid]; if(!g){ document.getElementById('dmx-acao-modal').style.display='none'; return; }
+    if(idx!==null&&idx!==undefined&&g.acoes[idx]){
+      var i=window.planos.findIndex(function(p){ return p.id===g.acoes[idx].id; });
+      if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
+    } else {
+      var num=g.acoes.length+1;
+      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,id_kpi:g.id_kpi,kpi_nome:g.id_kpi,area:g.area||'',
+        problema:g.problema,causa_raiz:g.causa_raiz,prioridade:g.prioridade,
+        acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,
+        criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()});
     }
+    syncPlanos();
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var item=idx!==null&&idx!==undefined&&g.acoes[idx]?window.planos.find(function(p){ return p.id===g.acoes[idx].id; }):window.planos[window.planos.length-1];
+      if(item) api('salvarPlano',item).catch(function(){});
+    }
+    document.getElementById('dmx-acao-modal').style.display='none';
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Ação salva');
+  };
+
+  window.dmxAddComentAcao=function(acaoId){
+    var txt=prompt('Comentário:'); if(!txt||!txt.trim()) return;
+    addHist(acaoId,txt.trim(),getAutor());
     window.renderPlanos();
     if(typeof showToast==='function') showToast('Comentário adicionado');
   };
 
-  // ── Concluir rapidamente ─────────────────────────────────
-  window.dmxConcluirPlano = function(id){
-    if(!confirm('Marcar plano '+id+' como concluído?')) return;
-    var i = window.planos.findIndex(function(p){ return p.id===id; });
-    if(i>=0){
-      window.planos[i].status='Concluído';
-      window.planos[i].progresso=100;
-      window.planos[i].atualizado_em=new Date().toISOString();
-      addHist(id,'Plano marcado como concluído.',getAutor());
-      if(typeof persist==='function') persist();
-      var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
-      if(api) api('salvarPlano',window.planos[i]).catch(function(){});
-    }
+  window.dmxConcluirAcao=function(gid,idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    var acaoRef=g.acoes[idx];
+    var i=window.planos.findIndex(function(p){ return p.id===acaoRef.id; });
+    if(i>=0){ window.planos[i].status='Concluído'; window.planos[i].atualizado_em=new Date().toISOString(); addHist(acaoRef.id,'Ação concluída.',getAutor()); syncPlanos(); if(typeof persist==='function') persist(); var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null; if(api) api('salvarPlano',window.planos[i]).catch(function(){}); }
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
     window.renderPlanos();
-    if(typeof showToast==='function') showToast('✓ Plano concluído!');
+    if(typeof showToast==='function') showToast('✓ Ação concluída!');
   };
 
-  // ── Deletar ───────────────────────────────────────────────
-  window.dmxDeletePlano = function(id){
-    if(!confirm('Remover plano '+id+'? Esta ação não pode ser desfeita.')) return;
-    window.planos = window.planos.filter(function(p){ return p.id!==id; });
+  window.dmxDeletePlanoGrupo=function(gid){
+    if(!confirm('Remover plano '+gid+' e todas as ações?')) return;
+    window.planos=window.planos.filter(function(p){ return (p.id_plano||p.id)!==gid; });
+    syncPlanos();
     if(typeof persist==='function') persist();
     var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
-    if(api) api('salvarPlano',{id:id,excluir:true}).catch(function(){});
+    if(api) api('salvarPlano',{id:gid,id_plano:gid,excluir:true,deleted:true}).catch(function(){});
     window.renderPlanos();
     if(typeof showToast==='function') showToast('Plano removido');
   };
 
-  // ── Badge de pendências ───────────────────────────────────
-  window.updatePlanosBadge = function(){
-    var el = document.getElementById('planos-badge'); if(!el) return;
-    var n = allPlanos().filter(function(p){
-      return p.status==='Em andamento'||
-             (p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&diasAte(p.prazo)<0);
-    }).length;
-    el.textContent = n||'';
-    el.style.background = n>0?'var(--red)':'';
+  window.updatePlanosBadge=function(){
+    var el=document.getElementById('planos-badge'); if(!el) return;
+    var g=agruparPlanos();
+    var n=g.ordem.filter(function(gid){ var sg=statusGrupo(g.grupos[gid]); return sg==='Em andamento'||sg==='Atrasado'||sg==='Não iniciado'; }).length;
+    el.textContent=n||'';
+    el.style.background=n>0?'var(--red)':'';
   };
 
-  // ── Compatibilidade com funções antigas ──────────────────
-  window.openNewPlano = function(){ dmxOpenPlanoModal(null,null); };
-  window.openNewPlanoForKPI = function(kpiId){ dmxOpenPlanoModal(null,kpiId); };
-  window.openEditPlano = function(id){ dmxOpenPlanoModal(id,null); };
-  window.savePlano = function(){ dmxSalvarPlanoV2(); };
-  window.deletePlano = function(id){ dmxDeletePlano(id); };
+  window.openNewPlano=function(){ dmxOpenPlanoModal(null,null); };
+  window.openNewPlanoForKPI=function(kpiId){ dmxOpenPlanoModal(null,kpiId); };
+  window.openEditPlano=function(id){ dmxAbrirDetalhePlano(id); };
+  window.savePlano=function(){ dmxSalvarPlanoV2(); };
+  window.deletePlano=function(id){ dmxDeletePlanoGrupo(id); };
 
-  // ── CSS ───────────────────────────────────────────────────
-  if(!document.getElementById('dmx-planos-v2-css')){
-    var s=document.createElement('style'); s.id='dmx-planos-v2-css';
-    s.textContent='.plano-card-v2:hover{box-shadow:0 4px 16px rgba(0,0,0,.10)!important;transform:translateY(-1px);transition:all .15s}';
-    document.head.appendChild(s);
-  }
+  // Injetar filtro de flag
+  setTimeout(function(){
+    injectFlagFilter();
+    window.renderPlanos();
+  },500);
 
-  console.log('[DMX] Planos de Ação v2 instalado');
+  console.log('[DMX] Planos de Ação v4 — lista compacta + detalhe + vínculo + triângulos por mês');
 })();
 
 </script>
 
+
+<!-- PATCH segurança — MutationObserver + heartbeat de sessão -->
+<script id="dmx-auth-hardening">
+(function(){
+  'use strict';
+  var SESSION_KEY = 'dmx_session_v41';
+
+  function isSessionValid(){
+    try{
+      var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s || !s.email || !s.loginEm) return false;
+      // Expira após 8 horas
+      if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function enforceLock(){
+    if(!isSessionValid()){
+      document.body.classList.add('dmx-auth-locked');
+      var o = document.getElementById('dmx-login-overlay');
+      if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); }
+      // Limpa sessão expirada/corrompida
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('dmx_usuario_email');
+      localStorage.removeItem('dmx_current_user_email');
+    }
+  }
+
+  // Heartbeat a cada 5 segundos
+  setInterval(enforceLock, 5000);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    // Re-trava se alguém remover a classe do body via DevTools
+    new MutationObserver(function(){ enforceLock(); }).observe(document.body, {
+      attributes: true, attributeFilter: ['class']
+    });
+    // Re-verifica ao voltar para a aba
+    document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) enforceLock();
+    });
+  });
+
+  console.log('[DMX] Auth hardening ativo');
+})();
+</script>
 </body>
 </html>
 
@@ -17342,5 +17514,631 @@ setTimeout(()=>{
 <!-- PATCH v82 — Planos de Ação v2 -->
 
 
+
+
+<!-- PATCH v82 — Planos de Ação v3 (múltiplas ações + tabela + ID automático) -->
+
+
+
+
+<!-- PATCH v82 — Planos de Ação v4 -->
+<script>
+(function(){
+  if(window.__dmxPlanosV4) return;
+  window.__dmxPlanosV4 = true;
+
+  var HIST_KEY = 'dmx_planos_hist_v2';
+  var MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var MESES_SHORT = ['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function today(){ return new Date().toISOString().split('T')[0]; }
+  function diasAte(prazo){ if(!prazo) return null; return Math.ceil((new Date(prazo)-new Date(today()))/86400000); }
+  function fmtData(d){ if(!d) return '—'; var p=String(d).split('T')[0].split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:d; }
+  function allPlanos(){ return Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]); }
+  function getKPI(id){ return (window.kpis||[]).find(function(k){ return k.id===id; })||null; }
+  function getAutor(){ try{ var s=JSON.parse(localStorage.getItem('dmx_session_v41')||'null'); return s?s.nome||s.email:'Usuário'; }catch(e){ return 'Usuário'; } }
+  function syncPlanos(){ try{ planos=window.planos; }catch(e){} }
+
+  function getHist(id){ try{ return (JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{})[id]||[]; }catch(e){ return []; } }
+  function addHist(id,txt,autor){ try{ var h=JSON.parse(localStorage.getItem(HIST_KEY)||'{}')||{}; if(!h[id]) h[id]=[]; h[id].unshift({txt:txt,autor:autor||getAutor(),ts:new Date().toISOString()}); if(h[id].length>50) h[id]=h[id].slice(0,50); localStorage.setItem(HIST_KEY,JSON.stringify(h)); }catch(e){} }
+
+  function gerarIdPlano(kpiId,mes,ano){
+    var m=Number(mes||window.currentMes||5), a=Number(ano||window.currentAno||2026);
+    return String(kpiId||'KPI').toUpperCase()+'-'+(MESES_SHORT[m]||'MES')+a;
+  }
+
+  function agruparPlanos(){
+    var ps=allPlanos(), grupos={}, ordem=[];
+    ps.forEach(function(p){
+      var gid=p.id_plano||p.id;
+      if(!grupos[gid]){
+        grupos[gid]={id_plano:gid,id_kpi:p.id_kpi,problema:p.problema||p.why||'',
+          causa_raiz:p.causa_raiz||'',prioridade:p.prioridade||'Média',
+          area:p.area||'',criado_em:p.criado_em||'',acoes:[]};
+        ordem.push(gid);
+      }
+      grupos[gid].acoes.push(p);
+    });
+    return {grupos:grupos,ordem:ordem};
+  }
+
+  function statusGrupo(grupo){
+    if(!grupo.acoes.length) return 'Não iniciado';
+    if(grupo.acoes.every(function(a){ return a.status==='Concluído'; })) return 'Concluído';
+    if(grupo.acoes.some(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; })) return 'Atrasado';
+    if(grupo.acoes.some(function(a){ return a.status==='Em andamento'; })) return 'Em andamento';
+    return 'Não iniciado';
+  }
+
+  function statusCor(s){
+    return s==='Concluído'?{bg:'#F0FDF4',txt:'#15803D'}:
+           s==='Em andamento'?{bg:'#EFF6FF',txt:'#1D4ED8'}:
+           s==='Atrasado'?{bg:'#FEF2F2',txt:'#DC2626'}:
+           s==='Cancelado'?{bg:'#FEF2F2',txt:'#DC2626'}:
+           {bg:'#F1F5F9',txt:'#475569'};
+  }
+  function prioCor(p){
+    return p==='Alta'?{bg:'#FEF2F2',txt:'#DC2626'}:p==='Baixa'?{bg:'#F0FDF4',txt:'#16A34A'}:{bg:'#FFF7ED',txt:'#D97706'};
+  }
+
+  function calcMetricas(){
+    var g=agruparPlanos(), total=g.ordem.length;
+    var concluidos=g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Concluído'; }).length;
+    var atrasados =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Atrasado';  }).length;
+    var andamento =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Em andamento'; }).length;
+    var semPlano  =(window.kpis||[]).filter(function(k){
+      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&
+             !allPlanos().some(function(p){ return p.id_kpi===k.id&&p.status!=='Concluído'&&p.status!=='Cancelado'; });
+    }).length;
+    return {total:total,concluidos:concluidos,atrasados:atrasados,andamento:andamento,semPlano:semPlano,
+            taxaConclusao:total?Math.round(concluidos/total*100):0};
+  }
+
+  // ── Renderiza lista compacta ──────────────────────────────
+  window.renderPlanos = function(){
+    var board=document.getElementById('planos-board'); if(!board) return;
+    var af  =(document.getElementById('plano-area-filter')||{}).value||'';
+    var pf  =(document.getElementById('plano-prio-filter')||{}).value||'';
+    var srch=((document.getElementById('plano-search')||{}).value||'').toLowerCase();
+    // Flag de status — padrão: não concluídos
+    var flagEl=document.getElementById('plano-flag-filter');
+    var flag=flagEl?flagEl.value:'ativos';
+    var met=calcMetricas(), g=agruparPlanos();
+
+    // Populate area filter
+    var areaSel=document.getElementById('plano-area-filter');
+    if(areaSel){
+      var cur=areaSel.value;
+      var areas=[...new Set(allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); }).filter(Boolean))].sort();
+      areaSel.innerHTML='<option value="">Todas as áreas</option>'+areas.map(function(a){ return '<option value="'+esc(a)+'"'+(a===cur?' selected':'')+'>'+esc(a)+'</option>'; }).join('');
+    }
+
+    // Métricas
+    var metrHtml='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px">'+
+      mc('📋 Total',met.total+' planos','var(--text)','var(--bg2)')+
+      mc('✅ Concluídos',met.taxaConclusao+'% — '+met.concluidos,'var(--green)','#F0FDF4')+
+      mc('⏱️ Andamento',met.andamento+' planos','#1D4ED8','#EFF6FF')+
+      mc('🚨 Atrasados',met.atrasados+' planos',met.atrasados>0?'var(--red)':'var(--muted)',met.atrasados>0?'#FEF2F2':'var(--bg2)')+
+      mc('⚠️ Sem plano',met.semPlano+' KPIs',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
+    '</div>';
+
+    // Gatilhos
+    var kpisComPlano={};
+    allPlanos().forEach(function(p){ if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlano[p.id_kpi]=true; });
+    var gatilhos=(window.kpis||[]).filter(function(k){
+      if(af&&k.area!==af) return false;
+      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&!kpisComPlano[k.id];
+    });
+    var gatHtml='';
+    if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
+      gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
+        gatilhos.map(function(k){
+          var l=typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
+          var ref=typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+          var real=l?l.realizado:'—', limite=k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
+          return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+            '<div style="font-size:12px;font-weight:600">'+esc(k.indicador)+'</div>'+
+            '<div style="font-size:10px;color:var(--muted)">Real: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div></div>'+
+            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
+          '</div>';
+        }).join('')+'</div></div>';
+    }
+
+    // Filtra grupos
+    var filtered=g.ordem.filter(function(gid){
+      var grupo=g.grupos[gid], k=getKPI(grupo.id_kpi);
+      var area=k?k.area:(grupo.area||'');
+      if(af&&area!==af) return false;
+      if(pf&&grupo.prioridade!==pf) return false;
+      var sg=statusGrupo(grupo);
+      if(flag==='ativos' && sg==='Concluído') return false;
+      if(flag==='andamento' && sg!=='Em andamento'&&sg!=='Atrasado') return false;
+      if(flag==='pendentes' && sg!=='Não iniciado') return false;
+      if(flag==='concluidos' && sg!=='Concluído') return false;
+      if(srch){
+        var txt=(gid+grupo.id_kpi+grupo.problema+(k?k.indicador:'')+
+          grupo.acoes.map(function(a){ return (a.responsavel||'')+(a.acao||''); }).join(' ')).toLowerCase();
+        if(!txt.includes(srch)) return false;
+      }
+      return true;
+    });
+
+    // Lista compacta
+    var listaHtml='';
+    if(filtered.length){
+      listaHtml='<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+          '<thead><tr style="background:var(--bg3);font-size:10px;text-transform:uppercase;color:var(--muted)">'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">ID do Plano</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">KPI</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Área</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Prioridade</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Status</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Ações</th>'+
+            '<th style="padding:8px 14px;text-align:left;font-weight:700">Criado em</th>'+
+          '</tr></thead>'+
+          '<tbody>'+
+          filtered.map(function(gid){
+            var grupo=g.grupos[gid], k=getKPI(grupo.id_kpi);
+            var sg=statusGrupo(grupo), sc=statusCor(sg), pc=prioCor(grupo.prioridade);
+            var nAcoes=grupo.acoes.length;
+            var nConcluidas=grupo.acoes.filter(function(a){ return a.status==='Concluído'; }).length;
+            var atrasadas=grupo.acoes.filter(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; }).length;
+            return '<tr class="plano-row" onclick="dmxAbrirDetalhePlano(\''+esc(gid)+'\')" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
+              '<td style="padding:9px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
+              '<td style="padding:9px 14px;max-width:200px;font-size:12px">'+esc(k?k.indicador:grupo.id_kpi)+'</td>'+
+              '<td style="padding:9px 14px"><span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k?k.area:grupo.area||'—')+'</span></td>'+
+              '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(grupo.prioridade)+'</span></td>'+
+              '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(sg)+'</span>'+
+                (atrasadas?'<span style="margin-left:4px;font-size:10px;color:var(--red)">🚨'+atrasadas+'</span>':'')+
+              '</td>'+
+              '<td style="padding:9px 14px;font-size:11px;color:var(--muted)">'+nConcluidas+'/'+nAcoes+' concluída'+(nAcoes!==1?'s':'')+'</td>'+
+              '<td style="padding:9px 14px;font-size:11px;color:var(--muted)">'+fmtData(grupo.criado_em?grupo.criado_em.split('T')[0]:'')+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody>'+
+        '</table>'+
+      '</div>';
+    } else if(!gatilhos.length) {
+      listaHtml='<div style="text-align:center;color:var(--muted);padding:48px;font-size:13px">✅ Nenhum plano nesta categoria.</div>';
+    }
+
+    board.innerHTML=metrHtml+gatHtml+listaHtml;
+    updatePlanosBadge();
+  };
+
+  function mc(titulo,valor,cor,bg){
+    return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:default">'+
+      '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">'+titulo+'</div>'+
+      '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
+    '</div>';
+  }
+
+  // ── Injetar filtro de flag na barra ───────────────────────
+  function injectFlagFilter(){
+    if(document.getElementById('plano-flag-filter')) return;
+    var bar=document.querySelector('#page-planos .filter-row'); if(!bar) return;
+    var sel=document.createElement('select');
+    sel.id='plano-flag-filter'; sel.className='filter-input'; sel.style.cssText='width:170px;margin:0';
+    sel.innerHTML='<option value="ativos">📋 Não concluídos</option>'+
+      '<option value="todos">🗂️ Todos</option>'+
+      '<option value="andamento">⏱️ Em andamento</option>'+
+      '<option value="pendentes">🔲 Não iniciados</option>'+
+      '<option value="concluidos">✅ Concluídos</option>';
+    sel.onchange=window.renderPlanos;
+    bar.insertBefore(sel, bar.querySelector('button'));
+  }
+
+  // ── Abre tela de detalhe do plano ─────────────────────────
+  window.dmxAbrirDetalhePlano = function(gid){
+    var g=agruparPlanos().grupos[gid]; if(!g) return;
+    var k=getKPI(g.id_kpi);
+    var sg=statusGrupo(g), sc=statusCor(sg), pc=prioCor(g.prioridade);
+
+    var modal=document.getElementById('dmx-detalhe-plano');
+    if(!modal){
+      modal=document.createElement('div');
+      modal.id='dmx-detalhe-plano';
+      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto';
+      document.body.appendChild(modal);
+      modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; };
+    }
+
+    var acoesRows=g.acoes.map(function(acao,idx){
+      var sca=statusCor(acao.status||'Não iniciado');
+      var dias=diasAte(acao.prazo);
+      var atrasada=acao.status!=='Concluído'&&acao.status!=='Cancelado'&&dias!==null&&dias<0;
+      var hist=getHist(acao.id||gid);
+      var ultimoComent=hist.length?hist[0]:null;
+      var prog=Number(acao.progresso||0);
+      if(acao.status==='Concluído') prog=100;
+      var progCor=prog>=100?'#16A34A':prog>=60?'#2563EB':'#D97706';
+      var barraHtml='<div style="margin-top:4px;display:flex;align-items:center;gap:6px">'+
+        '<div style="flex:1;height:7px;background:var(--bg3);border-radius:4px;overflow:hidden">'+
+          '<div style="height:100%;width:'+prog+'%;background:'+progCor+';border-radius:4px;transition:width .3s"></div>'+
+        '</div>'+
+        '<span style="font-size:11px;font-weight:700;color:'+progCor+';min-width:30px">'+prog+'%</span>'+
+      '</div>';
+      return '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:10px 14px;font-size:13px;color:var(--text);font-weight:700;vertical-align:top">'+(idx+1).toString().padStart(2,'0')+'</td>'+
+        '<td style="padding:10px 14px;max-width:240px;vertical-align:top">'+
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(acao.acao||acao.what||'—')+'</div>'+
+          barraHtml+
+        '</td>'+
+        '<td style="padding:10px 14px;font-size:13px;color:var(--text);font-weight:500;vertical-align:top">'+esc(acao.responsavel||acao.who||'—')+'</td>'+
+        '<td style="padding:10px 14px;font-size:13px;font-weight:500;color:'+(atrasada?'#DC2626':dias!==null&&dias<=3&&acao.status!=='Concluído'?'#D97706':'var(--text)')+';white-space:nowrap;vertical-align:top">'+
+          (atrasada?'🚨 ':'')+(dias!==null&&!atrasada&&dias<=3&&acao.status!=='Concluído'?'⚠️ ':'')+fmtData(acao.prazo)+
+          (dias!==null&&!atrasada&&dias>0&&acao.status!=='Concluído'?'<div style="font-size:11px;color:#D97706">'+dias+' dias restantes</div>':'')+
+        '</td>'+
+        '<td style="padding:10px 14px;vertical-align:top">'+
+          '<span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;background:'+sca.bg+';color:'+sca.txt+'">'+esc(acao.status||'Não iniciado')+'</span>'+
+        '</td>'+
+        '<td style="padding:10px 14px;font-size:12px;color:var(--text);max-width:220px;vertical-align:top">'+
+          (ultimoComent?'<div style="font-weight:600;color:var(--text)">'+esc(ultimoComent.autor)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted)">'+fmtData(ultimoComent.ts.split('T')[0])+'</div>'+
+          '<div style="font-size:12px;margin-top:2px">'+esc(ultimoComent.txt.slice(0,70))+(ultimoComent.txt.length>70?'…':'')+'</div>':'<span style="color:var(--muted)">—</span>')+
+        '</td>'+
+        '<td style="padding:10px 14px;white-space:nowrap;vertical-align:top">'+
+          '<button onclick="event.stopPropagation();dmxEditarAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">✏️ Editar</button>'+
+          '<button onclick="event.stopPropagation();dmxAddComentAcao(&quot;'+esc(acao.id||gid)+'&quot;)" style="font-size:12px;padding:5px 10px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-right:4px;margin-bottom:3px">💬</button>'+
+          (acao.status!=='Concluído'?'<button onclick="event.stopPropagation();dmxConcluirAcao(&quot;'+esc(gid)+'&quot;,'+idx+')" style="font-size:12px;padding:5px 10px;background:#F0FDF4;color:#16A34A;border:1px solid #86EFAC;border-radius:6px;cursor:pointer;margin-bottom:3px">✅ Concluir</button>':'')+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    // Histórico de comentários de todas as ações
+    var todosHist=[];
+    g.acoes.forEach(function(a,i){
+      var h=getHist(a.id||gid);
+      h.forEach(function(c){ todosHist.push({c:c,acaoIdx:i+1,acaoDesc:(a.acao||a.what||'').slice(0,30)}); });
+    });
+    todosHist.sort(function(a,b){ return b.c.ts.localeCompare(a.c.ts); });
+    var histHtml=todosHist.slice(0,10).map(function(x){
+      return '<div style="padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px;font-size:11px">'+
+        '<span style="color:var(--muted)">Ação '+x.acaoIdx+' · <b>'+esc(x.c.autor)+'</b> · '+fmtData(x.c.ts.split('T')[0])+'</span><br>'+
+        esc(x.c.txt)+
+      '</div>';
+    }).join('') || '<div style="color:var(--muted);font-size:12px">Nenhum comentário ainda.</div>';
+
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:14px;max-width:900px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        // Header
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
+          '<span style="font-size:13px;font-weight:600">'+esc(k?k.indicador:g.id_kpi)+'</span>'+
+          (k?'<span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(g.prioridade)+'</span>'+
+          '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+sc.bg+';color:'+sc.txt+'">'+esc(sg)+'</span>'+
+          '<div style="flex:1"></div>'+
+          '<button onclick="dmxNovaAcao(\''+esc(gid)+'\')" style="padding:5px 12px;background:var(--teal);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">+ Ação</button>'+
+          '<button onclick="dmxOpenPlanoModal(\''+esc(g.acoes[0]&&g.acoes[0].id||gid)+'\')" style="padding:5px 10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">✏️ Editar</button>'+
+          '<button onclick="document.getElementById(\'dmx-detalhe-plano\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:0 4px">×</button>'+
+        '</div>'+
+        // Info do plano
+        '<div style="padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px">'+
+          '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">Problema</div>'+
+          '<div style="color:var(--text);font-weight:500">'+esc(g.problema||'—')+'</div></div>'+
+          '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:3px">Causa Raiz</div>'+
+          '<div style="color:var(--text);font-weight:500">'+esc(g.causa_raiz||'—')+'</div></div>'+
+        '</div>'+
+        // Tabela de ações
+        '<div style="overflow-x:auto">'+
+          '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+            '<thead><tr style="background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--text);font-weight:700;letter-spacing:.4px">'+
+              '<th style="padding:9px 14px;text-align:left;width:40px">#</th>'+
+              '<th style="padding:9px 14px;text-align:left">Ação / Progresso</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:140px">Responsável</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:130px">Prazo</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:130px">Status</th>'+
+              '<th style="padding:9px 14px;text-align:left">Último comentário</th>'+
+              '<th style="padding:9px 14px;text-align:left;width:160px"></th>'+
+            '</tr></thead>'+
+            '<tbody>'+acoesRows+'</tbody>'+
+          '</table>'+
+        '</div>'+
+        // Histórico
+        '<div style="padding:14px 20px;border-top:1px solid var(--border)">'+
+          '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">💬 Histórico de comentários</div>'+
+          '<div style="max-height:200px;overflow-y:auto">'+histHtml+'</div>'+
+        '</div>'+
+      '</div>';
+
+    modal.style.display='flex';
+  };
+
+  // ── Modal novo/editar plano ───────────────────────────────
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+    var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
+    var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
+    window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
+
+    // Planos existentes para vínculo
+    var g=agruparPlanos();
+    var outrosPlanos=g.ordem.filter(function(x){ return x!==gid; });
+    var vinculoOpts='<option value="">— Plano independente —</option>'+
+      outrosPlanos.map(function(x){ return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+
+    var kpiOpts=(window.kpis||[]).map(function(k){
+      var sel=(kpiIdPreset&&k.id===kpiIdPreset)||(p.id_kpi&&k.id===p.id_kpi)?'selected':'';
+      return '<option value="'+esc(k.id)+'" '+sel+'>'+esc(k.id)+' — '+esc(k.indicador)+' ('+esc(k.area)+')</option>';
+    }).join('');
+
+    var modal=document.getElementById('dmx-plano-modal-v2');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-plano-modal-v2'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
+
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:14px;max-width:620px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+        '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
+        '</div>'+
+        '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
+          '<div><div class="card-label">KPI Vinculado</div><select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Prioridade</div><select id="pv2-prio" class="filter-input" style="width:100%">'+
+              ['Alta','Média','Baixa'].map(function(x){ return '<option '+((grupo.prioridade||p.prioridade)===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+            '<div><div class="card-label">Vincular a plano existente</div>'+
+            '<select id="pv2-vinculo" class="filter-input" style="width:100%">'+vinculoOpts+'</select>'+
+            '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Primeira ação</div><input id="pv2-acao" class="filter-input" style="width:100%" value="'+esc(p.acao||p.what||'')+'" placeholder="Descreva..."></div>'+
+            '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
+            '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
+          '</div>'+
+          '<div><div class="card-label">Status da primeira ação</div><select id="pv2-status" class="filter-input" style="width:100%">'+
+            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+          '</select></div>'+
+        '</div>'+
+        '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarPlanoV2()" class="btn btn-primary">💾 Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
+  };
+
+  // ── Salva plano ───────────────────────────────────────────
+  window.dmxSalvarPlanoV2 = async function(){
+    var id_kpi  =(document.getElementById('pv2-kpi')||{}).value||'';
+    var problema=(document.getElementById('pv2-problema')||{}).value||'';
+    var causa   =(document.getElementById('pv2-causa')||{}).value||'';
+    var prio    =(document.getElementById('pv2-prio')||{}).value||'Média';
+    var vinculo =(document.getElementById('pv2-vinculo')||{}).value||'';
+    var acao    =(document.getElementById('pv2-acao')||{}).value||'';
+    var resp    =(document.getElementById('pv2-resp')||{}).value||'';
+    var prazo   =(document.getElementById('pv2-prazo')||{}).value||'';
+    var status  =(document.getElementById('pv2-status')||{}).value||'Não iniciado';
+
+    if(!id_kpi){ alert('Selecione o KPI.'); return; }
+    if(!acao.trim()&&!vinculo){ alert('Informe a ação ou selecione um vínculo.'); return; }
+
+    if(!Array.isArray(window.planos)) window.planos=(typeof planos!=='undefined'&&Array.isArray(planos))?planos:[];
+    syncPlanos();
+
+    var k=getKPI(id_kpi);
+    var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
+    var mes=window.currentMes||5, ano=window.currentAno||2026;
+    var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
+
+    if(editId){
+      var i=window.planos.findIndex(function(p){ return p.id===editId; });
+      if(i>=0) Object.assign(window.planos[i],{problema:problema,causa_raiz:causa,prioridade:prio,
+        acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
+        plano_vinculado:vinculo||null,atualizado_em:new Date().toISOString()});
+    } else {
+      var novaAcao={
+        id:gid+'-001',id_plano:gid,id_kpi:id_kpi,
+        kpi_nome:k?k.indicador:'',area:k?k.area:'',
+        problema:problema,why:problema,causa_raiz:causa,prioridade:prio,
+        acao:acao,what:acao,responsavel:resp,who:resp,prazo:prazo,status:status,
+        plano_vinculado:vinculo||null,progresso:0,
+        criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()
+      };
+      window.planos.push(novaAcao);
+    }
+    syncPlanos();
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var item=window.planos.find(function(p){ return (p.id_plano||p.id)===gid; });
+      if(item) api('salvarPlano',item).catch(function(){});
+    }
+    document.getElementById('dmx-plano-modal-v2').style.display='none';
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Plano salvo');
+  };
+
+  // ── Nova ação ─────────────────────────────────────────────
+  window.dmxNovaAcao = function(gid){
+    var g=agruparPlanos().grupos[gid]; if(!g) return;
+    window._dmxAcaoGrupoId=gid; window._dmxAcaoIdx=null;
+    var modal=document.getElementById('dmx-acao-modal');
+    if(!modal){ modal=document.createElement('div'); modal.id='dmx-acao-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10001;display:flex;align-items:center;justify-content:center;padding:20px'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
+    modal.innerHTML=
+      '<div style="background:var(--bg);border-radius:12px;max-width:520px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
+        '<div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+          '<span id="acao-modal-titulo" style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
+          '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" style="background:none;border:none;font-size:18px;cursor:pointer">×</button>'+
+        '</div>'+
+        '<div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">'+
+          '<div><div class="card-label">Descrição</div><input id="acao-desc" class="filter-input" style="width:100%" placeholder="O que deve ser feito?"></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">'+
+            '<div><div class="card-label">Responsável</div><input id="acao-resp" class="filter-input" style="width:100%"></div>'+
+            '<div><div class="card-label">Prazo</div><input id="acao-prazo" class="filter-input" type="date" style="width:100%"></div>'+
+            '<div><div class="card-label">Status</div><select id="acao-status" class="filter-input" style="width:100%">'+
+              ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option>'+x+'</option>'; }).join('')+
+            '</select></div>'+
+            '<div><div class="card-label">% Progresso</div><input id="acao-prog" class="filter-input" type="number" min="0" max="100" style="width:100%" placeholder="0" value="0"></div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+          '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
+          '<button onclick="dmxSalvarAcao()" class="btn btn-primary">💾 Salvar</button>'+
+        '</div>'+
+      '</div>';
+    modal.style.display='flex';
+  };
+
+  window.dmxEditarAcao=function(gid,idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    var acao=g.acoes[idx]; window.dmxNovaAcao(gid);
+    setTimeout(function(){
+      window._dmxAcaoIdx=idx;
+      var t=document.getElementById('acao-modal-titulo'); if(t) t.textContent='✏️ Editar Ação — '+gid;
+      var d=document.getElementById('acao-desc'); if(d) d.value=acao.acao||acao.what||'';
+      var r=document.getElementById('acao-resp'); if(r) r.value=acao.responsavel||acao.who||'';
+      var p=document.getElementById('acao-prazo'); if(p) p.value=acao.prazo?String(acao.prazo).split('T')[0]:'';
+      var s=document.getElementById('acao-status'); if(s) s.value=acao.status||'Não iniciado';
+      var pg=document.getElementById('acao-prog'); if(pg) pg.value=acao.progresso||0;
+    },50);
+  };
+
+  window.dmxSalvarAcao=function(){
+    var gid=window._dmxAcaoGrupoId, idx=window._dmxAcaoIdx;
+    var desc=(document.getElementById('acao-desc')||{}).value||'';
+    var resp=(document.getElementById('acao-resp')||{}).value||'';
+    var prazo=(document.getElementById('acao-prazo')||{}).value||'';
+    var st=(document.getElementById('acao-status')||{}).value||'Não iniciado';
+    var prog=Number((document.getElementById('acao-prog')||{}).value||0);
+    // Se status Concluído, força 100%
+    if(st==='Concluído') prog=100;
+    if(!desc.trim()){ alert('Informe a descrição.'); return; }
+    if(!Array.isArray(window.planos)) window.planos=[];
+    syncPlanos();
+    var g=agruparPlanos().grupos[gid]; if(!g){ document.getElementById('dmx-acao-modal').style.display='none'; return; }
+    if(idx!==null&&idx!==undefined&&g.acoes[idx]){
+      var i=window.planos.findIndex(function(p){ return p.id===g.acoes[idx].id; });
+      if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
+    } else {
+      var num=g.acoes.length+1;
+      window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,id_kpi:g.id_kpi,kpi_nome:g.id_kpi,area:g.area||'',
+        problema:g.problema,causa_raiz:g.causa_raiz,prioridade:g.prioridade,
+        acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,
+        criado_em:new Date().toISOString(),atualizado_em:new Date().toISOString()});
+    }
+    syncPlanos();
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api){
+      var item=idx!==null&&idx!==undefined&&g.acoes[idx]?window.planos.find(function(p){ return p.id===g.acoes[idx].id; }):window.planos[window.planos.length-1];
+      if(item) api('salvarPlano',item).catch(function(){});
+    }
+    document.getElementById('dmx-acao-modal').style.display='none';
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Ação salva');
+  };
+
+  window.dmxAddComentAcao=function(acaoId){
+    var txt=prompt('Comentário:'); if(!txt||!txt.trim()) return;
+    addHist(acaoId,txt.trim(),getAutor());
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Comentário adicionado');
+  };
+
+  window.dmxConcluirAcao=function(gid,idx){
+    var g=agruparPlanos().grupos[gid]; if(!g||!g.acoes[idx]) return;
+    var acaoRef=g.acoes[idx];
+    var i=window.planos.findIndex(function(p){ return p.id===acaoRef.id; });
+    if(i>=0){ window.planos[i].status='Concluído'; window.planos[i].atualizado_em=new Date().toISOString(); addHist(acaoRef.id,'Ação concluída.',getAutor()); syncPlanos(); if(typeof persist==='function') persist(); var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null; if(api) api('salvarPlano',window.planos[i]).catch(function(){}); }
+    var det=document.getElementById('dmx-detalhe-plano');
+    if(det&&det.style.display!=='none') window.dmxAbrirDetalhePlano(gid);
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('✓ Ação concluída!');
+  };
+
+  window.dmxDeletePlanoGrupo=function(gid){
+    if(!confirm('Remover plano '+gid+' e todas as ações?')) return;
+    window.planos=window.planos.filter(function(p){ return (p.id_plano||p.id)!==gid; });
+    syncPlanos();
+    if(typeof persist==='function') persist();
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(api) api('salvarPlano',{id:gid,id_plano:gid,excluir:true,deleted:true}).catch(function(){});
+    window.renderPlanos();
+    if(typeof showToast==='function') showToast('Plano removido');
+  };
+
+  window.updatePlanosBadge=function(){
+    var el=document.getElementById('planos-badge'); if(!el) return;
+    var g=agruparPlanos();
+    var n=g.ordem.filter(function(gid){ var sg=statusGrupo(g.grupos[gid]); return sg==='Em andamento'||sg==='Atrasado'||sg==='Não iniciado'; }).length;
+    el.textContent=n||'';
+    el.style.background=n>0?'var(--red)':'';
+  };
+
+  window.openNewPlano=function(){ dmxOpenPlanoModal(null,null); };
+  window.openNewPlanoForKPI=function(kpiId){ dmxOpenPlanoModal(null,kpiId); };
+  window.openEditPlano=function(id){ dmxAbrirDetalhePlano(id); };
+  window.savePlano=function(){ dmxSalvarPlanoV2(); };
+  window.deletePlano=function(id){ dmxDeletePlanoGrupo(id); };
+
+  // Injetar filtro de flag
+  setTimeout(function(){
+    injectFlagFilter();
+    window.renderPlanos();
+  },500);
+
+  console.log('[DMX] Planos de Ação v4 — lista compacta + detalhe + vínculo + triângulos por mês');
+})();
+
+</script>
+
+
+<!-- PATCH segurança — MutationObserver + heartbeat de sessão -->
+<script id="dmx-auth-hardening">
+(function(){
+  'use strict';
+  var SESSION_KEY = 'dmx_session_v41';
+
+  function isSessionValid(){
+    try{
+      var s = JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(!s || !s.email || !s.loginEm) return false;
+      // Expira após 8 horas
+      if(Date.now() - new Date(s.loginEm).getTime() > 8*60*60*1000) return false;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function enforceLock(){
+    if(!isSessionValid()){
+      document.body.classList.add('dmx-auth-locked');
+      var o = document.getElementById('dmx-login-overlay');
+      if(o){ o.classList.add('open'); o.setAttribute('aria-hidden','false'); }
+      // Limpa sessão expirada/corrompida
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('dmx_usuario_email');
+      localStorage.removeItem('dmx_current_user_email');
+    }
+  }
+
+  // Heartbeat a cada 5 segundos
+  setInterval(enforceLock, 5000);
+
+  document.addEventListener('DOMContentLoaded', function(){
+    // Re-trava se alguém remover a classe do body via DevTools
+    new MutationObserver(function(){ enforceLock(); }).observe(document.body, {
+      attributes: true, attributeFilter: ['class']
+    });
+    // Re-verifica ao voltar para a aba
+    document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) enforceLock();
+    });
+  });
+
+  console.log('[DMX] Auth hardening ativo');
+})();
+</script>
 </body>
 </html>
