@@ -984,6 +984,7 @@ const areaCharts = {};
 // A URL fica salva no navegador para evitar editar código.
 // Use a URL do Apps Script publicada como App da Web, terminando em /exec.
 const DMX_API_URL_KEY = 'dmx_google_sheets_api_url_v1';
+const DMX_API_KEY_RUNTIME = 'DMX-Capital-2026'; // Chave sistêmica de autenticação com o Apps Script
 let dmxApiStatus = { connected: false, loading: false, lastError: null, debug: null, counts: {kpis:0, kpisAplicados:0, mensal:0, semanal:0, catalogoLocal:0}, source: 'local' };
 window.dmxApiStatus = dmxApiStatus;
 
@@ -1125,7 +1126,8 @@ function dmxApiUrlWithTipo(url, tipo) {
   let result = base + (base.includes('?') ? '&' : '?') + 'tipo=' + encodeURIComponent(tipo);
   // Injeta chave de API em todas as chamadas
   try {
-    const key = (localStorage.getItem('dmx_api_key_v1')||'').trim();
+    // Tenta localStorage primeiro, depois variável global
+    const key = (localStorage.getItem('dmx_api_key_v1')||'').trim() || (window.DMX_API_KEY_RUNTIME||'');
     if (key) result += '&key=' + encodeURIComponent(key);
   } catch(e) {}
   return result;
