@@ -2761,9 +2761,11 @@ function saveLancamento() {
   const minRaw  = dmxNumBR(document.getElementById('lf-min')?.value);
   const maxRaw  = dmxNumBR(document.getElementById('lf-max')?.value);
   const obs     = document.getElementById('lf-obs')?.value ?? '';
-  const newMeta = metaRaw === null ? kpi.meta   : metaRaw;
-  const newMin  = minRaw  === null ? kpi.minimo : minRaw;
-  const newMax  = maxRaw  === null ? kpi.maximo : maxRaw;
+  const ex0 = getLaunch(id_kpi, mes, ano);
+  // Se campo vazio: preserva valor do lançamento existente → depois catálogo → 0
+  const newMeta = metaRaw !== null ? metaRaw : (ex0 && ex0.meta  != null && ex0.meta  !== 0 ? ex0.meta   : kpi.meta   ?? 0);
+  const newMin  = minRaw  !== null ? minRaw  : (ex0 && ex0.minimo!= null && ex0.minimo!== 0 ? ex0.minimo : kpi.minimo ?? 0);
+  const newMax  = maxRaw  !== null ? maxRaw  : (ex0 && ex0.maximo!= null && ex0.maximo!== 0 ? ex0.maximo : kpi.maximo ?? 0);
   // Persist observation to localStorage
   try { localStorage.setItem(obsKey(id_kpi, mes, ano), obs); } catch(e) {}
   const newSt  = calcStatus(kpi.sentido, real, newMeta);
@@ -3183,8 +3185,8 @@ function confirmImport() {
     if (!kpi) { errors++; return; }
     const ex = getLaunch(row.id, row.mes, row.ano);
     const newMeta = (row.meta   !== undefined && !isNaN(row.meta))   ? row.meta   : (ex ? ex.meta   : kpi.meta);
-    const newMin  = (row.minimo !== undefined && !isNaN(row.minimo)) ? row.minimo : (ex ? ex.minimo : kpi.minimo);
-    const newMax  = (row.maximo !== undefined && !isNaN(row.maximo)) ? row.maximo : (ex ? ex.maximo : kpi.maximo);
+    const newMin  = (row.minimo !== undefined && row.minimo !== null && !isNaN(row.minimo) && row.minimo !== 0) ? row.minimo : (ex && ex.minimo ? ex.minimo : kpi.minimo);
+    const newMax  = (row.maximo !== undefined && row.maximo !== null && !isNaN(row.maximo) && row.maximo !== 0) ? row.maximo : (ex && ex.maximo ? ex.maximo : kpi.maximo);
     const newReal = (row.realizado !== undefined) ? row.realizado : (ex ? ex.realizado : null);
     const newCom  = (row.comentario !== undefined) ? row.comentario : (ex ? ex.comentario : '');
     const newSt   = calcStatus(kpi.sentido, newReal, newMeta);
@@ -3611,8 +3613,8 @@ function confirmImport() {
     if (!kpi) { errors++; return; }
     const ex = getLaunch(row.id, row.mes, row.ano);
     const newMeta = (row.meta   !== undefined && !isNaN(row.meta))   ? row.meta   : (ex ? ex.meta   : kpi.meta);
-    const newMin  = (row.minimo !== undefined && !isNaN(row.minimo)) ? row.minimo : (ex ? ex.minimo : kpi.minimo);
-    const newMax  = (row.maximo !== undefined && !isNaN(row.maximo)) ? row.maximo : (ex ? ex.maximo : kpi.maximo);
+    const newMin  = (row.minimo !== undefined && row.minimo !== null && !isNaN(row.minimo) && row.minimo !== 0) ? row.minimo : (ex && ex.minimo ? ex.minimo : kpi.minimo);
+    const newMax  = (row.maximo !== undefined && row.maximo !== null && !isNaN(row.maximo) && row.maximo !== 0) ? row.maximo : (ex && ex.maximo ? ex.maximo : kpi.maximo);
     const newReal = (row.realizado !== undefined) ? row.realizado : (ex ? ex.realizado : null);
     const newCom  = (row.comentario !== undefined) ? row.comentario : (ex ? ex.comentario : '');
     const newSt   = calcStatus(kpi.sentido, newReal, newMeta);
@@ -16367,7 +16369,7 @@ setTimeout(()=>{
 
     // Gatilhos — por mês específico
     // Cada mês com KPI crítico sem plano próprio deve aparecer como gatilho
-    var anoGT=window.currentAno||2026, mesGT=window.currentMes||5;
+    var anoGT=window.currentAno||2026, mesGT=12; // Verifica o ano inteiro
     var MESES_GT=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
     // Monta mapa de (kpiId_MESANO) que já têm plano ativo
     var planosAtivos={};
@@ -17906,7 +17908,7 @@ setTimeout(()=>{
 
     // Gatilhos — por mês específico
     // Cada mês com KPI crítico sem plano próprio deve aparecer como gatilho
-    var anoGT=window.currentAno||2026, mesGT=window.currentMes||5;
+    var anoGT=window.currentAno||2026, mesGT=12; // Verifica o ano inteiro
     var MESES_GT=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
     // Monta mapa de (kpiId_MESANO) que já têm plano ativo
     var planosAtivos={};
