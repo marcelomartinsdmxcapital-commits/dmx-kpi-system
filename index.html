@@ -16380,11 +16380,15 @@ setTimeout(()=>{
       else planosAtivos[p.id_kpi+'_ANY']=true;
     });
     // KPIs críticos em qualquer mês do ano sem plano específico para aquele mês
+    // Apenas KPIs de vertente Meta geram necessidade de plano de ação
     var gatilhosMap={};  // kpiId_mesStr -> {kpi, mes, mesLabel}
     for(var gm2=1; gm2<=mesGT; gm2++){
       var mesStr2=MESES_GT[gm2]+anoGT;
       (window.kpis||[]).forEach(function(k){
         if(af&&k.area!==af) return;
+        // Apenas vertente Meta exige plano de ação
+        var vertente=String(k.vertente||'').trim();
+        if(vertente && vertente.toLowerCase()!=='meta') return;
         if(typeof isOutOfRange!=='function') return;
         if(!isOutOfRange(k,gm2,anoGT)) return;
         if(planosAtivos[k.id+'_'+mesStr2]) return;
@@ -16394,6 +16398,8 @@ setTimeout(()=>{
       });
     }
     var gatilhos=Object.values ? Object.values(gatilhosMap) : Object.keys(gatilhosMap).map(function(k){ return gatilhosMap[k]; });
+    // Ordena por mês
+    gatilhos.sort(function(a,b){ return a.mes-b.mes; });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
@@ -17913,11 +17919,15 @@ setTimeout(()=>{
       else planosAtivos[p.id_kpi+'_ANY']=true;
     });
     // KPIs críticos em qualquer mês do ano sem plano específico para aquele mês
+    // Apenas KPIs de vertente Meta geram necessidade de plano de ação
     var gatilhosMap={};  // kpiId_mesStr -> {kpi, mes, mesLabel}
     for(var gm2=1; gm2<=mesGT; gm2++){
       var mesStr2=MESES_GT[gm2]+anoGT;
       (window.kpis||[]).forEach(function(k){
         if(af&&k.area!==af) return;
+        // Apenas vertente Meta exige plano de ação
+        var vertente=String(k.vertente||'').trim();
+        if(vertente && vertente.toLowerCase()!=='meta') return;
         if(typeof isOutOfRange!=='function') return;
         if(!isOutOfRange(k,gm2,anoGT)) return;
         if(planosAtivos[k.id+'_'+mesStr2]) return;
@@ -17927,6 +17937,8 @@ setTimeout(()=>{
       });
     }
     var gatilhos=Object.values ? Object.values(gatilhosMap) : Object.keys(gatilhosMap).map(function(k){ return gatilhosMap[k]; });
+    // Ordena por mês
+    gatilhos.sort(function(a,b){ return a.mes-b.mes; });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
