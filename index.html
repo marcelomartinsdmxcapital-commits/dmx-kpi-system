@@ -6778,15 +6778,17 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
   window.dmxBuildMensalPayload = function(id_kpi, mes, ano){
     const kpi = getKPI(id_kpi) || {};
     const l = getLaunch(id_kpi, mes, ano) || {};
+    // nz: retorna valor apenas se não for null/undefined/0
+    const nz = (v, fb) => (v !== null && v !== undefined && v !== 0 && !isNaN(Number(v))) ? Number(v) : fb;
     return {
       id_kpi, ano, mes, mes_num: mes,
       area: l.area || kpi.area || '',
       indicador: l.indicador || kpi.indicador || '',
       unidade: l.unidade || kpi.unidade || '',
       sentido: l.sentido || kpi.sentido || 'Maior Melhor',
-      meta: n(l.meta, n(kpi.meta, null)),
-      minimo: n(l.minimo, n(kpi.minimo, null)),
-      maximo: n(l.maximo, n(kpi.maximo, null)),
+      meta:    nz(l.meta,    nz(kpi.meta,    null)),
+      minimo:  nz(l.minimo,  nz(kpi.minimo,  null)),
+      maximo:  nz(l.maximo,  nz(kpi.maximo,  null)),
       peso_ebitda: n(l.peso_ebitda, n(kpi.peso_ebitda, 0)),
       peso_indice: n(kpi.peso_indice, 0),
       realizado: n(l.realizado, null),
@@ -7815,18 +7817,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       window.__dmxSaveLancCriticalWrapped = true;
       const oldSave = window.saveLancamento;
       window.saveLancamento = saveLancamento = function(){
-        try{
-          if(window.editingLancId || typeof editingLancId !== 'undefined'){
-            const ctx = (typeof editingLancId !== 'undefined') ? editingLancId : null;
-            if(ctx && ctx.id_kpi){
-              const k = getKpi(ctx.id_kpi) || {};
-              const set=(id,val)=>{ const el=document.getElementById(id); if(el) el.value = (val ?? 0); };
-              set('lf-meta', k.meta ?? k.meta_padrao ?? 0);
-              set('lf-min', k.minimo ?? k.minimo_padrao ?? 0);
-              set('lf-max', k.maximo ?? k.maximo_padrao ?? 0);
-            }
-          }
-        }catch(e){}
+        // Removido: preenchia lf-min/lf-max com zeros do catálogo antes de salvar
+        // causando sobrescrita dos valores corretos do Dados_Mensais
         return oldSave.apply(this, arguments);
       };
     }
