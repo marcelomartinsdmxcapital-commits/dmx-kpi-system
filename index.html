@@ -7823,11 +7823,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const oldPayload = window.dmxBuildMensalPayload;
       window.dmxBuildMensalPayload = function(id_kpi, mes, ano){
         const p = oldPayload.apply(this, arguments) || {};
-        const k = getKpi(id_kpi) || {};
-        p.meta = num(k.meta ?? k.meta_padrao, p.meta);
-        p.minimo = num(k.minimo ?? k.minimo_padrao, p.minimo);
-        p.maximo = num(k.maximo ?? k.maximo_padrao, p.maximo);
-        p.meta_padrao = p.meta; p.minimo_padrao = p.minimo; p.maximo_padrao = p.maximo;
+        // NÃO sobrescreve meta/min/max com valores do catálogo
+        // Os valores de Dados_Mensais (já no payload) têm prioridade
+        // Catálogo só é usado se o payload não tiver valor algum
         return p;
       };
     }
@@ -16773,7 +16771,9 @@ setTimeout(()=>{
       var i=window.planos.findIndex(function(p){ return p.id===g.acoes[idx].id; });
       if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
     } else {
-      var num=g.acoes.length+1;
+      // Garante acao_num único usando o maior número existente + 1
+      var maxNum=g.acoes.reduce(function(mx,a){ return Math.max(mx,Number(a.acao_num||0)); },0);
+      var num=maxNum+1;
       var kpiObj2=typeof getKPI==='function'?getKPI(g.id_kpi):null;
       window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,acao_num:num,
         id_kpi:g.id_kpi,kpi_nome:kpiObj2?kpiObj2.indicador:g.id_kpi,area:g.area||'',
@@ -16977,7 +16977,7 @@ setTimeout(()=>{
     try{ planos=window.planos; }catch(e){}
     if(typeof persist==='function') persist();
     var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
-    if(api) api('salvarPlano',{id:acaoRef.id,excluir:true,deleted:true}).catch(function(){});
+    if(api) api('salvarPlano',{id:acaoRef.id,id_plano:acaoRef.id_plano||gid,excluir:true,deleted:true}).catch(function(){});
     // Recarrega o detalhe
     var det=document.getElementById('dmx-detalhe-plano');
     var grupos2=agruparPlanos().grupos;
@@ -18280,7 +18280,9 @@ setTimeout(()=>{
       var i=window.planos.findIndex(function(p){ return p.id===g.acoes[idx].id; });
       if(i>=0) Object.assign(window.planos[i],{acao:desc,what:desc,responsavel:resp,who:resp,prazo:prazo,status:st,progresso:prog,atualizado_em:new Date().toISOString()});
     } else {
-      var num=g.acoes.length+1;
+      // Garante acao_num único usando o maior número existente + 1
+      var maxNum=g.acoes.reduce(function(mx,a){ return Math.max(mx,Number(a.acao_num||0)); },0);
+      var num=maxNum+1;
       var kpiObj2=typeof getKPI==='function'?getKPI(g.id_kpi):null;
       window.planos.push({id:gid+'-'+String(num).padStart(3,'0'),id_plano:gid,acao_num:num,
         id_kpi:g.id_kpi,kpi_nome:kpiObj2?kpiObj2.indicador:g.id_kpi,area:g.area||'',
@@ -18484,7 +18486,7 @@ setTimeout(()=>{
     try{ planos=window.planos; }catch(e){}
     if(typeof persist==='function') persist();
     var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
-    if(api) api('salvarPlano',{id:acaoRef.id,excluir:true,deleted:true}).catch(function(){});
+    if(api) api('salvarPlano',{id:acaoRef.id,id_plano:acaoRef.id_plano||gid,excluir:true,deleted:true}).catch(function(){});
     // Recarrega o detalhe
     var det=document.getElementById('dmx-detalhe-plano');
     var grupos2=agruparPlanos().grupos;
