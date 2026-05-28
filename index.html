@@ -1644,7 +1644,9 @@ function buildSidebar() {
   const cont = document.getElementById('area-nav-items');
   if (!cont) return;
   cont.innerHTML = ''; // evita duplicar áreas quando o app reinicializa
+  const _HIDE1 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
   AREAS.forEach(area => {
+    if(_HIDE1.includes(area)) return;
     const div = document.createElement('div');
     div.className = 'nav-item'; div.dataset.page = 'area-detail'; div.dataset.area = area;
     div.innerHTML = '<span class="icon">\u25B8</span> ' + area;
@@ -8857,7 +8859,10 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   window.buildSidebar = buildSidebar = function(){
     const cont=document.getElementById('area-nav-items'); if(!cont) return;
     cont.innerHTML='';
+    // Áreas a ocultar da sidebar (CEO, Painel Financeiro, Painel Executivo são internos)
+    const SIDEBAR_HIDE = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
     (window.AREAS||[]).forEach(area=>{
+      if(SIDEBAR_HIDE.includes(area)) return; // nunca cria o item na sidebar
       const div=document.createElement('div'); div.className='nav-item'; div.dataset.page='area-detail'; div.dataset.area=area;
       div.innerHTML='<span class="icon">▸</span> '+area; div.onclick=function(){safeNav(this,area)};
       if(!canArea(area)) div.classList.add('dmx-hidden-by-role');
@@ -11005,7 +11010,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const next=allowed.map(norm).join('|');
     if(current===next) return;
     cont.innerHTML='';
-    allowed.forEach(area=>{
+    const _HIDE2 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+    allowed.filter(a=>!_HIDE2.includes(a)).forEach(area=>{
       const div=document.createElement('div'); div.className='nav-item'; div.dataset.page='area-detail'; div.dataset.area=area;
       div.innerHTML='<span class="icon">▸</span> '+area;
       div.onclick=function(){ if(typeof window.nav==='function') window.nav(this, area); };
@@ -16373,29 +16379,36 @@ setTimeout(()=>{
       if(mesAno.length===7) planosAtivos[p.id_kpi+'_'+mesAno]=true;
       else planosAtivos[p.id_kpi+'_ANY']=true;
     });
-    // KPIs críticos no mês atual sem plano para este mês
-    var gatilhos=(window.kpis||[]).filter(function(k){
-      if(af&&k.area!==af) return false;
-      if(typeof isOutOfRange!=='function') return false;
-      if(!isOutOfRange(k,mesGT,anoGT)) return false;
-      var mesStr=MESES_GT[mesGT]+anoGT;
-      // Tem plano específico para este mês ou plano genérico?
-      return !planosAtivos[k.id+'_'+mesStr]&&!planosAtivos[k.id+'_ANY'];
-    });
+    // KPIs críticos em qualquer mês do ano sem plano específico para aquele mês
+    var gatilhosMap={};  // kpiId_mesStr -> {kpi, mes, mesLabel}
+    for(var gm2=1; gm2<=mesGT; gm2++){
+      var mesStr2=MESES_GT[gm2]+anoGT;
+      (window.kpis||[]).forEach(function(k){
+        if(af&&k.area!==af) return;
+        if(typeof isOutOfRange!=='function') return;
+        if(!isOutOfRange(k,gm2,anoGT)) return;
+        if(planosAtivos[k.id+'_'+mesStr2]) return;
+        if(planosAtivos[k.id+'_ANY']) return;
+        var chave=k.id+'_'+mesStr2;
+        if(!gatilhosMap[chave]) gatilhosMap[chave]={kpi:k, mes:gm2, mesLabel:MESES_GT[gm2]+'/' + anoGT};
+      });
+    }
+    var gatilhos=Object.values ? Object.values(gatilhosMap) : Object.keys(gatilhosMap).map(function(k){ return gatilhosMap[k]; });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
         '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
-        gatilhos.map(function(k){
-          var l=typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
-          var ref=typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+        gatilhos.map(function(item){
+          var k=item.kpi||item, gm=item.mes||(window.currentMes||5), lbl=item.mesLabel||'';
+          var l=typeof getLaunch==='function'?getLaunch(k.id,gm,anoGT):null;
+          var ref=typeof resolveRef==='function'?resolveRef(k,gm,anoGT):{};
           var real=l?l.realizado:'—', limite=k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
           return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
-            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+(lbl?' · <span style="background:#FEF3C7;border-radius:4px;padding:1px 5px;font-size:10px">'+esc(lbl)+'</span>':'')+'</div>'+
             '<div style="font-size:12px;font-weight:600">'+esc(k.indicador)+'</div>'+
             '<div style="font-size:10px;color:var(--muted)">Real: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div></div>'+
-            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
+            '<button onclick="dmxOpenPlanoModal(null,&quot;'+esc(k.id)+'&quot;,'+gm+')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
           '</div>';
         }).join('')+'</div></div>';
     }
@@ -16620,7 +16633,7 @@ setTimeout(()=>{
   };
 
   // ── Modal novo/editar plano ───────────────────────────────
-  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){
     var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
     var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
     window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
@@ -16700,6 +16713,7 @@ setTimeout(()=>{
     var k=getKPI(id_kpi);
     var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
     var mes=window.currentMes||5, ano=window.currentAno||2026;
+    var mes=mesPreset||window.currentMes||5;
     var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
 
     if(editId){
@@ -17898,29 +17912,36 @@ setTimeout(()=>{
       if(mesAno.length===7) planosAtivos[p.id_kpi+'_'+mesAno]=true;
       else planosAtivos[p.id_kpi+'_ANY']=true;
     });
-    // KPIs críticos no mês atual sem plano para este mês
-    var gatilhos=(window.kpis||[]).filter(function(k){
-      if(af&&k.area!==af) return false;
-      if(typeof isOutOfRange!=='function') return false;
-      if(!isOutOfRange(k,mesGT,anoGT)) return false;
-      var mesStr=MESES_GT[mesGT]+anoGT;
-      // Tem plano específico para este mês ou plano genérico?
-      return !planosAtivos[k.id+'_'+mesStr]&&!planosAtivos[k.id+'_ANY'];
-    });
+    // KPIs críticos em qualquer mês do ano sem plano específico para aquele mês
+    var gatilhosMap={};  // kpiId_mesStr -> {kpi, mes, mesLabel}
+    for(var gm2=1; gm2<=mesGT; gm2++){
+      var mesStr2=MESES_GT[gm2]+anoGT;
+      (window.kpis||[]).forEach(function(k){
+        if(af&&k.area!==af) return;
+        if(typeof isOutOfRange!=='function') return;
+        if(!isOutOfRange(k,gm2,anoGT)) return;
+        if(planosAtivos[k.id+'_'+mesStr2]) return;
+        if(planosAtivos[k.id+'_ANY']) return;
+        var chave=k.id+'_'+mesStr2;
+        if(!gatilhosMap[chave]) gatilhosMap[chave]={kpi:k, mes:gm2, mesLabel:MESES_GT[gm2]+'/' + anoGT};
+      });
+    }
+    var gatilhos=Object.values ? Object.values(gatilhosMap) : Object.keys(gatilhosMap).map(function(k){ return gatilhosMap[k]; });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
         '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
-        gatilhos.map(function(k){
-          var l=typeof getLaunch==='function'?getLaunch(k.id,window.currentMes||5,window.currentAno||2026):null;
-          var ref=typeof resolveRef==='function'?resolveRef(k,window.currentMes||5,window.currentAno||2026):{};
+        gatilhos.map(function(item){
+          var k=item.kpi||item, gm=item.mes||(window.currentMes||5), lbl=item.mesLabel||'';
+          var l=typeof getLaunch==='function'?getLaunch(k.id,gm,anoGT):null;
+          var ref=typeof resolveRef==='function'?resolveRef(k,gm,anoGT):{};
           var real=l?l.realizado:'—', limite=k.sentido&&k.sentido.toLowerCase().indexOf('maior')>=0?ref.minimo:ref.maximo;
           return '<div style="background:#fff;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px">'+
-            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+'</div>'+
+            '<div><div style="font-size:11px;font-weight:700;color:#92400E">'+esc(k.id)+' · '+esc(k.area)+(lbl?' · <span style="background:#FEF3C7;border-radius:4px;padding:1px 5px;font-size:10px">'+esc(lbl)+'</span>':'')+'</div>'+
             '<div style="font-size:12px;font-weight:600">'+esc(k.indicador)+'</div>'+
             '<div style="font-size:10px;color:var(--muted)">Real: <b>'+esc(String(real))+'</b> · Limite: <b>'+esc(String(limite||'—'))+'</b></div></div>'+
-            '<button onclick="dmxOpenPlanoModal(null,\''+esc(k.id)+'\')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
+            '<button onclick="dmxOpenPlanoModal(null,&quot;'+esc(k.id)+'&quot;,'+gm+')" style="flex-shrink:0;padding:4px 10px;background:#D97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Criar</button>'+
           '</div>';
         }).join('')+'</div></div>';
     }
@@ -18145,7 +18166,7 @@ setTimeout(()=>{
   };
 
   // ── Modal novo/editar plano ───────────────────────────────
-  window.dmxOpenPlanoModal = function(id, kpiIdPreset){
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){
     var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
     var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
     window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
@@ -18225,6 +18246,7 @@ setTimeout(()=>{
     var k=getKPI(id_kpi);
     var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
     var mes=window.currentMes||5, ano=window.currentAno||2026;
+    var mes=mesPreset||window.currentMes||5;
     var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
 
     if(editId){
