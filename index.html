@@ -16323,10 +16323,25 @@ setTimeout(()=>{
     var concluidos=g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Concluído'; }).length;
     var atrasados =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Atrasado';  }).length;
     var andamento =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Em andamento'; }).length;
-    var semPlano  =(window.kpis||[]).filter(function(k){
-      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&
-             !allPlanos().some(function(p){ return p.id_kpi===k.id&&p.status!=='Concluído'&&p.status!=='Cancelado'; });
-    }).length;
+    var anoMet=window.currentAno||2026;
+    var MESES_MET=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    var planosAtivosMet={};
+    allPlanos().forEach(function(p){
+      if(p.status==='Concluído'||p.status==='Cancelado') return;
+      var gid=p.id_plano||p.id||''; var parts=gid.split('-'); var ma=parts[parts.length-1]||'';
+      if(ma.length===7) planosAtivosMet[p.id_kpi+'_'+ma]=true;
+      else planosAtivosMet[p.id_kpi+'_ANY']=true;
+    });
+    var semPlanoSet={};
+    for(var sm=1;sm<=12;sm++){
+      var msStr=MESES_MET[sm]+anoMet;
+      (window.kpis||[]).forEach(function(k){
+        if(!k.vertente||k.vertente.toLowerCase()!=='meta') return;
+        if(typeof isOutOfRange!=='function'||!isOutOfRange(k,sm,anoMet)) return;
+        if(!planosAtivosMet[k.id+'_'+msStr]&&!planosAtivosMet[k.id+'_ANY']) semPlanoSet[k.id+'_'+msStr]=true;
+      });
+    }
+    var semPlano=Object.keys(semPlanoSet).length;
     return {total:total,concluidos:concluidos,atrasados:atrasados,andamento:andamento,semPlano:semPlano,
             taxaConclusao:total?Math.round(concluidos/total*100):0};
   }
@@ -16346,7 +16361,12 @@ setTimeout(()=>{
     var areaSel=document.getElementById('plano-area-filter');
     if(areaSel){
       var cur=areaSel.value;
-      var areas=[...new Set(allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); }).filter(Boolean))].sort();
+      // Inclui áreas dos planos existentes + áreas com KPIs críticos (gatilhos)
+      var areasPlanos=allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); });
+      var areasGatilhos=(window.kpis||[]).filter(function(k){
+        return k.vertente&&k.vertente.toLowerCase()==='meta'&&typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026);
+      }).map(function(k){ return k.area||''; });
+      var areas=[...new Set([...areasPlanos,...areasGatilhos].filter(Boolean))].sort();
       areaSel.innerHTML='<option value="">Todas as áreas</option>'+areas.map(function(a){ return '<option value="'+esc(a)+'"'+(a===cur?' selected':'')+'>'+esc(a)+'</option>'; }).join('');
     }
 
@@ -16633,7 +16653,7 @@ setTimeout(()=>{
   };
 
   // ── Modal novo/editar plano ───────────────────────────────
-  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){ window._dmxPlanoMesPreset=mesPreset||null;
     var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
     var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
     window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
@@ -16712,8 +16732,9 @@ setTimeout(()=>{
 
     var k=getKPI(id_kpi);
     var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
-    var mes=window.currentMes||5, ano=window.currentAno||2026;
-    var mes=mesPreset||window.currentMes||5;
+    var ano=window.currentAno||2026;
+    var mes=window._dmxPlanoMesPreset||window.currentMes||5;
+    window._dmxPlanoMesPreset=null; // limpa após uso
     var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
 
     if(editId){
@@ -17862,10 +17883,25 @@ setTimeout(()=>{
     var concluidos=g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Concluído'; }).length;
     var atrasados =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Atrasado';  }).length;
     var andamento =g.ordem.filter(function(id){ return statusGrupo(g.grupos[id])==='Em andamento'; }).length;
-    var semPlano  =(window.kpis||[]).filter(function(k){
-      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&
-             !allPlanos().some(function(p){ return p.id_kpi===k.id&&p.status!=='Concluído'&&p.status!=='Cancelado'; });
-    }).length;
+    var anoMet=window.currentAno||2026;
+    var MESES_MET=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    var planosAtivosMet={};
+    allPlanos().forEach(function(p){
+      if(p.status==='Concluído'||p.status==='Cancelado') return;
+      var gid=p.id_plano||p.id||''; var parts=gid.split('-'); var ma=parts[parts.length-1]||'';
+      if(ma.length===7) planosAtivosMet[p.id_kpi+'_'+ma]=true;
+      else planosAtivosMet[p.id_kpi+'_ANY']=true;
+    });
+    var semPlanoSet={};
+    for(var sm=1;sm<=12;sm++){
+      var msStr=MESES_MET[sm]+anoMet;
+      (window.kpis||[]).forEach(function(k){
+        if(!k.vertente||k.vertente.toLowerCase()!=='meta') return;
+        if(typeof isOutOfRange!=='function'||!isOutOfRange(k,sm,anoMet)) return;
+        if(!planosAtivosMet[k.id+'_'+msStr]&&!planosAtivosMet[k.id+'_ANY']) semPlanoSet[k.id+'_'+msStr]=true;
+      });
+    }
+    var semPlano=Object.keys(semPlanoSet).length;
     return {total:total,concluidos:concluidos,atrasados:atrasados,andamento:andamento,semPlano:semPlano,
             taxaConclusao:total?Math.round(concluidos/total*100):0};
   }
@@ -17885,7 +17921,12 @@ setTimeout(()=>{
     var areaSel=document.getElementById('plano-area-filter');
     if(areaSel){
       var cur=areaSel.value;
-      var areas=[...new Set(allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); }).filter(Boolean))].sort();
+      // Inclui áreas dos planos existentes + áreas com KPIs críticos (gatilhos)
+      var areasPlanos=allPlanos().map(function(p){ var k=getKPI(p.id_kpi); return k?k.area:(p.area||''); });
+      var areasGatilhos=(window.kpis||[]).filter(function(k){
+        return k.vertente&&k.vertente.toLowerCase()==='meta'&&typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026);
+      }).map(function(k){ return k.area||''; });
+      var areas=[...new Set([...areasPlanos,...areasGatilhos].filter(Boolean))].sort();
       areaSel.innerHTML='<option value="">Todas as áreas</option>'+areas.map(function(a){ return '<option value="'+esc(a)+'"'+(a===cur?' selected':'')+'>'+esc(a)+'</option>'; }).join('');
     }
 
@@ -18172,7 +18213,7 @@ setTimeout(()=>{
   };
 
   // ── Modal novo/editar plano ───────────────────────────────
-  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){
+  window.dmxOpenPlanoModal = function(id, kpiIdPreset, mesPreset){ window._dmxPlanoMesPreset=mesPreset||null;
     var p=id?allPlanos().find(function(x){ return x.id===id||x.id_plano===id; })||{}:{};
     var gid=p.id_plano||id||''; var grupo=gid?agruparPlanos().grupos[gid]:{};
     window._dmxEditingPlanoId=id||null; window._dmxEditingGrupoId=gid||null;
@@ -18251,8 +18292,9 @@ setTimeout(()=>{
 
     var k=getKPI(id_kpi);
     var editGrupoId=window._dmxEditingGrupoId, editId=window._dmxEditingPlanoId;
-    var mes=window.currentMes||5, ano=window.currentAno||2026;
-    var mes=mesPreset||window.currentMes||5;
+    var ano=window.currentAno||2026;
+    var mes=window._dmxPlanoMesPreset||window.currentMes||5;
+    window._dmxPlanoMesPreset=null; // limpa após uso
     var gid=editGrupoId||gerarIdPlano(id_kpi,mes,ano);
 
     if(editId){
