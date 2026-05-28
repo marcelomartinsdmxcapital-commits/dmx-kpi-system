@@ -979,7 +979,7 @@ let kpis = dmxNormalizeCatalogAreas(KPI_CATALOG);
 window.kpis = kpis;
 try { dmxSaveCatalogToStorage(); } catch(e) {}
 const MES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-let AREAS = [...new Set(kpis.map(k => k.area))].sort(); window.AREAS = AREAS;
+let AREAS = [...new Set(kpis.map(k => k.area))].filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())).sort(); window.AREAS = AREAS;
 let PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
 function refreshDimensions() {
   try { dmxNormalizeCatalogAreas(kpis); } catch(e) {}
@@ -6472,7 +6472,7 @@ window.buildShareSection = function(kpiId){
       });
       if(Array.isArray(window.AREAS)){
         const uniq = [...new Set(window.AREAS.map(normArea).filter(Boolean))].sort();
-        window.AREAS = uniq;
+        window.AREAS = uniq.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim()));
         try { AREAS = uniq; } catch(e) {}
       }
     }catch(e){}
@@ -6544,7 +6544,7 @@ window.buildShareSection = function(kpiId){
       const filtered = businessAreas();
       try { window.AREAS = filtered; AREAS = filtered; } catch(e) {}
       oldBuildSidebar();
-      try { window.AREAS = saved; AREAS = saved; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
       ensureFinanceNav();
       removeFinanceFromAreaNav();
     };
@@ -6559,7 +6559,7 @@ window.buildShareSection = function(kpiId){
       const dataFiltered = Array.isArray(data) ? data.filter(l => !isFin(l.area)) : data;
       try { window.AREAS = filtered; AREAS = filtered; } catch(e) {}
       oldRenderAreaCards(containerId, dataFiltered, cols);
-      try { window.AREAS = saved; AREAS = saved; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
     };
   }
   // renderAreas também deve excluir Painel Financeiro
@@ -6568,9 +6568,9 @@ window.buildShareSection = function(kpiId){
     window.renderAreas = renderAreas = function(){
       normalizeFinanceData();
       const saved = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
-      try { window.AREAS = businessAreas(); AREAS = window.AREAS; } catch(e) {}
+      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
       oldRenderAreas();
-      try { window.AREAS = saved; AREAS = saved; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
     };
   }
   // Qualquer chamada para CEO passa a abrir Painel Financeiro; remove card/patch PPR acumulado dessa visão.
@@ -6601,9 +6601,9 @@ window.buildShareSection = function(kpiId){
     window.renderPPR = renderPPR = function(){
       normalizeFinanceData();
       const saved = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
-      try { window.AREAS = businessAreas(); AREAS = window.AREAS; } catch(e) {}
+      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
       oldRenderPPR();
-      try { window.AREAS = saved; AREAS = saved; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
       setTimeout(function(){
         document.querySelectorAll('#ppr-area-tables .block-card').forEach(card => {
           const head = card.querySelector('div[style*="font-family:Syne"]')?.textContent || card.textContent || '';
@@ -16673,7 +16673,7 @@ setTimeout(()=>{
     if(!modal){ modal=document.createElement('div'); modal.id='dmx-plano-modal-v2'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:620px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+      '<div style="background:var(--bg);border-radius:14px;max-width:860px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
           '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
@@ -16681,8 +16681,8 @@ setTimeout(()=>{
         '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
           '<div><div class="card-label">KPI Vinculado</div><select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
-            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
+            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
           '</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
             '<div><div class="card-label">Prioridade</div><select id="pv2-prio" class="filter-input" style="width:100%">'+
@@ -16693,7 +16693,7 @@ setTimeout(()=>{
             '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
           '</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Primeira ação</div><input id="pv2-acao" class="filter-input" style="width:100%" value="'+esc(p.acao||p.what||'')+'" placeholder="Descreva..."></div>'+
+            '<div><div class="card-label">Primeira ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:80px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
             '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
             '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
           '</div>'+
@@ -18233,7 +18233,7 @@ setTimeout(()=>{
     if(!modal){ modal=document.createElement('div'); modal.id='dmx-plano-modal-v2'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto'; document.body.appendChild(modal); modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; }; }
 
     modal.innerHTML=
-      '<div style="background:var(--bg);border-radius:14px;max-width:620px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
+      '<div style="background:var(--bg);border-radius:14px;max-width:860px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
           '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
@@ -18241,8 +18241,8 @@ setTimeout(()=>{
         '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
           '<div><div class="card-label">KPI Vinculado</div><select id="pv2-kpi" class="filter-input" style="width:100%">'+kpiOpts+'</select></div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
-            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:60px;resize:vertical">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
+            '<div><div class="card-label">Problema</div><textarea id="pv2-problema" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px">'+esc(grupo.problema||p.problema||p.why||'')+'</textarea></div>'+
+            '<div><div class="card-label">Causa Raiz</div><textarea id="pv2-causa" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px">'+esc(grupo.causa_raiz||p.causa_raiz||'')+'</textarea></div>'+
           '</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
             '<div><div class="card-label">Prioridade</div><select id="pv2-prio" class="filter-input" style="width:100%">'+
@@ -18253,7 +18253,7 @@ setTimeout(()=>{
             '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
           '</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Primeira ação</div><input id="pv2-acao" class="filter-input" style="width:100%" value="'+esc(p.acao||p.what||'')+'" placeholder="Descreva..."></div>'+
+            '<div><div class="card-label">Primeira ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:80px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
             '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
             '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
           '</div>'+
