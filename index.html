@@ -983,7 +983,8 @@ let AREAS = [...new Set(kpis.map(k => k.area))].filter(a=>!['CEO','Painel Financ
 let PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
 function refreshDimensions() {
   try { dmxNormalizeCatalogAreas(kpis); } catch(e) {}
-  AREAS = [...new Set(kpis.map(k => k.area).filter(a => String(a||'').trim() && String(a||'').trim() !== 'Mensal'))].sort(); window.AREAS = AREAS;
+  const _hideAreas = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+  AREAS = [...new Set(kpis.map(k => k.area).filter(a => { const s=String(a||'').trim(); return s && s !== 'Mensal' && !_hideAreas.includes(s); }))].sort(); window.AREAS = AREAS;
   PILARES = [...new Set(kpis.map(k => k.pilar))].sort();
 }
 let donutChart = null, trendChart = null, ebitdaBarChart = null;
@@ -16692,14 +16693,14 @@ setTimeout(()=>{
             '<select id="pv2-vinculo" class="filter-input" style="width:100%">'+vinculoOpts+'</select>'+
             '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
           '</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Primeira ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:80px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '<div><div class="card-label">Primeira Ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px">'+
             '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
             '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
+            '<div><div class="card-label">Status</div><select id="pv2-status" class="filter-input" style="width:100%">'+
+              ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
           '</div>'+
-          '<div><div class="card-label">Status da primeira ação</div><select id="pv2-status" class="filter-input" style="width:100%">'+
-            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
-          '</select></div>'+
         '</div>'+
         '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
@@ -18252,14 +18253,14 @@ setTimeout(()=>{
             '<select id="pv2-vinculo" class="filter-input" style="width:100%">'+vinculoOpts+'</select>'+
             '<div style="font-size:10px;color:var(--muted);margin-top:3px">Se vinculado, este mês herda o status do plano indicado</div></div>'+
           '</div>'+
-          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">'+
-            '<div><div class="card-label">Primeira ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:80px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '<div><div class="card-label">Primeira Ação</div><textarea id="pv2-acao" class="filter-input" style="width:100%;height:90px;resize:vertical;font-size:13px" placeholder="Descreva a ação a ser tomada...">'+esc(p.acao||p.what||'')+'</textarea></div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px">'+
             '<div><div class="card-label">Responsável</div><input id="pv2-resp" class="filter-input" style="width:100%" value="'+esc(p.responsavel||p.who||'')+'"></div>'+
             '<div><div class="card-label">Prazo</div><input id="pv2-prazo" class="filter-input" type="date" style="width:100%" value="'+(p.prazo?String(p.prazo).split('T')[0]:'')+'"></div>'+
+            '<div><div class="card-label">Status</div><select id="pv2-status" class="filter-input" style="width:100%">'+
+              ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
+            '</select></div>'+
           '</div>'+
-          '<div><div class="card-label">Status da primeira ação</div><select id="pv2-status" class="filter-input" style="width:100%">'+
-            ['Não iniciado','Em andamento','Concluído','Cancelado'].map(function(x){ return '<option '+(p.status===x?'selected':'')+'>'+x+'</option>'; }).join('')+
-          '</select></div>'+
         '</div>'+
         '<div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" class="btn btn-ghost">Cancelar</button>'+
