@@ -8,6 +8,15 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style id="dmx-hide-areas-static">
+  /* Oculta CEO e Painel Financeiro da seção ÁREA — permanente */
+  .nav-item[data-area="CEO"],
+  .nav-item[data-area="Painel Financeiro"],
+  .nav-item[data-area="Painel Executivo"],
+  .nav-item[data-area="__fin_interno__"] {
+    display: none !important;
+  }
+</style>
 <title>DMX Capital · Sistema de Gestão de Performance v82</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -16350,12 +16359,28 @@ setTimeout(()=>{
       mc('⚠️ Sem plano',met.semPlano+' KPIs',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
     '</div>';
 
-    // Gatilhos
-    var kpisComPlano={};
-    allPlanos().forEach(function(p){ if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlano[p.id_kpi]=true; });
+    // Gatilhos — por mês específico
+    // Cada mês com KPI crítico sem plano próprio deve aparecer como gatilho
+    var anoGT=window.currentAno||2026, mesGT=window.currentMes||5;
+    var MESES_GT=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    // Monta mapa de (kpiId_MESANO) que já têm plano ativo
+    var planosAtivos={};
+    allPlanos().forEach(function(p){
+      if(p.status==='Concluído'||p.status==='Cancelado') return;
+      var gid=p.id_plano||p.id||'';
+      // Extrai mês do id_plano (ex: KPI001-MAI2026)
+      var parts=gid.split('-'); var mesAno=parts[parts.length-1]||'';
+      if(mesAno.length===7) planosAtivos[p.id_kpi+'_'+mesAno]=true;
+      else planosAtivos[p.id_kpi+'_ANY']=true;
+    });
+    // KPIs críticos no mês atual sem plano para este mês
     var gatilhos=(window.kpis||[]).filter(function(k){
       if(af&&k.area!==af) return false;
-      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&!kpisComPlano[k.id];
+      if(typeof isOutOfRange!=='function') return false;
+      if(!isOutOfRange(k,mesGT,anoGT)) return false;
+      var mesStr=MESES_GT[mesGT]+anoGT;
+      // Tem plano específico para este mês ou plano genérico?
+      return !planosAtivos[k.id+'_'+mesStr]&&!planosAtivos[k.id+'_ANY'];
     });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
@@ -17859,12 +17884,28 @@ setTimeout(()=>{
       mc('⚠️ Sem plano',met.semPlano+' KPIs',met.semPlano>0?'#D97706':'var(--muted)',met.semPlano>0?'#FFF7ED':'var(--bg2)')+
     '</div>';
 
-    // Gatilhos
-    var kpisComPlano={};
-    allPlanos().forEach(function(p){ if(p.status!=='Concluído'&&p.status!=='Cancelado') kpisComPlano[p.id_kpi]=true; });
+    // Gatilhos — por mês específico
+    // Cada mês com KPI crítico sem plano próprio deve aparecer como gatilho
+    var anoGT=window.currentAno||2026, mesGT=window.currentMes||5;
+    var MESES_GT=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    // Monta mapa de (kpiId_MESANO) que já têm plano ativo
+    var planosAtivos={};
+    allPlanos().forEach(function(p){
+      if(p.status==='Concluído'||p.status==='Cancelado') return;
+      var gid=p.id_plano||p.id||'';
+      // Extrai mês do id_plano (ex: KPI001-MAI2026)
+      var parts=gid.split('-'); var mesAno=parts[parts.length-1]||'';
+      if(mesAno.length===7) planosAtivos[p.id_kpi+'_'+mesAno]=true;
+      else planosAtivos[p.id_kpi+'_ANY']=true;
+    });
+    // KPIs críticos no mês atual sem plano para este mês
     var gatilhos=(window.kpis||[]).filter(function(k){
       if(af&&k.area!==af) return false;
-      return typeof isOutOfRange==='function'&&isOutOfRange(k,window.currentMes||5,window.currentAno||2026)&&!kpisComPlano[k.id];
+      if(typeof isOutOfRange!=='function') return false;
+      if(!isOutOfRange(k,mesGT,anoGT)) return false;
+      var mesStr=MESES_GT[mesGT]+anoGT;
+      // Tem plano específico para este mês ou plano genérico?
+      return !planosAtivos[k.id+'_'+mesStr]&&!planosAtivos[k.id+'_ANY'];
     });
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
