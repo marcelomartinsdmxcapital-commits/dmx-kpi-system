@@ -3903,61 +3903,251 @@ function dmx_updateDiretoriaBadge(){
   el.textContent = n ? n : '';
 }
 function renderDiretoria(){
-  const data = byPeriod(currentMes,currentAno);
-  const total = data.length;
-  const amarelos = data.filter(l=>l.status==='AMARELO').length;
-  const vermelhos = data.filter(l=>l.status==='VERMELHO').length;
-  const pos = data.filter(l=>l.impacto>0).reduce((s,l)=>s+(Number(l.impacto)||0),0);
-  const neg = data.filter(l=>l.impacto<0).reduce((s,l)=>s+(Number(l.impacto)||0),0);
-  const risco = Math.abs(neg);
-  const liq = pos + neg;
-  const plansOpen = planos.filter(p=>p.status!=='Concluído').length;
-  const atrasados = planos.filter(p=>String(p.status).toLowerCase().includes('atras')).length;
-  const top = [...data].filter(l=>l.status!=='VERDE' || dmx_riscoEBITDA(l)>0).sort((a,b)=>dmx_prioridade(b)-dmx_prioridade(a)).slice(0,8);
-  const areas = [...new Set(data.map(l=>l.area))].map(area=>{
-    const arr=data.filter(l=>l.area===area);
-    const riscoArea=arr.reduce((s,l)=>s+dmx_riscoEBITDA(l),0);
-    const crit=arr.filter(l=>l.status==='VERMELHO').length;
-    const alert=arr.filter(l=>l.status==='AMARELO').length;
-    return {area, riscoArea, crit, alert, qtd:arr.length};
-  }).sort((a,b)=>b.riscoArea-a.riscoArea || b.crit-a.crit).slice(0,6);
-  const msg1 = risco>0 ? 'Há KPIs em risco concentrado em '+(top[0]?.area||'áreas críticas')+'.' : 'Resultado líquido sob controle no período.';
-  const msg2 = vermelhos>0 ? vermelhos+' KPI(s) em condição crítica exigem decisão de gestão.' : 'Nenhum KPI crítico no mês selecionado.';
-  const msg3 = atrasados>0 ? atrasados+' plano(s) de ação atrasado(s) precisam de destravamento.' : 'Planos sem atraso relevante registrado.';
+  const mes = currentMes, ano = currentAno;
+  const MES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const MESES_SHORT = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = (v,u) => { if(v==null||isNaN(v)) return '—'; const n=Number(v); return (u==='%'?n.toFixed(1)+'%':u==='R$'?'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0}):n.toLocaleString('pt-BR')); };
+
+  // ── Dados base ─────────────────────────────────────────────
+  const kpisMeta = (window.kpis||[]).filter(k => String(k.vertente||'').toLowerCase()==='meta' && String(k.ativo||'SIM').toUpperCase()!=='NAO');
+  const data = byPeriod(mes, ano);
+
+  // KPIs Meta com dados no mês
+  const kpisComDado = kpisMeta.filter(k => { const l=getLaunch(k.id,mes,ano); return l&&l.realizado!=null; });
+  const total = kpisComDado.length;
+  const verdes    = kpisComDado.filter(k => { const l=getLaunch(k.id,mes,ano); return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='VERDE'; }).length;
+  const amarelos  = kpisComDado.filter(k => { const l=getLaunch(k.id,mes,ano); return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='AMARELO'; }).length;
+  const vermelhos = kpisComDado.filter(k => { const l=getLaunch(k.id,mes,ano); return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='VERMELHO'; }).length;
+  const atingMedio = total ? Math.round(verdes/total*100) : 0;
+
+  // Planos
+  const todosPlanos = typeof allPlanos==='function' ? allPlanos() : (Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]));
+  const MESES_GT = ['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+  const planosAtivos = {};
+  todosPlanos.forEach(p => {
+    if(p.status==='Concluído'||p.status==='Cancelado') return;
+    const gid=p.id_plano||p.id||''; const parts=gid.split('-'); const ma=parts[parts.length-1]||'';
+    if(ma.length===7) planosAtivos[p.id_kpi+'_'+ma]=true;
+    else planosAtivos[p.id_kpi+'_ANY']=true;
+  });
+
+  // KPIs Meta críticos sem plano (ano inteiro)
+  let semPlanoCount = 0;
+  const semPlanoKpis = [];
+  for(let m2=1; m2<=12; m2++){
+    const msStr = MESES_GT[m2]+ano;
+    kpisMeta.forEach(k => {
+      if(!isOutOfRange(k,m2,ano)) return;
+      if(planosAtivos[k.id+'_'+msStr]||planosAtivos[k.id+'_ANY']) return;
+      semPlanoCount++;
+      if(m2===mes) semPlanoKpis.push({kpi:k, mes:m2});
+    });
+  }
+
+  // Planos atrasados
+  const hoje = new Date().toISOString().split('T')[0];
+  const planosAtrasados = todosPlanos.filter(p => p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&p.prazo<hoje);
+  const planosAbertos = todosPlanos.filter(p => p.status!=='Concluído'&&p.status!=='Cancelado');
+
+  // KPIs crônicos (críticos em 2+ meses consecutivos)
+  const cronicosMap = {};
+  kpisMeta.forEach(k => {
+    let seq=0, maxSeq=0;
+    for(let m2=1; m2<=mes; m2++){
+      const l=getLaunch(k.id,m2,ano);
+      if(l&&l.realizado!=null&&calcStatus(k.sentido,l.realizado,resolveRef(k,m2,ano).meta)==='VERMELHO'){ seq++; maxSeq=Math.max(maxSeq,seq); }
+      else seq=0;
+    }
+    if(maxSeq>=2) cronicosMap[k.id]={kpi:k,meses:maxSeq};
+  });
+  const cronicos = Object.values(cronicosMap).sort((a,b)=>b.meses-a.meses);
+
+  // Atingimento por área
+  const areasData = {};
+  kpisComDado.forEach(k => {
+    const l=getLaunch(k.id,mes,ano), ref=resolveRef(k,mes,ano);
+    const st=calcStatus(k.sentido,l.realizado,ref.meta);
+    const at=calcAting(k.sentido,l.realizado,ref.meta);
+    if(!areasData[k.area]) areasData[k.area]={area:k.area,total:0,verde:0,amarelo:0,vermelho:0,atings:[]};
+    areasData[k.area].total++;
+    if(st==='VERDE') areasData[k.area].verde++;
+    else if(st==='AMARELO') areasData[k.area].amarelo++;
+    else if(st==='VERMELHO') areasData[k.area].vermelho++;
+    if(at!=null) areasData[k.area].atings.push(at);
+  });
+  const areasRank = Object.values(areasData).map(a=>{
+    a.atingMedio = a.atings.length ? Math.round(a.atings.reduce((s,v)=>s+v,0)/a.atings.length*100) : null;
+    a.saude = a.total ? Math.round(a.verde/a.total*100) : 0;
+    return a;
+  }).sort((a,b)=>a.saude-b.saude);
+
+  // KPIs que precisam de decisão da diretoria
+  const decisaoDir = kpisMeta.filter(k=>{
+    const l=getLaunch(k.id,mes,ano); if(!l||l.realizado==null) return false;
+    const st=calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta);
+    if(st!=='VERMELHO') return false;
+    const msStr=MESES_GT[mes]+ano;
+    const semPlano=!planosAtivos[k.id+'_'+msStr]&&!planosAtivos[k.id+'_ANY'];
+    const comAtraso=todosPlanos.some(p=>p.id_kpi===k.id&&p.status!=='Concluído'&&p.status!=='Cancelado'&&p.prazo&&p.prazo<hoje);
+    return semPlano||comAtraso;
+  }).map(k=>{
+    const l=getLaunch(k.id,mes,ano), ref=resolveRef(k,mes,ano);
+    const msStr=MESES_GT[mes]+ano;
+    const semPlano=!planosAtivos[k.id+'_'+msStr]&&!planosAtivos[k.id+'_ANY'];
+    const at=calcAting(k.sentido,l.realizado,ref.meta);
+    return {kpi:k,ating:at,semPlano,mesesCrit:cronicosMap[k.id]?cronicosMap[k.id].meses:1};
+  }).sort((a,b)=>a.ating-b.ating);
+
+  // ── Alerts / headlines automáticas ────────────────────────
+  const insights = [];
+  if(vermelhos===0 && amarelos===0) insights.push({tipo:'verde',txt:'Todos os KPIs Meta estão no verde em '+MES_LABEL[mes]+'. Performance excelente.'});
+  if(vermelhos>0){
+    const pior = [...kpisComDado].filter(k=>{const l=getLaunch(k.id,mes,ano);return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='VERMELHO';})
+      .sort((a,b)=>{const la=getLaunch(a.id,mes,ano),lb=getLaunch(b.id,mes,ano),ra=resolveRef(a,mes,ano),rb=resolveRef(b,mes,ano); return (calcAting(a.sentido,la.realizado,ra.meta)||1)-(calcAting(b.sentido,lb.realizado,rb.meta)||1);});
+    if(pior[0]) insights.push({tipo:'vermelho',txt:vermelhos+' KPI'+(vermelhos>1?'s':'')+' crítico'+(vermelhos>1?'s':'')+' no mês. O mais crítico: '+pior[0].indicador+' ('+pior[0].area+'). '+(semPlanoKpis.find(x=>x.kpi.id===pior[0].id)?'Sem plano de ação — requer decisão imediata.':'Plano em andamento.')});
+  }
+  if(cronicos.length>0) insights.push({tipo:'alerta',txt:cronicos.length+' KPI'+(cronicos.length>1?'s':'')+' com desvio em 2+ meses consecutivos: '+cronicos.slice(0,2).map(c=>c.kpi.indicador+' ('+c.meses+'m)').join(', ')+'.'});
+  if(semPlanoCount>0) insights.push({tipo:'alerta',txt:semPlanoCount+' ocorrência'+(semPlanoCount>1?'s':'')+' de KPI crítico sem plano de ação no ano. Risco de governança.'});
+  if(planosAtrasados.length>0) insights.push({tipo:'vermelho',txt:planosAtrasados.length+' plano'+(planosAtrasados.length>1?'s':'')+' de ação com prazo vencido. Requer destravamento ou replanejamento formal.'});
+  if(insights.length===0) insights.push({tipo:'verde',txt:'Operação sob controle. Nenhuma ação crítica pendente.'});
+
+  const corInsight = t => t==='verde'?'#16A34A':t==='vermelho'?'#DC2626':'#D97706';
+  const emojiInsight = t => t==='verde'?'✅':t==='vermelho'?'🚨':'⚠️';
+
+  // ── Semáforo de saúde por área ─────────────────────────────
+  const semaforoArea = a => {
+    if(a.saude>=80) return {cor:'#16A34A',label:'Saudável',bg:'#F0FDF4'};
+    if(a.saude>=50) return {cor:'#D97706',label:'Atenção',bg:'#FFF7ED'};
+    return {cor:'#DC2626',label:'Crítico',bg:'#FEF2F2'};
+  };
+
+  // ── Render ─────────────────────────────────────────────────
   document.getElementById('diretoria-content').innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px">
+  <div style="padding:0 0 24px">
+
+    <!-- Cabeçalho -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap">
       <div>
-        <div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo de Performance</div>
-        <div class="text-muted" style="font-size:12.5px;margin-top:4px">Visão diretoria · ${MES[currentMes]} ${currentAno} · KPI → Ação → Resultado</div>
+        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:3px">${MES_LABEL[mes]} ${ano} · Visão consolidada para a diretoria</div>
       </div>
       <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
     </div>
-    <div class="cards-row" style="grid-template-columns:repeat(5,1fr)">
-      ${card('red','KPIs em risco','R$ '+Math.round(risco).toLocaleString('pt-BR'),'red','Somatório dos desvios negativos',true)}
-      ${card(liq>=0?'green':'red','Saldo de performance',fmtImpact(liq),liq>=0?'green':'red','saldo dos KPIs',true)}
-      ${card('red','KPIs críticos',vermelhos,'red',total?Math.round(vermelhos/total*100)+'% da base':'—')}
-      ${card('amber','KPIs em alerta',amarelos,'amber',total?Math.round(amarelos/total*100)+'% da base':'—')}
-      ${card(atrasados?'red':'teal','Planos abertos',plansOpen,atrasados?'Atrasados: '+atrasados:'Sem atraso crítico')}
+
+    <!-- Cards de scorecard -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+      ${scoreCard('🎯 Atingimento','Meta','Meta','Meta',atingMedio+'%',total+' KPIs avaliados',atingMedio>=80?'#16A34A':atingMedio>=60?'#D97706':'#DC2626',atingMedio>=80?'#F0FDF4':atingMedio>=60?'#FFF7ED':'#FEF2F2')}
+      ${scoreCard('🟢 No Verde','','','',verdes,total?Math.round(verdes/total*100)+'% dos KPIs Meta':'—','#16A34A','#F0FDF4')}
+      ${scoreCard('🔴 Críticos','','','',vermelhos,total?Math.round(vermelhos/total*100)+'% dos KPIs Meta':'—',vermelhos>0?'#DC2626':'#16A34A',vermelhos>0?'#FEF2F2':'#F0FDF4')}
+      ${scoreCard('⚠️ Sem Plano','','','',semPlanoCount,'ocorrências no ano',semPlanoCount>0?'#D97706':'#16A34A',semPlanoCount>0?'#FFF7ED':'#F0FDF4')}
+      ${scoreCard('📋 Planos Abertos','','','',planosAbertos.length,planosAtrasados.length>0?planosAtrasados.length+' atrasado(s)':'Em dia',planosAtrasados.length>0?'#DC2626':'#16A34A',planosAtrasados.length>0?'#FEF2F2':'#F0FDF4')}
     </div>
-    <div class="two-col">
-      <div class="block-card" style="border-left:4px solid var(--teal)">
-        <div class="section-title" style="margin-bottom:10px">Headline executiva</div>
-        <div style="display:grid;gap:8px;font-size:13px;line-height:1.45"><div>➊ <strong>${dmx_escapeHtml(msg1)}</strong></div><div>➋ ${dmx_escapeHtml(msg2)}</div><div>➌ ${dmx_escapeHtml(msg3)}</div></div>
-      </div>
-      <div class="block-card" style="border-left:4px solid var(--blue)">
-        <div class="section-title" style="margin-bottom:10px">Decisões recomendadas para a reunião</div>
-        <div style="display:grid;gap:7px;font-size:12.5px;line-height:1.45"><div>• Atacar primeiro os KPIs com maior <strong>prioridade executiva</strong>, não apenas os vermelhos.</div><div>• Todo KPI vermelho sem plano deve sair da reunião com dono, prazo e ação 5W2H.</div><div>• Planos atrasados devem ser destravados pela diretoria ou replanejados formalmente.</div></div>
+
+    <!-- Insights automáticos -->
+    <div style="background:var(--bg3);border-radius:12px;padding:16px 20px;margin-bottom:20px;border:1px solid var(--border)">
+      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">🧠 Leitura executiva automática</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${insights.map((ins,i)=>`
+          <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:var(--bg);border-radius:8px;border-left:4px solid ${corInsight(ins.tipo)}">
+            <span style="font-size:16px;flex-shrink:0">${emojiInsight(ins.tipo)}</span>
+            <div style="font-size:13px;line-height:1.5;color:var(--text)">${esc(ins.txt)}</div>
+          </div>`).join('')}
       </div>
     </div>
-    <div class="section-header"><div class="section-title">Top prioridades executivas</div><span class="section-link">Score = KPIs em risco × criticidade</span></div>
-    <div class="table-wrap" style="margin-bottom:18px"><table class="data-table"><thead><tr><th>#</th><th>KPI</th><th>Área</th><th>Status</th><th>KPIs em risco</th><th>Prioridade</th><th>Classificação</th><th>Decisão sugerida</th></tr></thead><tbody>
-      ${top.map((l,i)=>`<tr style="cursor:pointer" onclick="openKPIModal('${l.id_kpi}')"><td class="font-mono text-muted">#${i+1}</td><td><span class="font-mono text-muted text-sm">${l.id_kpi}</span> ${dmx_escapeHtml(l.indicador)}</td><td><span class="tag tag-area">${dmx_escapeHtml(l.area)}</span></td><td>${pill(l.status)}</td><td style="font-weight:700;color:${dmx_riscoEBITDA(l)>0?'var(--red)':'var(--muted)'}">R$ ${Math.round(dmx_riscoEBITDA(l)).toLocaleString('pt-BR')}</td><td><strong>${dmx_prioridade(l).toLocaleString('pt-BR')}</strong></td><td>${dmx_escapeHtml(dmx_classificacao(l))}</td><td>${dmx_escapeHtml(dmx_decisao(l))}</td></tr>`).join('') || '<tr><td colspan="8" class="text-muted">Nenhuma prioridade crítica para o período.</td></tr>'}
-    </tbody></table></div>
-    <div class="two-col"><div><div class="section-header"><div class="section-title">Áreas que mais exigem atenção</div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Área</th><th>Críticos</th><th>Alertas</th><th>KPIs em risco</th><th>Direcionamento</th></tr></thead><tbody>
-      ${areas.map(a=>`<tr onclick="goToArea('${dmx_escapeHtml(a.area)}')" style="cursor:pointer"><td><strong>${dmx_escapeHtml(a.area)}</strong></td><td>${a.crit}</td><td>${a.alert}</td><td><strong>R$ ${Math.round(a.riscoArea).toLocaleString('pt-BR')}</strong></td><td>${a.crit?'Reunião de causa-raiz':'Monitorar tendência'}</td></tr>`).join('')}
-    </tbody></table></div></div><div class="block-card"><div class="section-title" style="margin-bottom:12px">Rito sugerido da reunião semanal</div><div style="display:grid;gap:10px;font-size:12.5px;line-height:1.45"><div><strong>1. Resultado:</strong> validar KPIs em risco e saldo de performance.</div><div><strong>2. Foco:</strong> discutir apenas top prioridades executivas.</div><div><strong>3. Causa:</strong> separar problema de dado, processo, cliente ou decisão comercial.</div><div><strong>4. Ação:</strong> atualizar plano 5W2H com responsável e prazo.</div><div><strong>5. Decisão:</strong> registrar bloqueios que dependem da diretoria.</div></div></div></div>`;
+
+    <!-- Saúde por área -->
+    <div style="margin-bottom:20px">
+      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📊 Saúde por área — ${MES_LABEL[mes]}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+        ${areasRank.map(a=>{const sf=semaforoArea(a); return `
+          <div style="background:${sf.bg};border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer" onclick="goToArea('${esc(a.area)}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <span style="font-size:12px;font-weight:700;color:var(--text)">${esc(a.area)}</span>
+              <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${sf.cor}20;color:${sf.cor}">${sf.label}</span>
+            </div>
+            <div style="display:flex;gap:2px;margin-bottom:6px">
+              <div style="height:6px;flex:${a.verde};background:#16A34A;border-radius:3px 0 0 3px"></div>
+              <div style="height:6px;flex:${a.amarelo};background:#D97706"></div>
+              <div style="height:6px;flex:${a.vermelho};background:#DC2626;border-radius:0 3px 3px 0"></div>
+            </div>
+            <div style="font-size:11px;color:var(--muted)">${a.verde}✅ ${a.amarelo}⚠️ ${a.vermelho}🔴 · ${a.total} KPIs</div>
+          </div>`;}).join('')}
+      </div>
+    </div>
+
+    <!-- KPIs que precisam de decisão -->
+    ${decisaoDir.length ? `
+    <div style="margin-bottom:20px">
+      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">🚨 KPIs que requerem decisão da diretoria</div>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700">
+            <th style="padding:9px 14px;text-align:left">KPI</th>
+            <th style="padding:9px 14px;text-align:left">Área</th>
+            <th style="padding:9px 14px;text-align:left">Atingimento</th>
+            <th style="padding:9px 14px;text-align:left">Meses críticos</th>
+            <th style="padding:9px 14px;text-align:left">Situação</th>
+            <th style="padding:9px 14px;text-align:left">Ação recomendada</th>
+          </tr></thead>
+          <tbody>
+            ${decisaoDir.map(d=>`
+              <tr style="border-top:1px solid var(--border)" onclick="openKPIModal('${esc(d.kpi.id)}')" style="cursor:pointer">
+                <td style="padding:10px 14px"><span style="font-size:11px;color:var(--muted)">${esc(d.kpi.id)}</span><br><strong>${esc(d.kpi.indicador)}</strong></td>
+                <td style="padding:10px 14px"><span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px">${esc(d.kpi.area)}</span></td>
+                <td style="padding:10px 14px;font-size:16px;font-weight:800;color:#DC2626">${d.ating!=null?Math.round(d.ating*100)+'%':'—'}</td>
+                <td style="padding:10px 14px">${d.mesesCrit>=3?'<span style="color:#DC2626;font-weight:700">'+d.mesesCrit+' meses 🔴</span>':d.mesesCrit>=2?'<span style="color:#D97706;font-weight:700">'+d.mesesCrit+' meses ⚠️</span>':'<span style="color:var(--muted)">1 mês</span>'}</td>
+                <td style="padding:10px 14px">${d.semPlano?'<span style="color:#DC2626;font-weight:700;font-size:12px">Sem plano de ação</span>':'<span style="color:#D97706;font-weight:700;font-size:12px">Plano atrasado</span>'}</td>
+                <td style="padding:10px 14px;font-size:12px;color:var(--text)">${d.semPlano?'Criar plano imediatamente com responsável e prazo definidos':'Destravamento ou replanejamento formal com novo prazo'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : `<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;color:#15803D;font-weight:600">✅ Nenhum KPI crítico requer decisão imediata da diretoria em ${MES_LABEL[mes]}.</div>`}
+
+    <!-- KPIs crônicos -->
+    ${cronicos.length ? `
+    <div style="margin-bottom:20px">
+      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📉 KPIs com desvio crônico (2+ meses consecutivos)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+        ${cronicos.slice(0,6).map(c=>{
+          const l=getLaunch(c.kpi.id,mes,ano), ref=resolveRef(c.kpi,mes,ano);
+          const at=l&&l.realizado!=null?Math.round(calcAting(c.kpi.sentido,l.realizado,ref.meta)*100):null;
+          return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;border-left:4px solid #DC2626">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">${esc(c.kpi.id)} · ${esc(c.kpi.area)}</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px">${esc(c.kpi.indicador)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11px;color:#DC2626;font-weight:700">${c.meses} meses consecutivos no vermelho</span>
+              <span style="font-size:16px;font-weight:800;color:${at!=null&&at>=90?'#D97706':'#DC2626'}">${at!=null?at+'%':'—'}</span>
+            </div>
+          </div>`;}).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Rito de reunião -->
+    <div style="background:var(--bg3);border-radius:12px;padding:16px 20px;border:1px solid var(--border)">
+      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">📋 Rito sugerido para reunião de resultados</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;font-size:12.5px">
+        ${[['1. Resultado','Validar o scorecard e identificar KPIs fora da meta'],['2. Foco','Discutir apenas KPIs críticos e crônicos — não todos'],['3. Causa','Separar problema de dado, processo, cliente ou decisão'],['4. Ação','Atualizar plano de ação com responsável e prazo firme'],['5. Decisão','Registrar bloqueios que dependem exclusivamente da diretoria']].map(([t,d])=>`
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+            <div style="font-weight:700;margin-bottom:3px">${t}</div>
+            <div style="color:var(--muted);line-height:1.4">${d}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+  </div>`;
   dmx_updateDiretoriaBadge();
 }
+
+function scoreCard(titulo,_a,_b,_c,valor,sub,cor,bg){
+  return `<div style="background:${bg};border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${titulo}</div>
+    <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:${cor}">${valor}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>
+  </div>`;
+}
+
 
 
 function parseDelimitedText(text) {
