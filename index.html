@@ -11963,59 +11963,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   setTimeout(boot,250); setTimeout(boot,1000);
 })();
 </script>
-<script id="dmx-v49-neutraliza-impacto-vop">
-(function(){
-  'use strict';
-  window.calcImpact=function(){ return 0; };
-  window.fmtImpact=function(){ return '—'; };
-  window.dmx_riscoEBITDA=function(){ return 0; };
-  window.dmx_prioridade=function(l){ return l && l.status==='VERMELHO' ? 3 : l && l.status==='AMARELO' ? 2 : 0; };
-  window.dmx_classificacao=function(l){ return l && l.status==='VERMELHO' ? 'Crítico operacional' : l && l.status==='AMARELO' ? 'Monitorar' : 'Em controle'; };
-  window.dmx_updateDiretoriaBadge=function(){
-    const el=document.getElementById('diretoria-badge'); if(!el) return;
-    const data=(typeof byPeriod==='function')?byPeriod(currentMes,currentAno):[];
-    const n=data.filter(l=>l.status==='VERMELHO').length; el.textContent=n?n:'';
-  };
-  window.renderDiretoria=function(){
-    const data=(typeof byPeriod==='function')?byPeriod(currentMes,currentAno):[];
-    const total=data.length;
-    const amarelos=data.filter(l=>l.status==='AMARELO').length;
-    const vermelhos=data.filter(l=>l.status==='VERMELHO').length;
-    const plansOpen=(window.planos||[]).filter(p=>p.status!=='Concluído').length;
-    const atrasados=(window.planos||[]).filter(p=>String(p.status).toLowerCase().includes('atras')).length;
-    const top=[...data].filter(l=>l.status==='VERMELHO'||l.status==='AMARELO').sort((a,b)=>window.dmx_prioridade(b)-window.dmx_prioridade(a)).slice(0,8);
-    const areas=[...new Set(data.map(l=>l.area).filter(Boolean))].map(area=>{
-      const arr=data.filter(l=>l.area===area);
-      return {area,crit:arr.filter(l=>l.status==='VERMELHO').length,alert:arr.filter(l=>l.status==='AMARELO').length,qtd:arr.length};
-    }).sort((a,b)=>b.crit-a.crit||b.alert-a.alert).slice(0,6);
-    const esc=(typeof dmx_escapeHtml==='function')?dmx_escapeHtml:(v=>String(v??''));
-    const root=document.getElementById('diretoria-content'); if(!root) return;
-    root.innerHTML=`
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px">
-        <div><div style="font-family:Syne,sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo de Performance</div><div class="text-muted" style="font-size:12.5px;margin-top:4px">Visão diretoria · ${MES[currentMes]} ${currentAno} · KPI → Ação → Resultado</div></div>
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
-      </div>
-      <div class="cards-row" style="grid-template-columns:repeat(4,1fr)">
-        ${card('red','KPIs críticos',vermelhos,'red',total?Math.round(vermelhos/total*100)+'% da base':'—')}
-        ${card('amber','KPIs em alerta',amarelos,'amber',total?Math.round(amarelos/total*100)+'% da base':'—')}
-        ${card('teal','KPIs monitorados',total,'teal',MES[currentMes]+' '+currentAno)}
-        ${card(atrasados?'red':'teal','Planos abertos',plansOpen,atrasados?'Atrasados: '+atrasados:'Sem atraso crítico')}
-      </div>
-      <div class="two-col">
-        <div class="block-card" style="border-left:4px solid var(--teal)"><div class="section-title" style="margin-bottom:10px">Headline executiva</div><div style="display:grid;gap:8px;font-size:13px;line-height:1.45"><div>➊ <strong>${vermelhos?vermelhos+' KPI(s) críticos exigem decisão de gestão.':'Nenhum KPI crítico no mês selecionado.'}</strong></div><div>➋ ${amarelos?amarelos+' KPI(s) em alerta precisam de acompanhamento.':'Alertas sob controle no período.'}</div><div>➌ ${atrasados?atrasados+' plano(s) atrasado(s) precisam de destravamento.':'Planos sem atraso relevante registrado.'}</div></div></div>
-        <div class="block-card" style="border-left:4px solid var(--blue)"><div class="section-title" style="margin-bottom:10px">Decisões recomendadas para a reunião</div><div style="display:grid;gap:7px;font-size:12.5px;line-height:1.45"><div>• Atacar primeiro os KPIs vermelhos e, em seguida, os amarelos de maior recorrência.</div><div>• Todo KPI vermelho sem plano deve sair da reunião com dono, prazo e ação 5W2H.</div><div>• Planos atrasados devem ser destravados pela diretoria ou replanejados formalmente.</div></div></div>
-      </div>
-      <div class="section-header"><div class="section-title">Top prioridades executivas</div><span class="section-link">Ordenado por criticidade do status</span></div>
-      <div class="table-wrap" style="margin-bottom:18px"><table class="data-table"><thead><tr><th>#</th><th>KPI</th><th>Área</th><th>Status</th><th>Atingimento</th><th>Classificação</th><th>Decisão sugerida</th></tr></thead><tbody>
-        ${top.map((l,i)=>{ const at=(typeof calcAting==='function')?calcAting(l.sentido,l.realizado,l.meta):null; return `<tr style="cursor:pointer" onclick="openKPIModal('${l.id_kpi}')"><td class="font-mono text-muted">#${i+1}</td><td><span class="font-mono text-muted text-sm">${l.id_kpi}</span> ${esc(l.indicador)}</td><td><span class="tag tag-area">${esc(l.area)}</span></td><td>${pill(l.status)}</td><td>${at!==null?Math.round(at*100)+'%':'—'}</td><td>${esc(window.dmx_classificacao(l))}</td><td>${esc(dmx_decisao(l))}</td></tr>`; }).join('') || '<tr><td colspan="7" class="text-muted">Nenhuma prioridade crítica para o período.</td></tr>'}
-      </tbody></table></div>
-      <div class="section-header"><div class="section-title">Áreas que mais exigem atenção</div></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Área</th><th>Críticos</th><th>Alertas</th><th>KPIs</th><th>Direcionamento</th></tr></thead><tbody>
-        ${areas.map(a=>`<tr onclick="goToArea('${esc(a.area)}')" style="cursor:pointer"><td><strong>${esc(a.area)}</strong></td><td>${a.crit}</td><td>${a.alert}</td><td>${a.qtd}</td><td>${a.crit?'Reunião de causa-raiz':'Monitorar tendência'}</td></tr>`).join('')}
-      </tbody></table></div>`;
-  };
-})();
-</script>
+
 
 
 
@@ -17312,6 +17260,109 @@ setTimeout(()=>{
   console.log('[DMX] Planos extras instalado');
 })();
 </script>
+
+
+<!-- PATCH — Sincronização bidirecional de planos com Sheets -->
+<script>
+(function(){
+  if(window.__dmxPlanosSyncV1) return;
+  window.__dmxPlanosSyncV1 = true;
+
+  // Converte row do Sheets para objeto de plano
+  function rowToPlano(row){
+    if(!row||typeof row!=='object') return null;
+    // Suporta array (sheet row) ou objeto
+    return {
+      id:          row.id||row[0]||'',
+      id_plano:    row.id_plano||row[1]||'',
+      acao_num:    Number(row.acao_num||row[2]||0),
+      id_kpi:      row.id_kpi||row[3]||'',
+      kpi_nome:    row.kpi_nome||row[4]||'',
+      area:        row.area||row[5]||'',
+      problema:    row.problema||row[6]||'',
+      causa_raiz:  row.causa_raiz||row[7]||'',
+      prioridade:  row.prioridade||row[8]||'Média',
+      acao:        row.acao||row[9]||'',
+      what:        row.acao||row[9]||'',
+      responsavel: row.responsavel||row[10]||'',
+      who:         row.responsavel||row[10]||'',
+      prazo:       row.prazo||row[11]||'',
+      status:      row.status||row[12]||'Não iniciado',
+      progresso:   Number(row.progresso||row[13]||0),
+      plano_vinculado: row.plano_vinculado||row[14]||'',
+      criado_em:   row.criado_em||row[15]||'',
+      atualizado_em: row.atualizado_em||row[16]||''
+    };
+  }
+
+  // Carrega planos do Sheets e sincroniza com localStorage + window.planos
+  window.dmxSincronizarPlanos = function(callback){
+    var url = typeof dmxGetApiUrl==='function' ? dmxGetApiUrl() : '';
+    if(!url) { if(callback) callback(false); return; }
+    var key = (localStorage.getItem('dmx_api_key_v1')||'').trim()||(window.DMX_API_KEY_RUNTIME||'');
+    var endpoint = url + (url.includes('?')?'&':'?') + 'tipo=planos' + (key?'&key='+encodeURIComponent(key):'');
+    var cbName = 'dmxPlanosSync_' + Date.now();
+    var done = false;
+    var timeout = setTimeout(function(){ if(!done){ done=true; window[cbName]=null; if(callback) callback(false); } }, 8000);
+
+    window[cbName] = function(data){
+      if(done) return; done=true; clearTimeout(timeout);
+      try{
+        if(data && data.ok && Array.isArray(data.planos) && data.planos.length>0){
+          var rows = data.planos.map(rowToPlano).filter(function(p){ return p&&p.id; });
+          // Merge: Sheets é a fonte de verdade para dados existentes
+          // localStorage pode ter dados novos ainda não sincronizados
+          var lsPlanos = [];
+          try{ lsPlanos = JSON.parse(localStorage.getItem('dmx_planos')||'[]'); }catch(e){}
+          // IDs que existem no Sheets
+          var sheetsIds = {};
+          rows.forEach(function(p){ sheetsIds[p.id]=true; });
+          // Adiciona do localStorage apenas os que não existem no Sheets (novos não sincronizados)
+          var novosLocais = lsPlanos.filter(function(p){ return !sheetsIds[p.id]; });
+          var merged = rows.concat(novosLocais);
+          // Salva merged no localStorage e window
+          localStorage.setItem('dmx_planos', JSON.stringify(merged));
+          window.planos = merged;
+          try{ planos = merged; }catch(e){}
+          console.log('[DMX] Planos sincronizados do Sheets:', rows.length, '+ locais:', novosLocais.length);
+          if(callback) callback(true, merged);
+          // Re-renderiza se estiver na aba de planos
+          if(window.currentPage==='planos'&&typeof window.renderPlanos==='function') window.renderPlanos();
+        } else {
+          if(callback) callback(false);
+        }
+      }catch(err){ console.warn('[DMX] Erro ao sincronizar planos:', err); if(callback) callback(false); }
+      try{ delete window[cbName]; }catch(e){}
+    };
+
+    var script = document.createElement('script');
+    script.src = endpoint + '&callback=' + cbName;
+    script.onerror = function(){ if(!done){ done=true; clearTimeout(timeout); if(callback) callback(false); } };
+    document.head.appendChild(script);
+    setTimeout(function(){ try{ document.head.removeChild(script); }catch(e){} }, 10000);
+  };
+
+  // Sincroniza ao navegar para a aba de planos
+  var origNav = window.nav;
+  if(typeof origNav==='function' && !origNav.__planosSyncWrapped){
+    window.nav = function(el, areaName){
+      var r = origNav.apply(this, arguments);
+      if(el && el.dataset && el.dataset.page==='planos'){
+        setTimeout(function(){ window.dmxSincronizarPlanos(); }, 300);
+      }
+      return r;
+    };
+    window.nav.__planosSyncWrapped = true;
+  }
+
+  // Sincroniza ao carregar a página (após 3s para dar tempo da API conectar)
+  setTimeout(function(){ window.dmxSincronizarPlanos(); }, 3000);
+
+  console.log('[DMX] Sincronização bidirecional de planos instalada');
+})();
+
+</script>
+
 </body>
 </html>
 
@@ -18872,5 +18923,108 @@ setTimeout(()=>{
   console.log('[DMX] Planos extras instalado');
 })();
 </script>
+
+
+<!-- PATCH — Sincronização bidirecional de planos com Sheets -->
+<script>
+(function(){
+  if(window.__dmxPlanosSyncV1) return;
+  window.__dmxPlanosSyncV1 = true;
+
+  // Converte row do Sheets para objeto de plano
+  function rowToPlano(row){
+    if(!row||typeof row!=='object') return null;
+    // Suporta array (sheet row) ou objeto
+    return {
+      id:          row.id||row[0]||'',
+      id_plano:    row.id_plano||row[1]||'',
+      acao_num:    Number(row.acao_num||row[2]||0),
+      id_kpi:      row.id_kpi||row[3]||'',
+      kpi_nome:    row.kpi_nome||row[4]||'',
+      area:        row.area||row[5]||'',
+      problema:    row.problema||row[6]||'',
+      causa_raiz:  row.causa_raiz||row[7]||'',
+      prioridade:  row.prioridade||row[8]||'Média',
+      acao:        row.acao||row[9]||'',
+      what:        row.acao||row[9]||'',
+      responsavel: row.responsavel||row[10]||'',
+      who:         row.responsavel||row[10]||'',
+      prazo:       row.prazo||row[11]||'',
+      status:      row.status||row[12]||'Não iniciado',
+      progresso:   Number(row.progresso||row[13]||0),
+      plano_vinculado: row.plano_vinculado||row[14]||'',
+      criado_em:   row.criado_em||row[15]||'',
+      atualizado_em: row.atualizado_em||row[16]||''
+    };
+  }
+
+  // Carrega planos do Sheets e sincroniza com localStorage + window.planos
+  window.dmxSincronizarPlanos = function(callback){
+    var url = typeof dmxGetApiUrl==='function' ? dmxGetApiUrl() : '';
+    if(!url) { if(callback) callback(false); return; }
+    var key = (localStorage.getItem('dmx_api_key_v1')||'').trim()||(window.DMX_API_KEY_RUNTIME||'');
+    var endpoint = url + (url.includes('?')?'&':'?') + 'tipo=planos' + (key?'&key='+encodeURIComponent(key):'');
+    var cbName = 'dmxPlanosSync_' + Date.now();
+    var done = false;
+    var timeout = setTimeout(function(){ if(!done){ done=true; window[cbName]=null; if(callback) callback(false); } }, 8000);
+
+    window[cbName] = function(data){
+      if(done) return; done=true; clearTimeout(timeout);
+      try{
+        if(data && data.ok && Array.isArray(data.planos) && data.planos.length>0){
+          var rows = data.planos.map(rowToPlano).filter(function(p){ return p&&p.id; });
+          // Merge: Sheets é a fonte de verdade para dados existentes
+          // localStorage pode ter dados novos ainda não sincronizados
+          var lsPlanos = [];
+          try{ lsPlanos = JSON.parse(localStorage.getItem('dmx_planos')||'[]'); }catch(e){}
+          // IDs que existem no Sheets
+          var sheetsIds = {};
+          rows.forEach(function(p){ sheetsIds[p.id]=true; });
+          // Adiciona do localStorage apenas os que não existem no Sheets (novos não sincronizados)
+          var novosLocais = lsPlanos.filter(function(p){ return !sheetsIds[p.id]; });
+          var merged = rows.concat(novosLocais);
+          // Salva merged no localStorage e window
+          localStorage.setItem('dmx_planos', JSON.stringify(merged));
+          window.planos = merged;
+          try{ planos = merged; }catch(e){}
+          console.log('[DMX] Planos sincronizados do Sheets:', rows.length, '+ locais:', novosLocais.length);
+          if(callback) callback(true, merged);
+          // Re-renderiza se estiver na aba de planos
+          if(window.currentPage==='planos'&&typeof window.renderPlanos==='function') window.renderPlanos();
+        } else {
+          if(callback) callback(false);
+        }
+      }catch(err){ console.warn('[DMX] Erro ao sincronizar planos:', err); if(callback) callback(false); }
+      try{ delete window[cbName]; }catch(e){}
+    };
+
+    var script = document.createElement('script');
+    script.src = endpoint + '&callback=' + cbName;
+    script.onerror = function(){ if(!done){ done=true; clearTimeout(timeout); if(callback) callback(false); } };
+    document.head.appendChild(script);
+    setTimeout(function(){ try{ document.head.removeChild(script); }catch(e){} }, 10000);
+  };
+
+  // Sincroniza ao navegar para a aba de planos
+  var origNav = window.nav;
+  if(typeof origNav==='function' && !origNav.__planosSyncWrapped){
+    window.nav = function(el, areaName){
+      var r = origNav.apply(this, arguments);
+      if(el && el.dataset && el.dataset.page==='planos'){
+        setTimeout(function(){ window.dmxSincronizarPlanos(); }, 300);
+      }
+      return r;
+    };
+    window.nav.__planosSyncWrapped = true;
+  }
+
+  // Sincroniza ao carregar a página (após 3s para dar tempo da API conectar)
+  setTimeout(function(){ window.dmxSincronizarPlanos(); }, 3000);
+
+  console.log('[DMX] Sincronização bidirecional de planos instalada');
+})();
+
+</script>
+
 </body>
 </html>
