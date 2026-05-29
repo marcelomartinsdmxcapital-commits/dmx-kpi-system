@@ -1044,7 +1044,7 @@ function dmxGetApiKey() {
   try { return (localStorage.getItem('dmx_api_key_v1') || '').trim(); } catch(e) { return ''; }
 }
 
-const DMX_KPI_SHEET_HEADERS = ['id','area','pilar','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','sentido','acumulado','peso_indice','peso_ebitda','ativo','selecao_semanal','tipo_lancamento','formula_kpi','atualizado_em'];
+const DMX_KPI_SHEET_HEADERS = ['id','area','pilar','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','sentido','acumulado','peso_indice','peso_ebitda','ativo','selecao_semanal','tipo_lancamento','formula_kpi','tolerancia_pct','atualizado_em'];
 function dmxObjectFromSheetArray(row) {
   if (!Array.isArray(row)) return row;
   const o = {};
@@ -1130,7 +1130,8 @@ function dmxApiToKpi(row, idx) {
     status_impl: dmxPick(row, ['status_impl','status'], 'Google Sheets'),
     ativo: dmxPick(row, ['ativo'], 'SIM'),
     selecao_semanal: dmxPick(row, ['selecao_semanal','seleção_semanal'], ''),
-    obs: dmxPick(row, ['obs','observacao','observação'], '')
+    obs: dmxPick(row, ['obs','observacao','observação'], ''),
+    tolerancia_pct: numOrNull(dmxPick(row, ['tolerancia_pct','tolerancia','tolerância'], null))
   };
 }
 
@@ -1528,7 +1529,20 @@ function resolveRef(kpi, mes, ano) {
     const kv = numOrNull(kpi[field]);
     return kv !== null ? kv : null;
   };
-  return { meta: pick('meta'), minimo: pick('minimo'), maximo: pick('maximo') };
+  const meta = pick('meta');
+  // Se tolerancia_pct está definida no catálogo, calcula min/max automaticamente
+  const tol = numOrNull(kpi.tolerancia_pct);
+  let minimo, maximo;
+  if (tol !== null && tol > 0 && meta !== null) {
+    const fator = tol / 100;
+    minimo = Math.round(meta * (1 - fator) * 10000) / 10000;
+    maximo = Math.round(meta * (1 + fator) * 10000) / 10000;
+  } else {
+    // Fallback: lê do lançamento ou catálogo (comportamento anterior)
+    minimo = pick('minimo');
+    maximo = pick('maximo');
+  }
+  return { meta, minimo, maximo };
 }
 
 function buildDirectionalRefDatasets(kpi, refs, labelMin='Mínimo', labelMax='Máximo') {
@@ -2544,7 +2558,9 @@ function renderAtualizar() {
         return '<td>'+_pesoCell+'</td>';
       }()) +
       '<td><input type="hidden" id="com-' + kpi.id + '" value="' + com.replace(/"/g, '&quot;') + '"><span title="' + com.replace(/"/g, '&quot;') + '" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (com ? com : '—') + '</span></td>' +
-      '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\'' + kpi.id + '\',' + currentMes + ',' + currentAno + ')">✎ Editar</button></td>' +
+      (kpi.tipo_lancamento==='calculado'?
+        '<td><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8">🔢 KPI Calculado</span></td>' :
+        '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\'' + kpi.id + '\',' + currentMes + ',' + currentAno + ')">✎ Editar</button></td>') +
       '</tr>';
   }).join('');
 
@@ -2597,7 +2613,7 @@ function renderAtualizar() {
           '<td>'+(typeof pill==='function'?pill(st2):st2)+'</td>'+
           '<td>'+pesoCell2+'</td>'+
           '<td><span title="'+String(com2).replace(/"/g,'&quot;')+'" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(com2||'—')+'</span></td>'+
-          '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\''+kpi.id+'\','+currentMes+','+currentAno+')">✎ Editar</button></td>';
+          (kpi.tipo_lancamento==='calculado'?'<td><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8">🔢 KPI Calculado</span></td>':'<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\''+kpi.id+'\','+currentMes+','+currentAno+')">✎ Editar</button></td>');
         tbody2.appendChild(tr);
       });
     });
@@ -2721,8 +2737,36 @@ function openEditLancamento(id_kpi, mes, ano) {
   const ref = resolveRef(kpi, mes, ano);
   editingLancId = { id_kpi, mes, ano };
   document.getElementById('lanc-modal-title').textContent = 'Atualizar KPI';
+  // Guarda contexto para navegação entre KPIs
+  const af = (document.getElementById('upd-area-filter')||{}).value||'';
+  const vf = (document.getElementById('upd-vertente-filter')||{}).value||'';
+  const srch = ((document.getElementById('upd-search')||{}).value||'').toLowerCase();
+  const kpisVisiveis = kpis.filter(k => {
+    if(k.tipo_lancamento==='calculado') return false;
+    if(af && k.area!==af) return false;
+    if(vf && k.vertente!==vf) return false;
+    if(srch && !k.indicador.toLowerCase().includes(srch) && !k.id.toLowerCase().includes(srch)) return false;
+    return true;
+  });
+  const idxAtual = kpisVisiveis.findIndex(k=>k.id===id_kpi);
+  const temAnterior = idxAtual > 0;
+  const temProximo = idxAtual >= 0 && idxAtual < kpisVisiveis.length - 1;
+  window._dmxLancKpisVisiveis = kpisVisiveis;
+  window._dmxLancIdxAtual = idxAtual;
   const existingObs = getObs(id_kpi, mes, ano);
   document.getElementById('lanc-form').innerHTML =
+    // Cabeçalho com ID, nome e navegação
+    '<div style="background:var(--bg3);border-radius:8px;padding:10px 14px;margin-bottom:10px;border:1px solid var(--border)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<button onclick="dmxNavLancamento(-1)" ' + (temAnterior?'':'disabled') + ' style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;font-size:13px" title="KPI anterior">◀</button>' +
+        '<div style="flex:1;text-align:center">' +
+          '<div style="font-size:10px;font-weight:700;color:var(--teal);font-family:monospace">' + kpi.id + '</div>' +
+          '<div style="font-size:13px;font-weight:700;color:var(--text)">' + kpi.indicador + '</div>' +
+          (idxAtual>=0?'<div style="font-size:10px;color:var(--muted)">' + (idxAtual+1) + ' de ' + kpisVisiveis.length + (af?' · '+af:'') + '</div>':'') +
+        '</div>' +
+        '<button onclick="dmxNavLancamento(1)" ' + (temProximo?'':'disabled') + ' style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;font-size:13px" title="Próximo KPI">▶</button>' +
+      '</div>' +
+    '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--navy);border-radius:8px;margin-bottom:2px">' +
       '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#fff">' + MES[mes] + ' / ' + ano + '</span>' +
       '<span class="tag" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);margin-left:4px">' + kpi.unidade + '</span>' +
@@ -2733,10 +2777,14 @@ function openEditLancamento(id_kpi, mes, ano) {
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:2px">' +
       formField('<span style="color:#2563EB;font-size:10px;font-weight:700">META</span>',
         '<input class="filter-input" id="lf-meta" type="text" inputmode="decimal" value="' + ref.meta + '" style="width:100%;border-color:#2563EB55;background:#EFF6FF">') +
-      formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00CDNIMO</span>',
-        '<input class="filter-input" id="lf-min" type="text" inputmode="decimal" value="' + ref.minimo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
-      formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00C1XIMO</span>',
-        '<input class="filter-input" id="lf-max" type="text" inputmode="decimal" value="' + ref.maximo + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
+      (kpi.tolerancia_pct!=null&&kpi.tolerancia_pct>0 ?
+        formField('<span style="color:#D97706;font-size:10px;font-weight:700">TOLERÂNCIA</span>',
+          '<div style="background:#FFF7ED;border:1px solid #FCD34D;border-radius:8px;padding:6px 10px;font-size:12px;color:#92400E;text-align:center">±' + kpi.tolerancia_pct + '% da meta<br><span style="font-size:10px">Mín: ' + (ref.minimo!=null?ref.minimo:'—') + ' · Máx: ' + (ref.maximo!=null?ref.maximo:'—') + '</span></div>') :
+        formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00CDNIMO</span>',
+          '<input class="filter-input" id="lf-min" type="text" inputmode="decimal" value="' + (ref.minimo??'') + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">') +
+        formField('<span style="color:#DC2626;font-size:10px;font-weight:700">M\u00C1XIMO</span>',
+          '<input class="filter-input" id="lf-max" type="text" inputmode="decimal" value="' + (ref.maximo??'') + '" style="width:100%;border-color:#DC262655;background:#FFF1F2">')
+      ) +
     '</div>' +
     '<div style="border-top:1px solid var(--border);margin-top:6px;padding-top:10px">' +
       formField('\uD83D\uDCDD Comentário / Justificativa',
@@ -7763,6 +7811,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       acumulado: (document.getElementById('adm-kpi-acumulado')?.value || 'média').trim(),
       tipo_lancamento: (document.getElementById('adm-kpi-tipo-lancamento')?.value || 'manual').trim(),
       formula_kpi: (document.getElementById('adm-kpi-formula-kpi')?.value || '').trim(),
+      tolerancia_pct: document.getElementById('adm-kpi-tolerancia')?.value !== '' ? Number(document.getElementById('adm-kpi-tolerancia')?.value) : null,
       status_impl: (document.getElementById('adm-kpi-status')?.value || 'Ativo').trim(),
       ativo: document.getElementById('adm-kpi-ativo')?.checked ? 'SIM' : 'NAO',
       selecao_semanal: document.getElementById('adm-kpi-semanal')?.checked ? 'SIM' : 'NAO',
@@ -7823,6 +7872,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">Responsável</span><input id="adm-kpi-responsavel" class="filter-input" value="${esc(k.responsavel||'')}" style="width:100%"></label>
           <label><span class="card-label">Compartilhar</span><input id="adm-kpi-compartilhar" class="filter-input" value="${esc(k.compartilhar||'')}" style="width:100%"></label>
           <label><span class="card-label">Acumulado</span><input id="adm-kpi-acumulado" class="filter-input" value="${esc(k.acumulado||'média')}" style="width:100%"></label>
+          <label>
+            <span class="card-label">Tolerância (%)</span>
+            <input id="adm-kpi-tolerancia" class="filter-input" type="number" min="0" max="100" step="0.1"
+              value="${k.tolerancia_pct!=null&&k.tolerancia_pct!==''?k.tolerancia_pct:''}"
+              placeholder="Ex: 10" style="width:100%">
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">% da meta → calcula mín/máx automaticamente</div>
+          </label>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
           <label><span class="card-label">Objetivo</span><textarea id="adm-kpi-objetivo" class="filter-input" style="width:100%;height:78px">${esc(k.objetivo||'')}</textarea></label>
@@ -17551,6 +17607,24 @@ window.dmxTestarFormulaKpi = function(kpiId){
   }catch(e){ if(res) res.textContent='❌ Erro na fórmula: '+e.message; if(res) res.style.color='var(--red)'; }
 };
 </script>
+
+<!-- PATCH — Navegação entre KPIs no modal de lançamento -->
+<script>
+window.dmxNavLancamento = function(direcao){
+  var lista = window._dmxLancKpisVisiveis || [];
+  var idx = (window._dmxLancIdxAtual || 0) + direcao;
+  if(idx < 0 || idx >= lista.length) return;
+  var kpi = lista[idx];
+  if(!kpi) return;
+  // Salva o lançamento atual antes de navegar se houver mudança
+  var real = document.getElementById('lf-real');
+  if(real && real.value !== '' && typeof editingLancId !== 'undefined' && editingLancId) {
+    // Salva silenciosamente sem fechar o modal
+    try{ saveLancamento(true); }catch(e){}
+  }
+  openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
+};
+</script>
 </body>
 </html>
 
@@ -19365,6 +19439,24 @@ window.dmxTestarFormulaKpi = function(kpiId){
     if(res) res.textContent='✅ Resultado: '+valorFmt+' ('+mes+'/'+ano+')';
     if(res) res.style.color='var(--green)';
   }catch(e){ if(res) res.textContent='❌ Erro na fórmula: '+e.message; if(res) res.style.color='var(--red)'; }
+};
+</script>
+
+<!-- PATCH — Navegação entre KPIs no modal de lançamento -->
+<script>
+window.dmxNavLancamento = function(direcao){
+  var lista = window._dmxLancKpisVisiveis || [];
+  var idx = (window._dmxLancIdxAtual || 0) + direcao;
+  if(idx < 0 || idx >= lista.length) return;
+  var kpi = lista[idx];
+  if(!kpi) return;
+  // Salva o lançamento atual antes de navegar se houver mudança
+  var real = document.getElementById('lf-real');
+  if(real && real.value !== '' && typeof editingLancId !== 'undefined' && editingLancId) {
+    // Salva silenciosamente sem fechar o modal
+    try{ saveLancamento(true); }catch(e){}
+  }
+  openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
 };
 </script>
 </body>
