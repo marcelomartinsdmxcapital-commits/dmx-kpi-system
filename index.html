@@ -1354,8 +1354,11 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
       // KPIs inativos continuam identificados pelo campo 'ativo', mas não bloqueiam a carga oficial do Sheets.
       if (catalogo.length) {
         window.__dmxCatalogoSheetsOficial = catalogo;
+        // Sheets é fonte de verdade — limpa localStorage antes de aplicar
+        // para garantir que campos novos (tolerancia_pct, tipo_lancamento, formula_kpi) sejam atualizados
+        try { localStorage.removeItem(DMX_CATALOG_KEY); } catch(e) {}
         const okApply = dmxApplyCatalog(catalogo);
-        dmxSaveCatalogToStorage();
+        dmxSaveCatalogToStorage(); // regrava com dados frescos do Sheets
         qtdKpisAplicados = (okApply && Array.isArray(window.kpis) && window.kpis.length) ? window.kpis.length : catalogo.length;
         // Força as dimensões e memória global a usarem o catálogo recém-lido antes dos renders.
         try { kpis = KPI_CATALOG; window.kpis = KPI_CATALOG; refreshDimensions(); } catch(e) {}
@@ -1531,9 +1534,12 @@ function resolveRef(kpi, mes, ano) {
   };
   const meta = pick('meta');
   // Se tolerancia_pct está definida no catálogo, calcula min/max automaticamente
-  const tol = numOrNull(kpi.tolerancia_pct);
+  // Lê tolerancia_pct APENAS do objeto kpi passado (nunca de outro KPI)
+  const tolRaw = kpi && kpi.tolerancia_pct !== undefined && kpi.tolerancia_pct !== null && kpi.tolerancia_pct !== '' 
+    ? Number(kpi.tolerancia_pct) : null;
+  const tol = (tolRaw !== null && isFinite(tolRaw) && tolRaw > 0) ? tolRaw : null;
   let minimo, maximo;
-  if (tol !== null && tol > 0 && meta !== null) {
+  if (tol !== null && meta !== null) {
     const fator = tol / 100;
     minimo = Math.round(meta * (1 - fator) * 10000) / 10000;
     maximo = Math.round(meta * (1 + fator) * 10000) / 10000;
