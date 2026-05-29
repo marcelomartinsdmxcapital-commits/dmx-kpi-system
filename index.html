@@ -1044,7 +1044,7 @@ function dmxGetApiKey() {
   try { return (localStorage.getItem('dmx_api_key_v1') || '').trim(); } catch(e) { return ''; }
 }
 
-const DMX_KPI_SHEET_HEADERS = ['id','area','pilar','abrangencia','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','compartilhar','fonte','sentido','acumulado','peso_indice','peso_ebitda','status_impl','ativo','selecao_semanal','atualizado_em','atualizado_por'];
+const DMX_KPI_SHEET_HEADERS = ['id','area','pilar','vertente','indicador','objetivo','formula','unidade','frequencia','controle','meta_padrao','minimo_padrao','maximo_padrao','responsavel','sentido','acumulado','peso_indice','peso_ebitda','ativo','selecao_semanal','tipo_lancamento','formula_kpi','atualizado_em'];
 function dmxObjectFromSheetArray(row) {
   if (!Array.isArray(row)) return row;
   const o = {};
@@ -2497,11 +2497,14 @@ function renderAtualizar() {
   const tbody = document.getElementById('upd-tbody');
   tbody.dataset.kpiIds = filtered.map(k => k.id).join(',');
   tbody.innerHTML = filtered.map((kpi, idx) => {
+    const isCalc = kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi;
     const l   = getLaunch(kpi.id, currentMes, currentAno);
     const st  = l ? l.status : 'N/A';
-    const at  = l ? calcAting(kpi.sentido, l.realizado, kpi.meta) : null;
+    // Para KPIs calculados, usa o valor calculado em tempo real
+    const rvCalc = isCalc ? (typeof dmxGetRealizado==='function' ? dmxGetRealizado(kpi.id, currentMes, currentAno) : null) : null;
+    const at  = isCalc ? (rvCalc!=null ? calcAting(kpi.sentido, rvCalc, kpi.meta) : null) : (l ? calcAting(kpi.sentido, l.realizado, kpi.meta) : null);
     const stC = st === 'VERDE' ? 'var(--green)' : st === 'AMARELO' ? 'var(--amber)' : st === 'VERMELHO' ? 'var(--red)' : 'var(--muted)';
-    const rv  = (l && l.realizado !== null && l.realizado !== undefined) ? l.realizado : '';
+    const rv  = isCalc ? rvCalc : ((l && l.realizado !== null && l.realizado !== undefined) ? l.realizado : '');
     const mv  = l ? l.meta   : kpi.meta;
     const nv  = l ? l.minimo : kpi.minimo;
     const xv  = l ? l.maximo : kpi.maximo;
@@ -2520,10 +2523,17 @@ function renderAtualizar() {
       '<td>' + inp('meta', mv, 72, '#2563EB') + '</td>' +
       '<td>' + inp('min',  nv, 64, '#DC2626') + '</td>' +
       '<td>' + inp('max',  xv, 64, '#DC2626') + '</td>' +
-      '<td><div style="display:flex;align-items:center;gap:3px">' +
-        inp('inp', rv, 78, '#0E9E82') +
-        '<button onclick="clearRealizado(\'' + kpi.id + '\')" title="Apagar valor" style="background:none;border:none;cursor:pointer;color:#CBD5E1;font-size:13px;padding:0 2px;line-height:1" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'#CBD5E1\'">\u2715</button>' +
-      '</div></td>' +
+      '<td>' + (isCalc ?
+        '<div style="display:flex;align-items:center;gap:4px">' +
+          '<span style="font-size:12px;font-weight:700;color:var(--teal);background:var(--bg3);padding:3px 8px;border-radius:6px;min-width:78px;text-align:center">' + (rv!=null?String(rv).replace('.',','):'—') + '</span>' +
+          '<span style="font-size:9px;background:#EFF6FF;color:#1D4ED8;padding:1px 5px;border-radius:4px;font-weight:700">KPI Calculado</span>' +
+        '</div>'
+        :
+        '<div style="display:flex;align-items:center;gap:3px">' +
+          inp('inp', rv, 78, '#0E9E82') +
+          '<button onclick="clearRealizado(\'' + kpi.id + '\')" title="Apagar valor" style="background:none;border:none;cursor:pointer;color:#CBD5E1;font-size:13px;padding:0 2px;line-height:1" onmouseover="this.style.color=\'var(--red)\'" onmouseout="this.style.color=\'#CBD5E1\'">\u2715</button>' +
+        '</div>'
+      ) + '</td>' +
       '<td id="upd-at-' + kpi.id + '" style="font-size:12px;font-weight:600;color:' + stC + '">' + (at !== null ? Math.round(at * 100) + '%' : '\u2014') + '</td>' +
       '<td id="upd-st-' + kpi.id + '">' + pill(st) + '</td>' +
       (function(){
@@ -7751,6 +7761,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       maximo_padrao: num(document.getElementById('adm-kpi-maximo')?.value,0),
       peso_indice: num(document.getElementById('adm-kpi-peso-indice')?.value,0),
       acumulado: (document.getElementById('adm-kpi-acumulado')?.value || 'média').trim(),
+      tipo_lancamento: (document.getElementById('adm-kpi-tipo-lancamento')?.value || 'manual').trim(),
+      formula_kpi: (document.getElementById('adm-kpi-formula-kpi')?.value || '').trim(),
       status_impl: (document.getElementById('adm-kpi-status')?.value || 'Ativo').trim(),
       ativo: document.getElementById('adm-kpi-ativo')?.checked ? 'SIM' : 'NAO',
       selecao_semanal: document.getElementById('adm-kpi-semanal')?.checked ? 'SIM' : 'NAO',
@@ -7814,7 +7826,30 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
           <label><span class="card-label">Objetivo</span><textarea id="adm-kpi-objetivo" class="filter-input" style="width:100%;height:78px">${esc(k.objetivo||'')}</textarea></label>
-          <label><span class="card-label">Fórmula</span><textarea id="adm-kpi-formula" class="filter-input" style="width:100%;height:78px">${esc(k.formula||'')}</textarea></label>
+          <label><span class="card-label">Fórmula (descritiva)</span><textarea id="adm-kpi-formula" class="filter-input" style="width:100%;height:78px">${esc(k.formula||'')}</textarea></label>
+        </div>
+
+        <!-- Tipo de lançamento / KPI Calculado -->
+        <div style="margin-top:12px;padding:14px 16px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
+          <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;margin-bottom:10px">🔢 Tipo de Lançamento</div>
+          <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start">
+            <label>
+              <span class="card-label">Tipo</span>
+              <select id="adm-kpi-tipo-lancamento" class="filter-input" style="width:100%" onchange="document.getElementById('adm-kpi-formula-kpi-row').style.display=this.value==='calculado'?'block':'none'">
+                <option value="manual" ${(k.tipo_lancamento||'manual')==='manual'?'selected':''}>Manual (padrão)</option>
+                <option value="calculado" ${k.tipo_lancamento==='calculado'?'selected':''}>Calculado automaticamente</option>
+              </select>
+            </label>
+            <div id="adm-kpi-formula-kpi-row" style="display:${k.tipo_lancamento==='calculado'?'block':'none'}">
+              <span class="card-label">Fórmula de cálculo</span>
+              <input id="adm-kpi-formula-kpi" class="filter-input" style="width:100%;font-family:monospace" value="${esc(k.formula_kpi||'')}" placeholder="Ex: KPI049/KPI051 ou (KPI049/KPI051)*100">
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">Use IDs de KPI (KPI049) e operadores + - * / e parênteses. Constantes numéricas são permitidas.</div>
+              <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
+                <button type="button" class="btn btn-sm btn-ghost" onclick="dmxTestarFormulaKpi('${k.id}')">▶ Testar fórmula</button>
+                <span id="adm-kpi-formula-resultado" style="font-size:12px;color:var(--teal)"></span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Tabela de Metas Mensais -->
@@ -17363,6 +17398,159 @@ setTimeout(()=>{
 
 </script>
 
+
+
+<!-- PATCH — Motor de KPIs Calculados v1 -->
+<script>
+(function(){
+  if(window.__dmxKpiCalcV1) return;
+  window.__dmxKpiCalcV1 = true;
+
+  // ── Motor de cálculo de KPIs ─────────────────────────────
+  // Suporte: KPI001+KPI002, KPI049/KPI051, (KPI049/KPI051)*100
+  // Constantes numéricas: (KPI045/500)*100
+
+  function avaliarFormula(expr, mes, ano){
+    if(!expr || !expr.trim()) return null;
+    // Substitui IDs de KPI pelo valor realizado do mês
+    var formula = expr.replace(/KPI\d+/g, function(kpiId){
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+      if(!l || l.realizado==null || isNaN(Number(l.realizado))) return 'null';
+      return String(Number(l.realizado));
+    });
+    // Verifica se tem null na expressão (algum KPI sem dado)
+    if(formula.includes('null')) return null;
+    // Avalia de forma segura (só permite números, operadores e parênteses)
+    if(!/^[\d\s+\-*/().]+$/.test(formula)) return null;
+    try{
+      var resultado = Function('"use strict"; return (' + formula + ')')();
+      if(!isFinite(resultado) || isNaN(resultado)) return null;
+      return Math.round(resultado * 10000) / 10000; // 4 casas decimais
+    }catch(e){ return null; }
+  }
+
+  // Retorna valor realizado de um KPI — calculado ou manual
+  window.dmxGetRealizado = function(kpiId, mes, ano){
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
+    if(!kpi) return null;
+    // KPI calculado: usa a formula_kpi
+    if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
+      return avaliarFormula(kpi.formula_kpi, mes, ano);
+    }
+    // KPI manual: usa o lançamento normal
+    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    return l ? l.realizado : null;
+  };
+
+  // Recalcula todos os KPIs calculados para um mês/ano
+  // e injeta como lançamentos temporários no array launches
+  window.dmxRecalcularKpisCalculados = function(mes, ano){
+    var kpisCalc = (window.kpis||[]).filter(function(k){
+      return k.tipo_lancamento==='calculado' && k.formula_kpi;
+    });
+    if(!kpisCalc.length) return;
+
+    kpisCalc.forEach(function(kpi){
+      var resultado = avaliarFormula(kpi.formula_kpi, mes, ano);
+      if(resultado === null) return;
+
+      // Verifica se já existe lançamento para este KPI
+      var existing = typeof getLaunch==='function' ? getLaunch(kpi.id, mes, ano) : null;
+      if(existing){
+        existing.realizado = resultado;
+        existing._calculado = true;
+      } else {
+        // Insere lançamento calculado temporário
+        if(typeof launches !== 'undefined'){
+          launches.push({
+            id_kpi: kpi.id, area: kpi.area, indicador: kpi.indicador,
+            ano: ano, mes_num: mes,
+            realizado: resultado,
+            meta: kpi.meta||0, minimo: kpi.minimo||0, maximo: kpi.maximo||0,
+            unidade: kpi.unidade, sentido: kpi.sentido,
+            status: typeof calcStatus==='function' ? calcStatus(kpi.sentido, resultado, kpi.meta) : '',
+            _calculado: true
+          });
+        }
+      }
+    });
+    console.log('[DMX] KPIs calculados recalculados:', kpisCalc.length);
+  };
+
+  // Roda ao carregar dados do Sheets
+  var origRefresh = window.refreshFromSheets;
+  if(typeof origRefresh==='function' && !origRefresh.__calcWrapped){
+    window.refreshFromSheets = function(){
+      var r = origRefresh.apply(this, arguments);
+      setTimeout(function(){
+        window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      }, 500);
+      return r;
+    };
+    window.refreshFromSheets.__calcWrapped = true;
+  }
+
+  // Roda ao trocar mês/ano
+  var origPeriod = window.onPeriodChange;
+  if(typeof origPeriod==='function' && !origPeriod.__calcPeriodWrapped){
+    window.onPeriodChange = function(){
+      var r = origPeriod.apply(this, arguments);
+      window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      return r;
+    };
+    window.onPeriodChange.__calcPeriodWrapped = true;
+  }
+
+  // Roda ao salvar lançamento manual (para recalcular KPIs que dependem deste)
+  var origSave = window.saveLancamento;
+  if(typeof origSave==='function' && !origSave.__calcSaveWrapped){
+    window.saveLancamento = function(){
+      var r = origSave.apply(this, arguments);
+      setTimeout(function(){
+        window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      }, 300);
+      return r;
+    };
+    window.saveLancamento.__calcSaveWrapped = true;
+  }
+
+  // Roda na inicialização
+  setTimeout(function(){
+    window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+  }, 2000);
+
+  console.log('[DMX] Motor de KPIs calculados instalado');
+})();
+
+</script>
+
+
+<!-- PATCH — Testar fórmula de KPI calculado -->
+<script>
+window.dmxTestarFormulaKpi = function(kpiId){
+  var expr = (document.getElementById('adm-kpi-formula-kpi')||{}).value || '';
+  var res  = document.getElementById('adm-kpi-formula-resultado');
+  if(!expr.trim()){ if(res) res.textContent='⚠️ Informe a fórmula'; return; }
+  // Avalia para o mês/ano atual
+  var mes = window.currentMes||5, ano = window.currentAno||2026;
+  var formula = expr.replace(/KPI\d+/g, function(id){
+    var l = typeof getLaunch==='function' ? getLaunch(id, mes, ano) : null;
+    if(!l || l.realizado==null) return 'null';
+    return String(Number(l.realizado));
+  });
+  if(formula.includes('null')){ if(res) res.textContent='⚠️ Algum KPI da fórmula não tem valor em '+['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes]+'/'+ano; return; }
+  if(!/^[\d\s+\-*/().]+$/.test(formula)){ if(res) res.textContent='⚠️ Fórmula com caracteres inválidos'; return; }
+  try{
+    var resultado = Function('"use strict"; return (' + formula + ')')();
+    if(!isFinite(resultado)||isNaN(resultado)){ if(res) res.textContent='⚠️ Resultado inválido (divisão por zero?)'; return; }
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
+    var unidade = kpi ? (kpi.unidade||'') : '';
+    var valorFmt = unidade==='%' ? resultado.toFixed(2)+'%' : unidade==='R$' ? 'R$ '+resultado.toLocaleString('pt-BR') : resultado.toLocaleString('pt-BR');
+    if(res) res.textContent='✅ Resultado: '+valorFmt+' ('+mes+'/'+ano+')';
+    if(res) res.style.color='var(--green)';
+  }catch(e){ if(res) res.textContent='❌ Erro na fórmula: '+e.message; if(res) res.style.color='var(--red)'; }
+};
+</script>
 </body>
 </html>
 
@@ -19026,5 +19214,158 @@ setTimeout(()=>{
 
 </script>
 
+
+
+<!-- PATCH — Motor de KPIs Calculados v1 -->
+<script>
+(function(){
+  if(window.__dmxKpiCalcV1) return;
+  window.__dmxKpiCalcV1 = true;
+
+  // ── Motor de cálculo de KPIs ─────────────────────────────
+  // Suporte: KPI001+KPI002, KPI049/KPI051, (KPI049/KPI051)*100
+  // Constantes numéricas: (KPI045/500)*100
+
+  function avaliarFormula(expr, mes, ano){
+    if(!expr || !expr.trim()) return null;
+    // Substitui IDs de KPI pelo valor realizado do mês
+    var formula = expr.replace(/KPI\d+/g, function(kpiId){
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+      if(!l || l.realizado==null || isNaN(Number(l.realizado))) return 'null';
+      return String(Number(l.realizado));
+    });
+    // Verifica se tem null na expressão (algum KPI sem dado)
+    if(formula.includes('null')) return null;
+    // Avalia de forma segura (só permite números, operadores e parênteses)
+    if(!/^[\d\s+\-*/().]+$/.test(formula)) return null;
+    try{
+      var resultado = Function('"use strict"; return (' + formula + ')')();
+      if(!isFinite(resultado) || isNaN(resultado)) return null;
+      return Math.round(resultado * 10000) / 10000; // 4 casas decimais
+    }catch(e){ return null; }
+  }
+
+  // Retorna valor realizado de um KPI — calculado ou manual
+  window.dmxGetRealizado = function(kpiId, mes, ano){
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
+    if(!kpi) return null;
+    // KPI calculado: usa a formula_kpi
+    if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
+      return avaliarFormula(kpi.formula_kpi, mes, ano);
+    }
+    // KPI manual: usa o lançamento normal
+    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    return l ? l.realizado : null;
+  };
+
+  // Recalcula todos os KPIs calculados para um mês/ano
+  // e injeta como lançamentos temporários no array launches
+  window.dmxRecalcularKpisCalculados = function(mes, ano){
+    var kpisCalc = (window.kpis||[]).filter(function(k){
+      return k.tipo_lancamento==='calculado' && k.formula_kpi;
+    });
+    if(!kpisCalc.length) return;
+
+    kpisCalc.forEach(function(kpi){
+      var resultado = avaliarFormula(kpi.formula_kpi, mes, ano);
+      if(resultado === null) return;
+
+      // Verifica se já existe lançamento para este KPI
+      var existing = typeof getLaunch==='function' ? getLaunch(kpi.id, mes, ano) : null;
+      if(existing){
+        existing.realizado = resultado;
+        existing._calculado = true;
+      } else {
+        // Insere lançamento calculado temporário
+        if(typeof launches !== 'undefined'){
+          launches.push({
+            id_kpi: kpi.id, area: kpi.area, indicador: kpi.indicador,
+            ano: ano, mes_num: mes,
+            realizado: resultado,
+            meta: kpi.meta||0, minimo: kpi.minimo||0, maximo: kpi.maximo||0,
+            unidade: kpi.unidade, sentido: kpi.sentido,
+            status: typeof calcStatus==='function' ? calcStatus(kpi.sentido, resultado, kpi.meta) : '',
+            _calculado: true
+          });
+        }
+      }
+    });
+    console.log('[DMX] KPIs calculados recalculados:', kpisCalc.length);
+  };
+
+  // Roda ao carregar dados do Sheets
+  var origRefresh = window.refreshFromSheets;
+  if(typeof origRefresh==='function' && !origRefresh.__calcWrapped){
+    window.refreshFromSheets = function(){
+      var r = origRefresh.apply(this, arguments);
+      setTimeout(function(){
+        window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      }, 500);
+      return r;
+    };
+    window.refreshFromSheets.__calcWrapped = true;
+  }
+
+  // Roda ao trocar mês/ano
+  var origPeriod = window.onPeriodChange;
+  if(typeof origPeriod==='function' && !origPeriod.__calcPeriodWrapped){
+    window.onPeriodChange = function(){
+      var r = origPeriod.apply(this, arguments);
+      window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      return r;
+    };
+    window.onPeriodChange.__calcPeriodWrapped = true;
+  }
+
+  // Roda ao salvar lançamento manual (para recalcular KPIs que dependem deste)
+  var origSave = window.saveLancamento;
+  if(typeof origSave==='function' && !origSave.__calcSaveWrapped){
+    window.saveLancamento = function(){
+      var r = origSave.apply(this, arguments);
+      setTimeout(function(){
+        window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+      }, 300);
+      return r;
+    };
+    window.saveLancamento.__calcSaveWrapped = true;
+  }
+
+  // Roda na inicialização
+  setTimeout(function(){
+    window.dmxRecalcularKpisCalculados(window.currentMes||5, window.currentAno||2026);
+  }, 2000);
+
+  console.log('[DMX] Motor de KPIs calculados instalado');
+})();
+
+</script>
+
+
+<!-- PATCH — Testar fórmula de KPI calculado -->
+<script>
+window.dmxTestarFormulaKpi = function(kpiId){
+  var expr = (document.getElementById('adm-kpi-formula-kpi')||{}).value || '';
+  var res  = document.getElementById('adm-kpi-formula-resultado');
+  if(!expr.trim()){ if(res) res.textContent='⚠️ Informe a fórmula'; return; }
+  // Avalia para o mês/ano atual
+  var mes = window.currentMes||5, ano = window.currentAno||2026;
+  var formula = expr.replace(/KPI\d+/g, function(id){
+    var l = typeof getLaunch==='function' ? getLaunch(id, mes, ano) : null;
+    if(!l || l.realizado==null) return 'null';
+    return String(Number(l.realizado));
+  });
+  if(formula.includes('null')){ if(res) res.textContent='⚠️ Algum KPI da fórmula não tem valor em '+['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes]+'/'+ano; return; }
+  if(!/^[\d\s+\-*/().]+$/.test(formula)){ if(res) res.textContent='⚠️ Fórmula com caracteres inválidos'; return; }
+  try{
+    var resultado = Function('"use strict"; return (' + formula + ')')();
+    if(!isFinite(resultado)||isNaN(resultado)){ if(res) res.textContent='⚠️ Resultado inválido (divisão por zero?)'; return; }
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
+    var unidade = kpi ? (kpi.unidade||'') : '';
+    var valorFmt = unidade==='%' ? resultado.toFixed(2)+'%' : unidade==='R$' ? 'R$ '+resultado.toLocaleString('pt-BR') : resultado.toLocaleString('pt-BR');
+    if(res) res.textContent='✅ Resultado: '+valorFmt+' ('+mes+'/'+ano+')';
+    if(res) res.style.color='var(--green)';
+  }catch(e){ if(res) res.textContent='❌ Erro na fórmula: '+e.message; if(res) res.style.color='var(--red)'; }
+};
+</script>
 </body>
 </html>
