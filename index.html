@@ -7935,19 +7935,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">Área</span><input id="adm-kpi-area" list="adm-area-list" class="filter-input" value="${esc(k.area||'')}" style="width:100%"><datalist id="adm-area-list">${areaOpts}</datalist></label>
           <label><span class="card-label">Pilar</span><input id="adm-kpi-pilar" list="adm-pilar-list" class="filter-input" value="${esc(k.pilar||'')}" style="width:100%"><datalist id="adm-pilar-list">${pilarOpts}</datalist></label>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
-          <label><span class="card-label">Meta</span><input id="adm-kpi-meta" type="number" step="0.01" class="filter-input" value="${esc(k.meta ?? k.meta_padrao ?? 0)}" style="width:100%"></label>
-          <!-- Mínimo e Máximo calculados via Tolerância (%) — não editáveis -->
-          <label><span class="card-label">Mín. calculado</span>
-            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--muted)">
-              ${k.tolerancia_pct>0 ? Math.round((k.minimo_padrao||k.meta||k.meta_padrao||0)*(1-k.tolerancia_pct/100)*100)/100 : (k.minimo_padrao||k.minimo||'—')}
-            </div>
-          </label>
-          <label><span class="card-label">Máx. calculado</span>
-            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--muted)">
-              ${k.tolerancia_pct>0 ? Math.round((k.maximo_padrao||k.meta||k.meta_padrao||0)*(1+k.tolerancia_pct/100)*100)/100 : (k.maximo_padrao||k.maximo||'—')}
-            </div>
-          </label>
+        <!-- Meta: editável apenas para KPIs manuais -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+          ${k.tipo_lancamento==='calculado' ?
+            '<label><span class="card-label">Meta padrão</span><div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--teal)">Calculada pela fórmula: '+esc(k.formula_kpi||'—')+'</div><input id="adm-kpi-meta" type="hidden" value="'+esc(k.meta ?? k.meta_padrao ?? 0)+'"></label>'
+          :
+            '<label><span class="card-label">Meta padrão</span><input id="adm-kpi-meta" type="number" step="0.01" class="filter-input" value="'+esc(k.meta ?? k.meta_padrao ?? 0)+'" style="width:100%"><div style="font-size:10px;color:var(--muted);margin-top:2px">Pode ser sobrescrita mês a mês nas Metas Mensais</div></label>'
+          }
           <label><span class="card-label">Unidade</span><input id="adm-kpi-unidade" class="filter-input" value="${esc(k.unidade||'%')}" style="width:100%"></label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
