@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v83.7 — 01/06/2026 — Dashboard: card distribuicao estreito, grafico linha maior -->
+<!-- DMX KPI System — v84 — 01/06/2026 — Tipografia global trocada para Arial (sem Syne/DM Sans/Google Fonts) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v83.7",data:"01/06/2026",build:"dashboard-distribuicao-estreita"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v84",data:"01/06/2026",build:"fonte-arial-global"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -49,7 +49,6 @@
 <title>DMX Capital · Sistema de Gestão de Performance v82</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
 :root {
   --bg:       #F4F6FA;
@@ -70,7 +69,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+html, body { height: 100%; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
 
 /* ─── LAYOUT ─── */
 .app { display: flex; height: 100vh; }
@@ -84,7 +83,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
   padding: 20px 18px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .sidebar-logo .brand {
-  font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800;
+  font-family: Arial, sans-serif; font-size: 17px; font-weight: 800;
   color: #fff; letter-spacing: -0.3px;
 }
 .sidebar-logo .sub { font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px; }
@@ -110,7 +109,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
   height: 54px; background: var(--bg2); border-bottom: 1px solid var(--border);
   flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
-.topbar-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; flex: 1; color: var(--text); }
+.topbar-title { font-family: Arial, sans-serif; font-size: 15px; font-weight: 700; flex: 1; color: var(--text); }
 .period-selector {
   display: flex; align-items: center; gap: 7px; background: var(--bg3);
   border: 1px solid var(--border); border-radius: 7px; padding: 5px 11px; font-size: 12.5px;
@@ -146,7 +145,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 .kpi-card.teal::before { background: var(--teal); }
 .kpi-card.blue::before { background: var(--blue); }
 .card-label { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.card-value { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 3px; }
+.card-value { font-family: Arial, sans-serif; font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 3px; }
 .card-value.green { color: var(--green); }
 .card-value.amber { color: var(--amber); }
 .card-value.red   { color: var(--red); }
@@ -159,7 +158,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 20px; }
 .block-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.section-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--text); }
+.section-title { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; color: var(--text); }
 .section-link { font-size: 11px; color: var(--teal); cursor: pointer; }
 .section-link:hover { text-decoration: underline; }
 
@@ -167,13 +166,13 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 .area-grid { display: grid; gap: 12px; margin-bottom: 20px; }
 .area-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all 0.13s; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
 .area-card:hover { border-color: var(--teal); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(14,158,130,0.12); }
-.area-card-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.area-card-name { font-family: Arial, sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
 .area-card-stats { display: flex; gap: 6px; }
 .area-stat { flex: 1; text-align: center; padding: 5px 3px; border-radius: 6px; }
 .area-stat.g { background: #DCFCE7; }
 .area-stat.a { background: #FEF3C7; }
 .area-stat.r { background: #FEE2E2; }
-.area-stat-num { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; display: block; }
+.area-stat-num { font-family: Arial, sans-serif; font-size: 16px; font-weight: 800; display: block; }
 .area-stat.g .area-stat-num { color: var(--green); }
 .area-stat.a .area-stat-num { color: var(--amber); }
 .area-stat.r .area-stat-num { color: var(--red); }
@@ -210,7 +209,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
   width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
   border-radius: 10px; flex-shrink: 0;
 }
-.dash-kpi-header-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: #fff; line-height: 1.1; }
+.dash-kpi-header-title { font-family: Arial, sans-serif; font-size: 17px; font-weight: 800; color: #fff; line-height: 1.1; }
 .dash-kpi-header-sub { font-size: 11px; color: rgba(255,255,255,0.75); margin-top: 2px; }
 .dash-kpi-filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .dash-filter-group { display: flex; flex-direction: column; gap: 3px; }
@@ -263,12 +262,12 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 .plano-view-table td { padding: 5px 7px; border-bottom: 1px solid #F0F2F8; vertical-align: top; line-height: 1.4; }
 .plano-view-table tr:last-child td { border-bottom: none; }
 .plano-view-table tr:hover td { background: #F8FAFF; }
-.plano-view-table .ac-num { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 800; color: var(--teal); white-space: nowrap; min-width: 22px; }
+.plano-view-table .ac-num { font-family: Arial, sans-serif; font-size: 10px; font-weight: 800; color: var(--teal); white-space: nowrap; min-width: 22px; }
 .plano-view-wrap { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; margin-top: 6px; }
 
 /* ─── ACAO EDIT BLOCK (editor de ações) ─── */
 .acao-edit-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; position: relative; background: #FAFBFD; }
-.acao-edit-block .acao-num-badge { position: absolute; top: 10px; left: 12px; font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 800; color: var(--teal); background: #E0F5F0; border-radius: 4px; padding: 1px 6px; }
+.acao-edit-block .acao-num-badge { position: absolute; top: 10px; left: 12px; font-family: Arial, sans-serif; font-size: 10px; font-weight: 800; color: var(--teal); background: #E0F5F0; border-radius: 4px; padding: 1px 6px; }
 .acao-edit-block .acao-remove-btn { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 13px; color: var(--muted); padding: 2px 6px; border-radius: 4px; }
 .acao-edit-block .acao-remove-btn:hover { background: #FEE2E2; color: var(--red); }
 .plano-prazo { font-size: 11px; color: var(--muted); }
@@ -312,7 +311,7 @@ textarea.filter-input { resize: vertical; line-height: 1.5; }
 .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 860px; max-height: 90vh; overflow-y: auto; padding: 26px; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
 .modal-close { position: absolute; top: 14px; right: 18px; cursor: pointer; font-size: 18px; color: var(--muted); background: none; border: none; transition: color 0.13s; }
 .modal-close:hover { color: var(--text); }
-.modal-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; padding-right: 32px; color: var(--text); }
+.modal-title { font-family: Arial, sans-serif; font-size: 17px; font-weight: 800; padding-right: 32px; color: var(--text); }
 
 /* ─── DONUT ─── */
 .donut-wrap { display: flex; align-items: center; gap: 20px; }
@@ -355,7 +354,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 22px; background: #0D0D0D; flex-shrink: 0;
 }
-.pres-bar-title { font-family: Syne,sans-serif; font-size: 16px; font-weight: 800; color: #fff; }
+.pres-bar-title { font-family: Arial,sans-serif; font-size: 16px; font-weight: 800; color: #fff; }
 .pres-bar-pills { display: flex; gap: 6px; margin-top: 3px; }
 .pres-bar-right { display: flex; gap: 8px; align-items: center; }
 
@@ -404,7 +403,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 }
 .kpi-num-cell:last-child { border-right: none; }
 .kpi-num-label { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
-.kpi-num-value { font-family: Syne,sans-serif; font-size: 13px; font-weight: 800; margin-top: 1px; }
+.kpi-num-value { font-family: Arial,sans-serif; font-size: 13px; font-weight: 800; margin-top: 1px; }
 
 .kpi-card-chart { padding: 8px 10px; }
 .kpi-card-footer {
@@ -446,7 +445,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
   gap: 10px; color: rgba(255,255,255,0.5); font-size: 11px;
 }
 .slide-nav-kpi-name {
-  font-family: Syne,sans-serif; font-size: 13px; font-weight: 700; color: #fff;
+  font-family: Arial,sans-serif; font-size: 13px; font-weight: 700; color: #fff;
   max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .slide-nav-counter { color: rgba(255,255,255,0.4); font-size: 11px; }
@@ -470,7 +469,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 /* slide KPI header */
 .slide-kpi-header { }
 .slide-kpi-id { font-size: 10px; font-family: monospace; color: var(--muted); margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
-.slide-kpi-title { font-family: Syne,sans-serif; font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
+.slide-kpi-title { font-family: Arial,sans-serif; font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
 .slide-kpi-obj { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 
 /* slide metrics row */
@@ -480,7 +479,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
   padding: 13px 14px; text-align: center;
 }
 .slide-metric-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
-.slide-metric-val { font-family: Syne,sans-serif; font-size: 22px; font-weight: 800; }
+.slide-metric-val { font-family: Arial,sans-serif; font-size: 22px; font-weight: 800; }
 
 /* slide chart */
 .slide-chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
@@ -522,7 +521,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 /* ─── PLANOS BOARD ─── */
 .plan-board-area { margin-bottom: 28px; }
 .plan-board-area-title {
-  font-family: Syne,sans-serif; font-size: 11px; font-weight: 800;
+  font-family: Arial,sans-serif; font-size: 11px; font-weight: 800;
   text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted);
   margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
@@ -751,7 +750,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           <div class="section-header"><div class="section-title">Distribuição</div></div>
           <div class="block-card" style="padding:16px">
             <div style="margin-bottom:8px">
-              <span style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--teal,#0E9E82);line-height:1">​<span id="donut-total">—</span></span>
+              <span style="font-family:'Arial',sans-serif;font-size:30px;font-weight:800;color:var(--teal,#0E9E82);line-height:1">​<span id="donut-total">—</span></span>
               <span style="font-size:9.5px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);margin-left:6px">KPIs Monitorados</span>
             </div>
             <div class="donut-wrap" style="display:flex;flex-direction:row;align-items:center;gap:14px">
@@ -994,7 +993,7 @@ const DMXDataLabelsPlugin = {
       const meta = chart.getDatasetMeta(datasetIndex);
       if (!meta || meta.hidden) return;
       const unit = dataset.unit || '';
-      ctx.font = dataset.labelFont || '600 9px DM Sans, Arial';
+      ctx.font = dataset.labelFont || '600 9px Arial';
       ctx.fillStyle = dataset.labelColor || '#1A2340';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
@@ -2291,8 +2290,8 @@ function buildKPIChart(kpi, canvas, height) {
 
   const refs = months.map(m => resolveRef(kpi, m, currentAno));
   const datasets = [
-    { label: 'Realizado', type: 'line', yAxisID: 'y', data: realized.concat([null]), borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 2.5, pointHoverRadius: 5, spanGaps: true, showValueLabels: true, unit: kpi.unidade, labelColor: '#0E9E82', labelFont: '700 8px DM Sans, Arial', order: 1 },
-    { label: accumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([acumuladoFinal]), backgroundColor: 'rgba(245,158,11,0.85)', borderColor: 'rgba(245,158,11,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#D97706', labelFont: '700 8px DM Sans, Arial', order: 3 },
+    { label: 'Realizado', type: 'line', yAxisID: 'y', data: realized.concat([null]), borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 2, tension: 0.4, fill: false, pointRadius: 2.5, pointHoverRadius: 5, spanGaps: true, showValueLabels: true, unit: kpi.unidade, labelColor: '#0E9E82', labelFont: '700 8px Arial', order: 1 },
+    { label: accumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([acumuladoFinal]), backgroundColor: 'rgba(245,158,11,0.85)', borderColor: 'rgba(245,158,11,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#D97706', labelFont: '700 8px Arial', order: 3 },
     { label: 'Meta',      type: 'line', yAxisID: 'y', data: refs.map(r => r.meta).concat([null]),   borderColor: '#1D4ED8', borderWidth: 1.5, borderDash: [6, 3], tension: 0, pointRadius: 0, order: 0 },
     ...buildDirectionalRefDatasets(kpi, refs, 'Mín', 'Máx')
   ];
@@ -2602,9 +2601,9 @@ function renderKPISlide() {
 
     const slideRefs = months.map(m => resolveRef(kpi, m, currentAno));
     const ds = [
-      { label: 'Realizado', type: 'line', yAxisID: 'y', data: realized.concat([null]), borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 2.5, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true, showValueLabels: true, unit: kpi.unidade, labelColor: '#0E9E82', labelFont: '700 10px DM Sans, Arial', order: 1 },
-      { label: accumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([acumuladoFinal]), backgroundColor: 'rgba(245,158,11,0.85)', borderColor: 'rgba(245,158,11,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#D97706', labelFont: '700 10px DM Sans, Arial', order: 3 },
-      { label: metaAccumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([metaAcumuladaFinal]), backgroundColor: 'rgba(37,99,235,0.55)', borderColor: 'rgba(37,99,235,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#1D4ED8', labelFont: '700 10px DM Sans, Arial', order: 4 },
+      { label: 'Realizado', type: 'line', yAxisID: 'y', data: realized.concat([null]), borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 2.5, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true, showValueLabels: true, unit: kpi.unidade, labelColor: '#0E9E82', labelFont: '700 10px Arial', order: 1 },
+      { label: accumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([acumuladoFinal]), backgroundColor: 'rgba(245,158,11,0.85)', borderColor: 'rgba(245,158,11,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#D97706', labelFont: '700 10px Arial', order: 3 },
+      { label: metaAccumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([metaAcumuladaFinal]), backgroundColor: 'rgba(37,99,235,0.55)', borderColor: 'rgba(37,99,235,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#1D4ED8', labelFont: '700 10px Arial', order: 4 },
       { label: 'Meta Mensal', type: 'line', yAxisID: 'y', data: slideRefs.map(r => r.meta).concat([null]),   borderColor: '#1D4ED8', borderWidth: 2, borderDash: [6, 4], tension: 0, pointRadius: 0, order: 0 },
       ...buildDirectionalRefDatasets(kpi, slideRefs, 'Mínimo', 'Máximo')
     ];
@@ -3025,7 +3024,7 @@ function openEditLancamento(id_kpi, mes, ano) {
       '</div>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--navy);border-radius:8px;margin-bottom:2px">' +
-      '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:#fff">' + MES[mes] + ' / ' + ano + '</span>' +
+      '<span style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;color:#fff">' + MES[mes] + ' / ' + ano + '</span>' +
       '<span class="tag" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);margin-left:4px">' + kpi.unidade + '</span>' +
       '<span style="margin-left:auto">' + pill(l ? l.status : 'N/A') + '</span>' +
     '</div>' +
@@ -3812,7 +3811,7 @@ function buildPlanoForm(p) {
     '</div>' +
     '<div style="border:1px solid var(--border);border-radius:9px;padding:14px;background:#F8FAFD">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
-        '<div style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:var(--text)">⚡ Ações do Plano 5W2H</div>' +
+        '<div style="font-family:\'Arial\',sans-serif;font-size:12px;font-weight:800;color:var(--text)">⚡ Ações do Plano 5W2H</div>' +
         '<button type="button" class="btn btn-outline btn-sm" onclick="addAcaoBlock()" style="font-size:11px;padding:4px 10px">+ Adicionar Ação</button>' +
       '</div>' +
       '<div id="pf-acoes-container"></div>' +
@@ -4350,7 +4349,7 @@ function renderDiretoria(){
     <!-- Cabeçalho -->
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap">
       <div>
-        <div style="font-family:Syne,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo</div>
+        <div style="font-family:Arial,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.5px">Cockpit Executivo</div>
         <div style="font-size:13px;color:var(--muted);margin-top:3px">${MES_LABEL[mes]} ${ano} · Visão consolidada para a diretoria</div>
       </div>
       <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
@@ -4367,7 +4366,7 @@ function renderDiretoria(){
 
     <!-- Insights automáticos -->
     <div style="background:var(--bg3);border-radius:12px;padding:16px 20px;margin-bottom:20px;border:1px solid var(--border)">
-      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">🧠 Leitura executiva automática</div>
+      <div style="font-family:Arial,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">🧠 Leitura executiva automática</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${insights.map((ins,i)=>`
           <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:var(--bg);border-radius:8px;border-left:4px solid ${corInsight(ins.tipo)}">
@@ -4379,7 +4378,7 @@ function renderDiretoria(){
 
     <!-- Saúde por área -->
     <div style="margin-bottom:20px">
-      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📊 Saúde por área — ${MES_LABEL[mes]}</div>
+      <div style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📊 Saúde por área — ${MES_LABEL[mes]}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
         ${areasRank.map(a=>{const sf=semaforoArea(a); return `
           <div style="background:${sf.bg};border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer" onclick="goToArea('${esc(a.area)}')">
@@ -4400,7 +4399,7 @@ function renderDiretoria(){
     <!-- KPIs que precisam de decisão -->
     ${decisaoDir.length ? `
     <div style="margin-bottom:20px">
-      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">🚨 KPIs que requerem decisão da diretoria</div>
+      <div style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">🚨 KPIs que requerem decisão da diretoria</div>
       <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:var(--bg3);font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700">
@@ -4429,7 +4428,7 @@ function renderDiretoria(){
     <!-- KPIs crônicos -->
     ${cronicos.length ? `
     <div style="margin-bottom:20px">
-      <div style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📉 KPIs com desvio crônico (2+ meses consecutivos)</div>
+      <div style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px">📉 KPIs com desvio crônico (2+ meses consecutivos)</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
         ${cronicos.slice(0,6).map(c=>{
           const l=getLaunch(c.kpi.id,mes,ano), ref=resolveRef(c.kpi,mes,ano);
@@ -4447,7 +4446,7 @@ function renderDiretoria(){
 
     <!-- Rito de reunião -->
     <div style="background:var(--bg3);border-radius:12px;padding:16px 20px;border:1px solid var(--border)">
-      <div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">📋 Rito sugerido para reunião de resultados</div>
+      <div style="font-family:Arial,sans-serif;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:10px">📋 Rito sugerido para reunião de resultados</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;font-size:12.5px">
         ${[['1. Resultado','Validar o scorecard e identificar KPIs fora da meta'],['2. Foco','Discutir apenas KPIs críticos e crônicos — não todos'],['3. Causa','Separar problema de dado, processo, cliente ou decisão'],['4. Ação','Atualizar plano de ação com responsável e prazo firme'],['5. Decisão','Registrar bloqueios que dependem exclusivamente da diretoria']].map(([t,d])=>`
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
@@ -4464,7 +4463,7 @@ function renderDiretoria(){
 function scoreCard(titulo,_a,_b,_c,valor,sub,cor,bg){
   return `<div style="background:${bg};border:1px solid var(--border);border-radius:10px;padding:12px 14px">
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${titulo}</div>
-    <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;color:${cor}">${valor}</div>
+    <div style="font-family:Arial,sans-serif;font-size:22px;font-weight:800;color:${cor}">${valor}</div>
     <div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>
   </div>`;
 }
@@ -4987,7 +4986,7 @@ window.addEventListener('DOMContentLoaded', init);
         '<div class="area-card-name">' + area + '<span class="text-muted text-sm" style="font-weight:400">' + t + ' KPIs</span></div>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;background:#F0FDF9;border:1px solid #BBF7D0;border-radius:7px;padding:7px 9px;margin-bottom:9px">' +
           '<span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Índice PPR Acum.</span>'+
-          '<strong style="font-family:Syne,sans-serif;color:var(--teal);font-size:16px">'+idxTxt+'</strong>'+
+          '<strong style="font-family:Arial,sans-serif;color:var(--teal);font-size:16px">'+idxTxt+'</strong>'+
         '</div>'+
         '<div class="area-card-stats">' +
         '<div class="area-stat g"><span class="area-stat-num">' + s.verde + '</span><span class="area-stat-lbl">Verde</span></div>' +
@@ -5045,7 +5044,7 @@ window.addEventListener('DOMContentLoaded', init);
   function mensalKPI(k,mes,ano){const l=getLaunch(k.id,mes,ano),ref=resolveRef(k,mes,ano);const at=l?calcAting(k.sentido,l.realizado,ref.meta):null;return{real:l?l.realizado:null,meta:ref?ref.meta:null,atingPct:at==null?null:at*100,status:l?l.status:'N/A'}}
   function acumuladoKPI(k,ano){const real=calcAccumValue(k,null,ano,'realizado');const meta=calcAccumValue(k,null,ano,'meta');const at=(real==null||meta==null||meta===0)?null:calcAting(k.sentido,real,meta);const st=(real==null||meta==null||meta===0)?'N/A':calcStatus(k.sentido,real,meta);return{real,meta,atingPct:at==null?null:at*100,status:st}}
   window.dmxIndiceArea=function(area,mes,ano){ let indiceAcum=0,indiceMes=0,somaPesos=0; const itens=getKpis().filter(k=>String(k.area||'').trim()===String(area||'').trim()&&String(k.vertente||'').trim().toLowerCase()==='meta').map(k=>{ const p=pesoIndice(k.id); const m=mensalKPI(k,mes,ano); const a=acumuladoKPI(k,ano); const contribMes=m.atingPct==null?0:m.atingPct*p/100; const contribAcum=a.atingPct==null?0:a.atingPct*p/100; indiceMes+=contribMes; indiceAcum+=contribAcum; somaPesos+=p; return{kpi:k,peso:p,mensal:m,acumulado:a,contribMes,contribAcum}; }); return{area,indice:indiceAcum,indiceAcum,indiceMes,somaPesos,itens}; };
-  function indiceCardHtml(area){ const idx=window.dmxIndiceArea(area,currentMes,currentAno); const idxTxt=idx&&idx.itens&&idx.itens.length?brPct(idx.indiceAcum):'—'; return '<div style="display:flex;align-items:center;justify-content:space-between;background:#F0FDF9;border:1px solid #BBF7D0;border-radius:7px;padding:7px 9px;margin-bottom:9px"><span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Índice PPR Acum.</span><strong style="font-family:Syne,sans-serif;color:var(--teal);font-size:16px">'+idxTxt+'</strong></div>'; }
+  function indiceCardHtml(area){ const idx=window.dmxIndiceArea(area,currentMes,currentAno); const idxTxt=idx&&idx.itens&&idx.itens.length?brPct(idx.indiceAcum):'—'; return '<div style="display:flex;align-items:center;justify-content:space-between;background:#F0FDF9;border:1px solid #BBF7D0;border-radius:7px;padding:7px 9px;margin-bottom:9px"><span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Índice PPR Acum.</span><strong style="font-family:Arial,sans-serif;color:var(--teal);font-size:16px">'+idxTxt+'</strong></div>'; }
   window.renderAreaCards = renderAreaCards = function(containerId,data,cols){ getKpis();loadPesos(); const byArea={}; AREAS.forEach(a=>byArea[a]={verde:0,amarelo:0,vermelho:0}); data.forEach(l=>{if(byArea[l.area])byArea[l.area][l.status?.toLowerCase()||'na']++;}); const cont=document.getElementById(containerId); if(!cont)return; cont.innerHTML=AREAS.map(area=>{const s=byArea[area]||{verde:0,amarelo:0,vermelho:0}; const t=s.verde+s.amarelo+s.vermelho; return '<div class="area-card" onclick="goToArea(\''+area+'\')"><div class="area-card-name">'+area+'<span class="text-muted text-sm" style="font-weight:400">'+t+' KPIs</span></div>'+indiceCardHtml(area)+'<div class="area-card-stats"><div class="area-stat g"><span class="area-stat-num">'+s.verde+'</span><span class="area-stat-lbl">Verde</span></div><div class="area-stat a"><span class="area-stat-num">'+s.amarelo+'</span><span class="area-stat-lbl">Alerta</span></div><div class="area-stat r"><span class="area-stat-num">'+s.vermelho+'</span><span class="area-stat-lbl">Crítico</span></div></div></div>';}).join(''); };
   window.dmxRenderAreaIndiceCards=function(area){ const pres=document.getElementById('pres-content'); if(!pres||!area)return; const old=document.getElementById('area-indice-cards'); if(old)old.remove(); const r=window.dmxIndiceArea(area,currentMes,currentAno); if(!r||!r.itens||!r.itens.length)return; const st=statusIndice(r.indiceAcum); const div=document.createElement('div'); div.id='area-indice-cards'; div.className='cards-row'; div.style.cssText='grid-template-columns:repeat(4,1fr);margin-bottom:14px'; div.innerHTML='<div class="kpi-card teal"><div class="card-label">Índice PPR Acumulado</div><div class="card-value teal">'+brPct(r.indiceAcum)+'</div><div class="card-sub">fixo: todos os períodos lançados</div></div><div class="kpi-card blue"><div class="card-label">Índice Geral da Área</div><div class="card-value blue">'+brPct(r.indiceAcum)+'</div><div class="card-sub">somatório dos índices dos KPIs de meta</div></div><div class="kpi-card '+st.cls+'"><div class="card-label">Status do Índice</div><div class="card-value '+st.cls+'" style="font-size:20px">'+st.t+'</div><div class="card-sub">base acumulada oficial</div></div><div class="kpi-card amber"><div class="card-label">Índice Mensal</div><div class="card-value amber">'+brPct(r.indiceMes)+'</div><div class="card-sub">referência do mês selecionado</div></div>'; pres.insertBefore(div,pres.firstChild); };
   const baseRenderAreaDetail=window.renderAreaDetail; if(typeof baseRenderAreaDetail==='function'){ window.renderAreaDetail=renderAreaDetail=function(area){ baseRenderAreaDetail(area); setTimeout(()=>window.dmxRenderAreaIndiceCards(area),30); }; }
@@ -5649,7 +5648,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.renderPPR = function(){
     ensurePPRPage(); fillSelects(); const cfg = loadConfigPPR(); const ano = window.currentAno || currentAno || 2026; const pesoTotal = somaPesos(cfg); const val = document.getElementById('ppr-validacao'); if(val) val.innerHTML = Math.abs(pesoTotal-100) < 0.01 ? '<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>' : '<span style="color:var(--red);font-weight:700">⚠ Pesos somam '+pct(pesoTotal)+'. Ajuste para 100%.</span>';
     const areas = safeAreas(); const finais = areas.map(a=>({area:a, valor:calcPPRArea(a, 12, ano, true)})).filter(x=>x.valor!==null); const media = finais.length ? finais.reduce((s,x)=>s+x.valor,0)/finais.length : null; const best = finais.length ? finais.slice().sort((a,b)=>b.valor-a.valor)[0] : null; const worst = finais.length ? finais.slice().sort((a,b)=>a.valor-b.valor)[0] : null; const cards = document.getElementById('ppr-cards'); if(cards) cards.innerHTML = '<div class="kpi-card teal"><div class="card-label">PPR Global da Empresa</div><div class="card-value teal">'+pct(media)+'</div><div class="card-sub">média simples das áreas</div></div><div class="kpi-card green"><div class="card-label">Melhor Área</div><div class="card-value green" style="font-size:20px">'+(best?best.area:'—')+'</div><div class="card-sub">'+(best?pct(best.valor):'sem dados')+'</div></div><div class="kpi-card red"><div class="card-label">Área em Atenção</div><div class="card-value red" style="font-size:20px">'+(worst?worst.area:'—')+'</div><div class="card-sub">'+(worst?pct(worst.valor):'sem dados')+'</div></div><div class="kpi-card blue"><div class="card-label">Composição</div><div class="card-value blue" style="font-size:20px">Globais '+pct(Number(cfg.peso1||0)+Number(cfg.peso2||0)+Number(cfg.peso3||0))+'</div><div class="card-sub">Área '+pct(Number(cfg.pesoArea||0))+'</div></div>';
-    const k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3); const tables = document.getElementById('ppr-area-tables'); if(!tables) return; tables.innerHTML = areas.map(area=>{ const mVals = (id)=>MESES_PPR.map((_,i)=>getAtingKPI(id,i+1,ano,false)); const areaVals = MESES_PPR.map((_,i)=>getIndiceArea(area,i+1,ano,false)); const resultVals = MESES_PPR.map((_,i)=>calcPPRArea(area,i+1,ano,false)); const final = calcPPRArea(area,12,ano,true); const st = statusTxt(final); return '<div class="block-card" style="margin-bottom:18px;padding:0;overflow:hidden"><div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#0D0D0D;color:white"><div style="font-family:Syne,sans-serif;font-weight:800">'+area+'</div><div><span class="status-pill '+(final>=105?'VERDE':final>=90?'AMARELO':'VERMELHO')+'">'+st+'</span> <strong style="margin-left:8px">'+pct(final)+'</strong></div></div><div class="table-wrap" style="border:none;border-radius:0"><table class="data-table"><thead><tr><th>Componente</th>'+MESES_PPR.map(m=>'<th style="text-align:center">'+m+'</th>').join('')+'<th style="text-align:center">Índice PPR</th></tr></thead><tbody>'+rowHtml((k1?k1.indicador:'KPI Global 1')+' <span class="text-muted text-sm">('+pct(cfg.peso1)+')</span>', mVals(cfg.kpi1), getAtingKPI(cfg.kpi1,12,ano,true), false)+rowHtml((k2?k2.indicador:'KPI Global 2')+' <span class="text-muted text-sm">('+pct(cfg.peso2)+')</span>', mVals(cfg.kpi2), getAtingKPI(cfg.kpi2,12,ano,true), false)+rowHtml((k3?k3.indicador:'KPI Global 3')+' <span class="text-muted text-sm">('+pct(cfg.peso3)+')</span>', mVals(cfg.kpi3), getAtingKPI(cfg.kpi3,12,ano,true), false)+rowHtml('Índice PPR da Área <span class="text-muted text-sm">('+pct(cfg.pesoArea)+')</span>', areaVals, getIndiceArea(area,12,ano,true), false)+rowHtml('Resultado Final PPR', resultVals, final, true)+'</tbody></table></div></div>'; }).join('');
+    const k1=kpiById(cfg.kpi1), k2=kpiById(cfg.kpi2), k3=kpiById(cfg.kpi3); const tables = document.getElementById('ppr-area-tables'); if(!tables) return; tables.innerHTML = areas.map(area=>{ const mVals = (id)=>MESES_PPR.map((_,i)=>getAtingKPI(id,i+1,ano,false)); const areaVals = MESES_PPR.map((_,i)=>getIndiceArea(area,i+1,ano,false)); const resultVals = MESES_PPR.map((_,i)=>calcPPRArea(area,i+1,ano,false)); const final = calcPPRArea(area,12,ano,true); const st = statusTxt(final); return '<div class="block-card" style="margin-bottom:18px;padding:0;overflow:hidden"><div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#0D0D0D;color:white"><div style="font-family:Arial,sans-serif;font-weight:800">'+area+'</div><div><span class="status-pill '+(final>=105?'VERDE':final>=90?'AMARELO':'VERMELHO')+'">'+st+'</span> <strong style="margin-left:8px">'+pct(final)+'</strong></div></div><div class="table-wrap" style="border:none;border-radius:0"><table class="data-table"><thead><tr><th>Componente</th>'+MESES_PPR.map(m=>'<th style="text-align:center">'+m+'</th>').join('')+'<th style="text-align:center">Índice PPR</th></tr></thead><tbody>'+rowHtml((k1?k1.indicador:'KPI Global 1')+' <span class="text-muted text-sm">('+pct(cfg.peso1)+')</span>', mVals(cfg.kpi1), getAtingKPI(cfg.kpi1,12,ano,true), false)+rowHtml((k2?k2.indicador:'KPI Global 2')+' <span class="text-muted text-sm">('+pct(cfg.peso2)+')</span>', mVals(cfg.kpi2), getAtingKPI(cfg.kpi2,12,ano,true), false)+rowHtml((k3?k3.indicador:'KPI Global 3')+' <span class="text-muted text-sm">('+pct(cfg.peso3)+')</span>', mVals(cfg.kpi3), getAtingKPI(cfg.kpi3,12,ano,true), false)+rowHtml('Índice PPR da Área <span class="text-muted text-sm">('+pct(cfg.pesoArea)+')</span>', areaVals, getIndiceArea(area,12,ano,true), false)+rowHtml('Resultado Final PPR', resultVals, final, true)+'</tbody></table></div></div>'; }).join('');
   };
   const oldNav = window.nav; if(typeof oldNav === 'function' && !window.__dmxPprNavPatched){ window.nav = function(el, areaName){ oldNav(el, areaName); if(el && el.dataset && el.dataset.page === 'ppr'){ const t=document.getElementById('topbar-title'); if(t) t.textContent='Plano de Participação nos Resultados'; setTimeout(renderPPR, 20); } }; window.__dmxPprNavPatched = true; }
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(ensurePPRPage, 500); });
@@ -5852,7 +5851,7 @@ function weeklyResolveRef(kpi, mes, ano){
 const weeklyLabelPlugin = {
   id:'weeklyLabels',
   afterDatasetsDraw(chart){
-    const ctx = chart.ctx; ctx.save(); ctx.font='10px DM Sans'; ctx.fillStyle='#1A2340'; ctx.textAlign='center';
+    const ctx = chart.ctx; ctx.save(); ctx.font='10px Arial'; ctx.fillStyle='#1A2340'; ctx.textAlign='center';
     chart.data.datasets.forEach((ds, di)=>{
       if(!['Realizado','Média mensal realizada'].includes(ds.label)) return;
       const meta = chart.getDatasetMeta(di);
@@ -6598,7 +6597,7 @@ window.buildShareSection = function(kpiId){
   const count = (sh.meta_areas||[]).length + Object.keys(sh.controle_areas||{}).length;
   return '<div class="block-card" style="padding:14px;margin-bottom:12px">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:var(--text)">&#x21C4; Compartilhamento'+
+      '<div style="font-family:\'Arial\',sans-serif;font-size:12px;font-weight:800;color:var(--text)">&#x21C4; Compartilhamento'+
         (count>0?' <span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">'+count+' área(s)</span>':'')+
       '</div>'+
       '<span style="font-size:10px;color:var(--muted)">Salva automaticamente · Peso definido em Atualizar Dados</span>'+
@@ -7125,7 +7124,7 @@ window.buildShareSection = function(kpiId){
       try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
       setTimeout(function(){
         document.querySelectorAll('#ppr-area-tables .block-card').forEach(card => {
-          const head = card.querySelector('div[style*="font-family:Syne"]')?.textContent || card.textContent || '';
+          const head = card.querySelector('div[style*="font-family:Arial,sans-serif"]')?.textContent || card.textContent || '';
           if(/\bCEO\b|Painel Financeiro|Painel Executivo/i.test(head)) card.remove();
         });
       },50);
@@ -7851,7 +7850,7 @@ window.buildShareSection = function(kpiId){
   const count=(sh.meta_areas||[]).length+Object.keys(sh.controle_areas||{}).length;
   return '<div class="block-card" style="padding:14px;margin-bottom:12px">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
-      '<div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--text)">⇄ Compartilhamento matricial '+(count?'<span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">'+count+' área(s)</span>':'')+'</div>'+
+      '<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:800;color:var(--text)">⇄ Compartilhamento matricial '+(count?'<span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px">'+count+' área(s)</span>':'')+'</div>'+
       '<span style="font-size:10px;color:var(--muted)">Fonte oficial: Cadastro_KPIs → compartilhar</span>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
@@ -8155,7 +8154,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
         <!-- Tipo de lançamento / KPI Calculado -->
         <div style="margin-top:12px;padding:14px 16px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
-          <div style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;margin-bottom:10px">🔢 Tipo de Lançamento</div>
+          <div style="font-family:Arial,sans-serif;font-size:12px;font-weight:800;margin-bottom:10px">🔢 Tipo de Lançamento</div>
           <div style="display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start">
             <label>
               <span class="card-label">Tipo</span>
@@ -8180,7 +8179,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <div style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">
             <div>
-              <span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📅 Metas Mensais</span>
+              <span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px">📅 Metas Mensais</span>
               <span style="font-size:11px;color:var(--muted);margin-left:8px">Meta por mês — Mín/Máx calculados via tolerância do catálogo</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
@@ -8381,16 +8380,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   .dmx-login-overlay.open { display:flex; }
   .dmx-login-card { width: 100%; max-width: 420px; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.24); border-radius: 18px; padding: 28px; box-shadow: 0 30px 90px rgba(0,0,0,.35); }
   .dmx-login-logo { width: 174px; height: auto; display:block; object-fit:contain; margin: 0 auto 14px; }
-  .dmx-login-brand { font-family: Syne, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.4px; color: #0d0d0d; text-align:center; }
+  .dmx-login-brand { font-family: Arial, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.4px; color: #0d0d0d; text-align:center; }
   .dmx-login-sub { margin-top: 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; text-align:center; }
-  .dmx-login-title { margin-top: 24px; font-family: Syne, sans-serif; font-size: 18px; font-weight: 800; text-align:center; }
+  .dmx-login-title { margin-top: 24px; font-family: Arial, sans-serif; font-size: 18px; font-weight: 800; text-align:center; }
   .dmx-login-help { margin: 6px 0 18px; font-size: 12px; color: var(--muted); line-height: 1.45; text-align:center; }
   .dmx-login-field { width:100%; margin-bottom: 10px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; font-family: inherit; font-size: 13px; outline: none; background: #fff; }
   .dmx-login-field:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,158,130,.10); }
   .dmx-login-btn { width:100%; margin-top: 6px; padding: 11px 14px; border: none; border-radius: 9px; background: var(--teal); color: white; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
   .dmx-login-btn:hover { background: var(--teal2); }
   .dmx-login-msg { min-height: 18px; margin-top: 12px; font-size: 12px; color: var(--red); line-height: 1.4; }
-  .dmx-infinity { display:none; font-size: 22px; line-height: 1; font-family: Syne, sans-serif; animation: dmxSpinPulse 1s infinite ease-in-out; }
+  .dmx-infinity { display:none; font-size: 22px; line-height: 1; font-family: Arial, sans-serif; animation: dmxSpinPulse 1s infinite ease-in-out; }
   .dmx-login-btn.loading .dmx-infinity { display:inline-block; }
   .dmx-login-btn.loading { opacity: .9; cursor: wait; }
   @keyframes dmxSpinPulse { 0%{transform:scale(.85);opacity:.45} 50%{transform:scale(1.18);opacity:1} 100%{transform:scale(.85);opacity:.45} }
@@ -8724,7 +8723,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 <style id="dmx-v44-security-css">
   .dmx-security-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
   .dmx-security-card{background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
-  .dmx-security-card b{display:block;font-family:Syne,sans-serif;font-size:16px;margin-bottom:2px;color:var(--text);}
+  .dmx-security-card b{display:block;font-family:Arial,sans-serif;font-size:16px;margin-bottom:2px;color:var(--text);}
   .dmx-security-card span{font-size:10.5px;color:var(--muted);line-height:1.35;}
   .dmx-policy-list{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:8px;}
   .dmx-policy-ok{color:var(--green);font-weight:700;}
@@ -11157,7 +11156,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const count=(sh.meta_areas||[]).length + Object.keys(sh.controle_areas||{}).length;
     return '<div class="dmx-share-section block-card" style="padding:14px;margin:14px 0">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px">'+
-        '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:var(--text)">⇄ Compartilhamento do KPI entre áreas '+(count?'<span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px">'+count+' área(s)</span>':'')+'</div>'+ 
+        '<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:800;color:var(--text)">⇄ Compartilhamento do KPI entre áreas '+(count?'<span style="background:#EFF6FF;color:#2563EB;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px">'+count+' área(s)</span>':'')+'</div>'+ 
         '<span style="font-size:10px;color:var(--muted)">Meta entra no índice/PPR da área. Controle apenas monitora.</span>'+ 
       '</div>'+ 
       '<div style="display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-bottom:12px">'+
@@ -12600,12 +12599,12 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   #dmx-v58-boot-overlay {
     position: fixed; inset: 0; z-index: 99999;
     display: none; align-items: center; justify-content: center;
-    background: #0D0D0D; color: #fff; font-family: 'DM Sans', Arial, sans-serif;
+    background: #0D0D0D; color: #fff; font-family: Arial, sans-serif;
   }
   body.dmx-boot-silent #dmx-v58-boot-overlay { display: flex; }
   #dmx-v58-boot-overlay .dmx-v58-card { text-align: center; opacity: .96; }
   #dmx-v58-boot-overlay .dmx-v58-title {
-    font-family: 'Syne', Arial, sans-serif; font-size: 16px; font-weight: 800; letter-spacing: .2px;
+    font-family: Arial, sans-serif; font-size: 16px; font-weight: 800; letter-spacing: .2px;
   }
   #dmx-v58-boot-overlay .dmx-v58-sub { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,.48); letter-spacing: 1.2px; text-transform: uppercase; }
   #dmx-v58-boot-overlay .dmx-v58-loader {
@@ -14393,7 +14392,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         const meta = chart.getDatasetMeta(di);
         if(!meta || meta.hidden) return;
         if(ds.label === 'Realizado semanal'){
-          ctx.font = '700 11px DM Sans, Arial';
+          ctx.font = '700 11px Arial';
           ctx.fillStyle = '#1A2340';
           ctx.textAlign = 'center';
           meta.data.forEach((pt,i)=>{
@@ -14403,7 +14402,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           });
         }
         if(ds.type === 'bar'){
-          ctx.font = '800 11px DM Sans, Arial';
+          ctx.font = '800 11px Arial';
           ctx.fillStyle = '#111827';
           ctx.textAlign = 'center';
           meta.data.forEach((bar,i)=>{
@@ -14676,7 +14675,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         const meta = chart.getDatasetMeta(di);
         if(!meta || meta.hidden) return;
         if(ds.label === 'Realizado semanal'){
-          ctx.font = '800 11px DM Sans, Arial';
+          ctx.font = '800 11px Arial';
           ctx.fillStyle = '#1A2340';
           ctx.textAlign = 'center';
           meta.data.forEach((pt,i)=>{
@@ -14686,7 +14685,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           });
         }
         if(ds.type === 'bar'){
-          ctx.font = '800 11px DM Sans, Arial';
+          ctx.font = '800 11px Arial';
           ctx.fillStyle = '#111827';
           ctx.textAlign = 'center';
           meta.data.forEach((bar,i)=>{
@@ -15842,7 +15841,7 @@ setTimeout(()=>{
       return '<td style="text-align:center;padding:6px 10px;color:var(--muted);font-size:12px">—</td>';
     var cor=comp.v>=100?'var(--green)':comp.v>=80?'var(--amber)':'var(--red)';
     return '<td style="text-align:center;padding:6px 10px;vertical-align:middle;border-right:1px solid #F0F2F8">'+
-      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:'+cor+'">'+pct(comp.v)+'</div>'+
+      '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:'+cor+'">'+pct(comp.v)+'</div>'+
       '<div style="font-size:9px;color:var(--muted);margin-top:1px">&times;'+pct(comp.p,0)+' = <b>'+pct(comp.contrib)+'</b></div>'+
     '</td>';
   }
@@ -15873,7 +15872,7 @@ setTimeout(()=>{
         '<td style="padding:7px 12px;font-weight:600;font-size:12px;border-right:1px solid #F0F2F8">'+esc(d.area)+'</td>'+
         celula(d.kpi1)+celula(d.kpi2)+celula(d.kpi3)+celula(d.indice)+
         '<td style="text-align:center;padding:6px 10px">'+
-          '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:15px;color:'+cor+'">'+pct(d.total)+'</div>'+
+          '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:15px;color:'+cor+'">'+pct(d.total)+'</div>'+
           '<div style="font-size:14px;margin-top:1px">'+ico+'</div>'+
         '</td>'+
       '</tr>';
@@ -15881,7 +15880,7 @@ setTimeout(()=>{
 
     return '<div class="block-card" style="padding:0;overflow:hidden;margin-bottom:16px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#0D0D0D;color:#fff">'+
-        '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📊 Demonstrativo dos Resultados PPR</span>'+
+        '<span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px">📊 Demonstrativo dos Resultados PPR</span>'+
         '<span style="font-size:11px;opacity:.7">'+esc(periodoLabel)+'</span>'+
       '</div>'+
       '<div style="padding:6px 14px;background:#F8FAFF;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'+
@@ -15945,7 +15944,7 @@ setTimeout(()=>{
       '<div style="display:flex;align-items:flex-start;gap:12px">'+
         '<div style="font-size:24px;flex-shrink:0">📋</div>'+
         '<div>'+
-          '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:#0369A1;margin-bottom:6px">Como funciona o Plano PPR</div>'+
+          '<div style="font-family:Arial,sans-serif;font-size:13px;font-weight:800;color:#0369A1;margin-bottom:6px">Como funciona o Plano PPR</div>'+
           '<div style="font-size:12px;color:#0C4A6E;line-height:1.7">'+
             'O índice PPR de cada área combina <b>3 KPIs globais</b> (iguais para todas as áreas) com o <b>Índice de Eficiência da própria área</b>, '+
             'cada um com peso definido pelo Administrador (soma = 100%).<br>'+
@@ -16881,7 +16880,7 @@ setTimeout(()=>{
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
-        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
         gatilhos.map(function(item){
           var k=item.kpi||item, gm=item.mes||(window.currentMes||5), lbl=item.mesLabel||'';
@@ -16938,7 +16937,7 @@ setTimeout(()=>{
             var nConcluidas=grupo.acoes.filter(function(a){ return a.status==='Concluído'; }).length;
             var atrasadas=grupo.acoes.filter(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; }).length;
             return '<tr class="plano-row" onclick="dmxAbrirDetalhePlano(\''+esc(gid)+'\')" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
-              '<td style="padding:9px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
+              '<td style="padding:9px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
               '<td style="padding:9px 14px;max-width:200px;font-size:12px">'+esc(k?k.indicador:grupo.id_kpi)+'</td>'+
               '<td style="padding:9px 14px"><span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k?k.area:grupo.area||'—')+'</span></td>'+
               '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(grupo.prioridade)+'</span></td>'+
@@ -16963,7 +16962,7 @@ setTimeout(()=>{
   function mc(titulo,valor,cor,bg){
     return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:default">'+
       '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">'+titulo+'</div>'+
-      '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
+      '<div style="font-family:Arial,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
     '</div>';
   }
 
@@ -17079,7 +17078,7 @@ setTimeout(()=>{
       '<div style="background:var(--bg);border-radius:14px;width:calc(100% - 32px);max-width:1400px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
+          '<span style="font-family:Arial,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
           '<span style="font-size:13px;font-weight:600">'+esc(k?k.indicador:g.id_kpi)+'</span>'+
           (k?'<span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
           '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(g.prioridade)+'</span>'+
@@ -17139,7 +17138,7 @@ setTimeout(()=>{
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:14px;max-width:860px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
+          '<span style="font-family:Arial,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
@@ -17238,7 +17237,7 @@ setTimeout(()=>{
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:520px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span id="acao-modal-titulo" style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
+          '<span id="acao-modal-titulo" style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
           '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" style="background:none;border:none;font-size:18px;cursor:pointer">×</button>'+
         '</div>'+
         '<div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">'+
@@ -17331,7 +17330,7 @@ setTimeout(()=>{
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">💬 Adicionar Comentário</span>'+
+          '<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">💬 Adicionar Comentário</span>'+
           '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:16px 18px">'+
@@ -17534,7 +17533,7 @@ setTimeout(()=>{
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
+          '<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
           '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:16px 18px">'+
@@ -18284,7 +18283,7 @@ window.dmxNavLancamento = function(direcao){
       '#page-financeiro-v82 .fin-tab.active{background:var(--bg);border-color:var(--border);color:var(--text);border-bottom-color:var(--bg);}',
       '#page-financeiro-v82 .fin-tab .fin-tab-ico{font-size:22px;line-height:1;}',
       '#page-financeiro-v82 .fin-tab .fin-tab-info{display:flex;flex-direction:column;}',
-      '#page-financeiro-v82 .fin-tab .fin-tab-label{font-family:Syne,sans-serif;font-size:13px;font-weight:800;}',
+      '#page-financeiro-v82 .fin-tab .fin-tab-label{font-family:Arial,sans-serif;font-size:13px;font-weight:800;}',
       '#page-financeiro-v82 .fin-tab .fin-tab-count{font-size:10px;color:var(--muted);font-weight:400;}',
       '#page-financeiro-v82 .fin-tab.active .fin-tab-count{color:var(--teal);}',
       '#page-financeiro-v82 .fin-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--bg2);}',
@@ -18334,7 +18333,7 @@ window.dmxNavLancamento = function(direcao){
     // Header
     var cfgBtn=admin?'<button class="btn btn-ghost btn-sm" id="fin82-cfg-btn" onclick="window.dmxFin82Cfg(\''+abaAtiva+'\')">✏️ Configurar vertente</button>':'';
     var headerHtml='<div class="fin-header">'+
-      '<div><span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800">◆ Painel Executivo</span>'+
+      '<div><span style="font-family:Arial,sans-serif;font-size:16px;font-weight:800">◆ Painel Executivo</span>'+
       '<span style="font-size:12px;color:var(--muted);margin-left:10px">'+meses[mes]+' '+ano+'</span></div>'+
       cfgBtn+'</div>';
 
@@ -18366,7 +18365,7 @@ window.dmxNavLancamento = function(direcao){
       var cfgLink=isAdmin()?'<br><br><button class="btn btn-primary" onclick="window.dmxFin82Cfg(\''+v+'\')">✏️ Configurar '+esc(v)+'</button>':'';
       host.innerHTML='<div style="padding:48px;text-align:center;background:var(--bg2);border-radius:12px;border:2px dashed var(--border)">'+
         '<div style="font-size:36px;margin-bottom:12px">'+vc.ico+'</div>'+
-        '<div style="font-family:Syne,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Vertente '+esc(v)+'</div>'+
+        '<div style="font-family:Arial,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Vertente '+esc(v)+'</div>'+
         '<div style="font-size:13px;color:var(--muted)">Nenhum indicador configurado nesta vertente.</div>'+
         cfgLink+'</div>';
       return;
@@ -18453,7 +18452,7 @@ window.dmxNavLancamento = function(direcao){
     if(!modal){ modal=document.createElement('div'); modal.id='fin82-modal'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center'; document.body.appendChild(modal); }
     modal.innerHTML='<div style="background:var(--bg);border-radius:12px;max-width:580px;width:92%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
       '<div style="padding:20px 24px">'+
-        '<div style="font-family:Syne,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">'+VERT_CFG[v].ico+' Configurar: '+esc(v)+'</div>'+
+        '<div style="font-family:Arial,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">'+VERT_CFG[v].ico+' Configurar: '+esc(v)+'</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Selecione os KPIs que aparecerão nesta vertente.</div>'+
         '<input type="text" placeholder="🔍 Buscar KPI..." style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:10px;background:var(--bg2)" oninput="document.querySelectorAll(\'#fin82-modal-list label\').forEach(function(l){l.style.display=l.textContent.toLowerCase().indexOf(this.value.toLowerCase())>=0?\'flex\':\'none\';}.bind(this))">'+
         '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 12px;background:var(--bg2)" id="fin82-modal-list">'+optsHtml+'</div>'+
@@ -18715,7 +18714,7 @@ window.dmxNavLancamento = function(direcao){
     var gatHtml='';
     if(gatilhos.length&&(flag==='todos'||flag==='ativos'||flag==='pendentes')){
       gatHtml='<div style="margin-bottom:14px;padding:12px 14px;background:#FFF7ED;border:2px solid #FCD34D;border-radius:10px">'+
-        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
+        '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#B45309;margin-bottom:8px">⚠️ '+gatilhos.length+' KPI'+(gatilhos.length>1?'s':'')+' sem plano de ação</div>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">'+
         gatilhos.map(function(item){
           var k=item.kpi||item, gm=item.mes||(window.currentMes||5), lbl=item.mesLabel||'';
@@ -18772,7 +18771,7 @@ window.dmxNavLancamento = function(direcao){
             var nConcluidas=grupo.acoes.filter(function(a){ return a.status==='Concluído'; }).length;
             var atrasadas=grupo.acoes.filter(function(a){ var d=diasAte(a.prazo); return a.status!=='Concluído'&&a.status!=='Cancelado'&&d!==null&&d<0; }).length;
             return '<tr class="plano-row" onclick="dmxAbrirDetalhePlano(\''+esc(gid)+'\')" style="cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'+
-              '<td style="padding:9px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
+              '<td style="padding:9px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:12px;color:var(--teal)">'+esc(gid)+'</td>'+
               '<td style="padding:9px 14px;max-width:200px;font-size:12px">'+esc(k?k.indicador:grupo.id_kpi)+'</td>'+
               '<td style="padding:9px 14px"><span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k?k.area:grupo.area||'—')+'</span></td>'+
               '<td style="padding:9px 14px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(grupo.prioridade)+'</span></td>'+
@@ -18797,7 +18796,7 @@ window.dmxNavLancamento = function(direcao){
   function mc(titulo,valor,cor,bg){
     return '<div style="background:'+bg+';border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:default">'+
       '<div style="font-size:10px;color:var(--muted);margin-bottom:3px">'+titulo+'</div>'+
-      '<div style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
+      '<div style="font-family:Arial,sans-serif;font-size:16px;font-weight:800;color:'+cor+'">'+valor+'</div>'+
     '</div>';
   }
 
@@ -18913,7 +18912,7 @@ window.dmxNavLancamento = function(direcao){
       '<div style="background:var(--bg);border-radius:14px;width:calc(100% - 32px);max-width:1400px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto;height:calc(100vh - 32px);display:flex;flex-direction:column">'+
         // Header
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
-          '<span style="font-family:Syne,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
+          '<span style="font-family:Arial,sans-serif;font-size:16px;font-weight:800;color:var(--teal)">'+esc(gid)+'</span>'+
           '<span style="font-size:13px;font-weight:600">'+esc(k?k.indicador:g.id_kpi)+'</span>'+
           (k?'<span style="font-size:11px;background:var(--bg3);padding:2px 8px;border-radius:8px;color:var(--muted)">'+esc(k.area)+'</span>':'')+
           '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+pc.bg+';color:'+pc.txt+'">'+esc(g.prioridade)+'</span>'+
@@ -18973,7 +18972,7 @@ window.dmxNavLancamento = function(direcao){
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:14px;max-width:860px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto">'+
         '<div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
+          '<span style="font-family:Arial,sans-serif;font-size:15px;font-weight:800">'+(gid?'✏️ Editar — '+esc(gid):'🆕 Novo Plano de Ação')+'</span>'+
           '<button onclick="document.getElementById(\'dmx-plano-modal-v2\').style.display=\'none\'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">'+
@@ -19072,7 +19071,7 @@ window.dmxNavLancamento = function(direcao){
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:520px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span id="acao-modal-titulo" style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
+          '<span id="acao-modal-titulo" style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">➕ Nova Ação — '+esc(gid)+'</span>'+
           '<button onclick="document.getElementById(\'dmx-acao-modal\').style.display=\'none\'" style="background:none;border:none;font-size:18px;cursor:pointer">×</button>'+
         '</div>'+
         '<div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px">'+
@@ -19165,7 +19164,7 @@ window.dmxNavLancamento = function(direcao){
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">💬 Adicionar Comentário</span>'+
+          '<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">💬 Adicionar Comentário</span>'+
           '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:16px 18px">'+
@@ -19368,7 +19367,7 @@ window.dmxNavLancamento = function(direcao){
     modal.innerHTML=
       '<div style="background:var(--bg);border-radius:12px;max-width:480px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,.3)">'+
         '<div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
+          '<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px">✏️ Editar Comentário</span>'+
           '<button onclick="document.getElementById(&quot;dmx-coment-modal&quot;).style.display=&quot;none&quot;" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)">×</button>'+
         '</div>'+
         '<div style="padding:16px 18px">'+
