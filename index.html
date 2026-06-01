@@ -1161,6 +1161,8 @@ function dmxApiToKpi(row, idx) {
     fonte: dmxPick(row, ['fonte'], 'Google Sheets'),
     sentido: dmxPick(row, ['sentido'], 'Maior Melhor'),
     meta: num(dmxPick(row, ['meta','meta_padrao','meta_padrão'], ''), 0),
+    meta_padrao: num(dmxPick(row, ['meta','meta_padrao','meta_padrão'], ''), 0),
+    // minimo/maximo lidos do Sheets apenas como fallback — tolerancia_pct tem prioridade
     minimo: num(dmxPick(row, ['minimo','mínimo','minimo_padrao','mínimo_padrão'], ''), 0),
     maximo: num(dmxPick(row, ['maximo','máximo','maximo_padrao','máximo_padrão'], ''), 0),
     peso_ebitda: num(dmxPick(row, ['peso_ebitda'], ''), 0),
@@ -7880,11 +7882,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       fonte: 'Painel Admin HTML',
       sentido: (document.getElementById('adm-kpi-sentido')?.value || 'Maior Melhor').trim(),
       meta: num(document.getElementById('adm-kpi-meta')?.value,0),
-      minimo: num(document.getElementById('adm-kpi-minimo')?.value,0),
-      maximo: num(document.getElementById('adm-kpi-maximo')?.value,0),
       meta_padrao: num(document.getElementById('adm-kpi-meta')?.value,0),
-      minimo_padrao: num(document.getElementById('adm-kpi-minimo')?.value,0),
-      maximo_padrao: num(document.getElementById('adm-kpi-maximo')?.value,0),
+      // minimo/maximo calculados automaticamente via tolerancia_pct
       peso_indice: num(document.getElementById('adm-kpi-peso-indice')?.value,0),
       acumulado: (document.getElementById('adm-kpi-acumulado')?.value || 'média').trim(),
       tipo_lancamento: (document.getElementById('adm-kpi-tipo-lancamento')?.value || 'manual').trim(),
@@ -7933,8 +7932,17 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
           <label><span class="card-label">Meta</span><input id="adm-kpi-meta" type="number" step="0.01" class="filter-input" value="${esc(k.meta ?? k.meta_padrao ?? 0)}" style="width:100%"></label>
-          <label><span class="card-label">Mínimo</span><input id="adm-kpi-minimo" type="number" step="0.01" class="filter-input" value="${esc(k.minimo ?? k.minimo_padrao ?? 0)}" style="width:100%"></label>
-          <label><span class="card-label">Máximo</span><input id="adm-kpi-maximo" type="number" step="0.01" class="filter-input" value="${esc(k.maximo ?? k.maximo_padrao ?? 0)}" style="width:100%"></label>
+          <!-- Mínimo e Máximo calculados via Tolerância (%) — não editáveis -->
+          <label><span class="card-label">Mín. calculado</span>
+            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--muted)">
+              ${k.tolerancia_pct>0 ? Math.round((k.minimo_padrao||k.meta||k.meta_padrao||0)*(1-k.tolerancia_pct/100)*100)/100 : (k.minimo_padrao||k.minimo||'—')}
+            </div>
+          </label>
+          <label><span class="card-label">Máx. calculado</span>
+            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--muted)">
+              ${k.tolerancia_pct>0 ? Math.round((k.maximo_padrao||k.meta||k.meta_padrao||0)*(1+k.tolerancia_pct/100)*100)/100 : (k.maximo_padrao||k.maximo||'—')}
+            </div>
+          </label>
           <label><span class="card-label">Unidade</span><input id="adm-kpi-unidade" class="filter-input" value="${esc(k.unidade||'%')}" style="width:100%"></label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
@@ -8122,8 +8130,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(window.dmxGetApiUrl ? window.dmxGetApiUrl() : '') || 'não configurada'}</span><br>
         <b>Origem:</b> ${manualApiUrl() ? 'manual salva neste navegador' : (defaultApiUrl() ? 'padrão gravada no código' : 'nenhuma')}
       </div>
-      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Mín.</th><th>Máx.</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
-        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td>${esc(k.minimo ?? k.minimo_padrao ?? '')}</td><td>${esc(k.maximo ?? k.maximo_padrao ?? '')}</td><td>${esc(k.sentido||'')}</td><td style="max-width:180px;font-size:11px;color:var(--muted)">${esc(cargosToText(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Tolerância</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:180px;font-size:11px;color:var(--muted)">${esc(cargosToText(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
       </tbody></table></div>
     </div>`;
   }
@@ -8768,8 +8776,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(apiUrl()) || 'não configurada'}</span><br>
         <b>Regra aplicada:</b> administradores visualizam todos os KPIs; filtros de área/cargo valem apenas fora do Admin.
       </div>
-      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Mín.</th><th>Máx.</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
-        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area||'—')}</span></td><td style="max-width:320px">${esc(k.indicador||'')}${kpiBadges(k)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td>${esc(k.minimo ?? k.minimo_padrao ?? '')}</td><td>${esc(k.maximo ?? k.maximo_padrao ?? '')}</td><td>${esc(k.sentido||'')}</td><td style="max-width:190px;font-size:11px;color:var(--muted)">${esc(cargosText(k)) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+      <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Tolerância</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area||'—')}</span></td><td style="max-width:320px">${esc(k.indicador||'')}${kpiBadges(k)}</td><td>${esc(k.meta ?? k.meta_padrao ?? '')}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:190px;font-size:11px;color:var(--muted)">${esc(cargosText(k)) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
       </tbody></table></div>
     </div>`;
   }
