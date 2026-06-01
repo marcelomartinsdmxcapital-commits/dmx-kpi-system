@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v83.3 — 01/06/2026 — Dashboard layout: 6 cards, graficos empilhados, header moderno 3 filtros -->
+<!-- DMX KPI System — v83.4 — 01/06/2026 — Dashboard: sem cards topo, total no donut, filtros cruzados estilo Excel -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v83.3",data:"01/06/2026",build:"dashboard-layout-6cards-graficos-header"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v83.4",data:"01/06/2026",build:"dashboard-sem-cards-topo-filtros-cruzados"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -191,7 +191,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 @media (max-width: 820px){ #area-grid { grid-template-columns: repeat(2, 1fr) !important; } }
 
 /* faixa de gráficos: linha (maior) + pizza (menor) lado a lado, abaixo dos cards */
-.dash-charts-row { display: grid; grid-template-columns: 2.4fr 1fr; gap: 16px; margin-top: 18px; }
+.dash-charts-row { display: grid; grid-template-columns: 2.8fr 1fr; gap: 14px; margin-top: 16px; }
 @media (max-width: 900px){ .dash-charts-row { grid-template-columns: 1fr; } }
 
 /* cabeçalho moderno da lista de KPIs */
@@ -737,20 +737,23 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div class="cards-row" id="cards-summary" style="grid-template-columns:repeat(5,1fr)"></div>
       <div class="section-header"><div class="section-title">Status por Área</div><span class="section-link" style="color:var(--muted);cursor:default">Resumo por área</span></div>
       <div class="area-grid" id="area-grid"></div>
 
       <div class="dash-charts-row">
         <div class="dash-chart-main">
           <div class="section-header"><div class="section-title">Evolução de Criticidade</div></div>
-          <div class="block-card" style="padding:16px"><div style="height:230px"><canvas id="trend-chart"></canvas></div></div>
+          <div class="block-card" style="padding:16px"><div style="height:200px"><canvas id="trend-chart"></canvas></div></div>
         </div>
         <div class="dash-chart-side">
           <div class="section-header"><div class="section-title">Distribuição</div></div>
           <div class="block-card" style="padding:16px;height:calc(100% - 34px)">
+            <div style="text-align:center;margin-bottom:10px">
+              <div style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--teal,#0E9E82);line-height:1" id="donut-total">—</div>
+              <div style="font-size:10.5px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted)">KPIs Monitorados</div>
+            </div>
             <div class="donut-wrap" style="flex-direction:column;align-items:center;gap:12px">
-              <div style="width:150px;height:150px;flex-shrink:0"><canvas id="donut-chart"></canvas></div>
+              <div style="width:140px;height:140px;flex-shrink:0"><canvas id="donut-chart"></canvas></div>
               <div class="donut-legend" id="donut-legend" style="width:100%"></div>
             </div>
           </div>
@@ -1873,12 +1876,6 @@ function renderDashboard() {
   const totalImpact = data.reduce((s, l) => s + (l.impacto || 0), 0);
   const pct = v => total > 0 ? Math.round(v / total * 100) : 0;
 
-  document.getElementById('cards-summary').innerHTML =
-    card('teal','KPIs Monitorados',total,'teal', MES[currentMes]+' '+currentAno) +
-    card('green','No Verde',verde,'green', pct(verde)+'% do total') +
-    card('amber','Em Alerta',amarelo,'amber', pct(amarelo)+'% do total') +
-    card('red','Cr\u00EDtico',vermelho,'red', pct(vermelho)+'% do total');
-
   renderAreaCards('area-grid', data, 2);
   renderDonut(verde, amarelo, vermelho, total);
   renderTrend();
@@ -1890,31 +1887,65 @@ function renderDashboard() {
 
 function renderDashboardKpiTable() {
   const data = window._dashKpiData || [];
-  const fStatus = (document.getElementById('dash-status-filter') || {}).value || 'ALL';
-  const fArea = (document.getElementById('dash-area-filter') || {}).value || 'ALL';
-  const fVert = (document.getElementById('dash-vertente-filter') || {}).value || 'ALL';
   const titleEl = document.getElementById('dash-kpi-list-title');
-
-  // Popula o dropdown de área (uma vez) a partir das áreas presentes nos dados
+  const statusSel = document.getElementById('dash-status-filter');
   const areaSel = document.getElementById('dash-area-filter');
-  if (areaSel && areaSel.options.length <= 1) {
-    const areas = [...new Set(data.map(l => l.area).filter(Boolean))].sort();
-    areaSel.innerHTML = '<option value="ALL">Todas</option>' + areas.map(a => '<option value="' + a + '">' + a + '</option>').join('');
-    areaSel.value = fArea;
-  }
+  const vertSel = document.getElementById('dash-vertente-filter');
 
-  // Resolve vertente via catálogo
+  let fStatus = (statusSel || {}).value || 'ALL';
+  let fArea = (areaSel || {}).value || 'ALL';
+  let fVert = (vertSel || {}).value || 'ALL';
+
+  // Resolve vertente via catálogo (fallback)
   const vertOf = (l) => {
     if (l.vertente) return l.vertente;
     const k = (typeof getKPI === 'function') ? getKPI(l.id_kpi) : null;
     return k ? k.vertente : '';
   };
+  const statusKey = (l) => (l.status === 'N/A' || l.status == null) ? 'NA' : l.status;
+  const matchStatus = (l, f) => f === 'ALL' || statusKey(l) === f;
+  const matchArea = (l, f) => f === 'ALL' || l.area === f;
+  const matchVert = (l, f) => f === 'ALL' || String(vertOf(l)).trim().toLowerCase() === f.toLowerCase();
 
-  let rows = data.slice();
-  if (fStatus === 'NA') rows = rows.filter(l => l.status === 'N/A' || l.status == null);
-  else if (fStatus !== 'ALL') rows = rows.filter(l => l.status === fStatus);
-  if (fArea !== 'ALL') rows = rows.filter(l => l.area === fArea);
-  if (fVert !== 'ALL') rows = rows.filter(l => String(vertOf(l)).trim().toLowerCase() === fVert.toLowerCase());
+  // ── Cross-filtering: cada dropdown lista só valores válidos sob os OUTROS dois filtros ──
+  // Opções de STATUS válidas (aplicando área + vertente)
+  const statusPool = data.filter(l => matchArea(l, fArea) && matchVert(l, fVert));
+  const validStatus = new Set(statusPool.map(statusKey));
+  // Opções de ÁREA válidas (aplicando status + vertente)
+  const areaPool = data.filter(l => matchStatus(l, fStatus) && matchVert(l, fVert));
+  const validAreas = [...new Set(areaPool.map(l => l.area).filter(Boolean))].sort();
+  // Opções de VERTENTE válidas (aplicando status + área)
+  const vertPool = data.filter(l => matchStatus(l, fStatus) && matchArea(l, fArea));
+  const validVerts = [...new Set(vertPool.map(l => String(vertOf(l)).trim()).filter(Boolean))];
+
+  // Se a seleção atual deixou de ser válida, reseta para ALL
+  const STATUS_LABELS = { VERDE: '🟢 Verde', AMARELO: '🟡 Alerta', VERMELHO: '🔴 Crítico', NA: '⚪ Sem dado' };
+  if (fStatus !== 'ALL' && !validStatus.has(fStatus)) fStatus = 'ALL';
+  if (fArea !== 'ALL' && !validAreas.includes(fArea)) fArea = 'ALL';
+  if (fVert !== 'ALL' && !validVerts.some(v => v.toLowerCase() === fVert.toLowerCase())) fVert = 'ALL';
+
+  // Repovoa os dropdowns preservando seleção
+  if (statusSel) {
+    const order = ['VERMELHO', 'AMARELO', 'VERDE', 'NA'];
+    statusSel.innerHTML = '<option value="ALL">Todos</option>' +
+      order.filter(s => validStatus.has(s)).map(s => '<option value="' + s + '">' + STATUS_LABELS[s] + '</option>').join('');
+    statusSel.value = fStatus;
+  }
+  if (areaSel) {
+    areaSel.innerHTML = '<option value="ALL">Todas</option>' +
+      validAreas.map(a => '<option value="' + a + '">' + a + '</option>').join('');
+    areaSel.value = fArea;
+  }
+  if (vertSel) {
+    const vlabel = (v) => v.toLowerCase() === 'meta' ? '🎯 Meta' : v.toLowerCase() === 'controle' ? '📊 Controle' : v;
+    const vorder = ['Meta', 'Controle'].filter(v => validVerts.some(x => x.toLowerCase() === v.toLowerCase()));
+    vertSel.innerHTML = '<option value="ALL">Ambas</option>' +
+      vorder.map(v => '<option value="' + v + '">' + vlabel(v) + '</option>').join('');
+    vertSel.value = fVert;
+  }
+
+  // Aplica os três filtros para a tabela final
+  let rows = data.filter(l => matchStatus(l, fStatus) && matchArea(l, fArea) && matchVert(l, fVert));
 
   // Ordena por criticidade (pior primeiro) e, dentro disso, por menor impacto
   const ord = { 'VERMELHO': 0, 'AMARELO': 1, 'VERDE': 2, 'N/A': 3 };
@@ -1974,6 +2005,8 @@ function renderAreaCards(containerId, data, cols) {
 }
 
 function renderDonut(v, a, r, total) {
+  const totalEl = document.getElementById('donut-total');
+  if (totalEl) totalEl.textContent = total;
   const ctx = document.getElementById('donut-chart').getContext('2d');
   if (donutChart) donutChart.destroy();
   donutChart = new Chart(ctx, {
