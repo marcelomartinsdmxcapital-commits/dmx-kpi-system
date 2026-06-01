@@ -1157,11 +1157,11 @@ function dmxApiToKpi(row, idx) {
     compartilhar: dmxPick(row, ['compartilhar'], ''),
     fonte: dmxPick(row, ['fonte'], 'Google Sheets'),
     sentido: dmxPick(row, ['sentido'], 'Maior Melhor'),
+    // Meta: lida do Cadastro_KPIs se disponível, senão 0 (meta real vive em Dados_Mensais)
     meta: num(dmxPick(row, ['meta','meta_padrao','meta_padrão'], ''), 0),
     meta_padrao: num(dmxPick(row, ['meta','meta_padrao','meta_padrão'], ''), 0),
-    // minimo/maximo lidos do Sheets apenas como fallback — tolerancia_pct tem prioridade
-    minimo: num(dmxPick(row, ['minimo','mínimo','minimo_padrao','mínimo_padrão'], ''), 0),
-    maximo: num(dmxPick(row, ['maximo','máximo','maximo_padrao','máximo_padrão'], ''), 0),
+    // minimo/maximo: removidos do Sheets — calculados via tolerancia_pct pelo resolveRef
+    minimo: 0, maximo: 0,
     peso_ebitda: num(dmxPick(row, ['peso_ebitda'], ''), 0),
     peso_indice: num(dmxPick(row, ['peso_indice','peso_índice','peso'], ''), 0),
     acumulado: dmxPick(row, ['acumulado'], 'média'),
@@ -1624,11 +1624,8 @@ function resolveRef(kpi, mes, ano) {
       minimo = null; maximo = null;
     }
   } else {
-    // Sem tolerância: usa valores diretos do catálogo (sem passar por lançamento)
-    const kMin = numOrNull(kpi.minimo_padrao) !== null ? numOrNull(kpi.minimo_padrao) : numOrNull(kpi.minimo);
-    const kMax = numOrNull(kpi.maximo_padrao) !== null ? numOrNull(kpi.maximo_padrao) : numOrNull(kpi.maximo);
-    minimo = kMin !== null ? kMin : pick('minimo');
-    maximo = kMax !== null ? kMax : pick('maximo');
+    // Sem tolerância e sem colunas no Sheets: sem limites (null = sem linha no gráfico)
+    minimo = null; maximo = null;
   }
   return { meta, minimo, maximo };
 }
@@ -3432,6 +3429,9 @@ function renderPlanos() {
     // Cards de gatilho — KPIs fora do range sem plano
     const gts = (gatilhosByArea[area] || []).map(k => {
       const ref = typeof resolveRef==='function' ? resolveRef(k, currentMes, currentAno) : {};
+      // Meta do catálogo = meta do lançamento do mês atual
+      const lCat = typeof getLaunch==='function' ? getLaunch(k.id, currentMes, currentAno) : null;
+      if(lCat && lCat.meta) k = Object.assign({}, k, {meta: lCat.meta});
       const l = typeof getLaunch==='function' ? getLaunch(k.id, currentMes, currentAno) : null;
       const real = l ? l.realizado : null;
       return '<div class="plano-card" style="border-left:4px solid #D97706;background:#FFFBEB">' +
