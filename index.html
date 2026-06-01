@@ -1204,8 +1204,7 @@ function dmxApiToLaunch(row) {
   const mes = num(row.mes ?? row.mes_num, currentMes);
   const kpi = getKPI(id) || {};
   const meta = num(row.meta, num(kpi.meta, 0));
-  const minimo = num(row.minimo, num(kpi.minimo, 0));
-  const maximo = num(row.maximo, num(kpi.maximo, 0));
+  // minimo/maximo NÃO lidos do Sheets — calculados via tolerancia_pct pelo resolveRef
   const realizado = num(row.realizado, null);
   const sentido = row.sentido || kpi.sentido || 'Maior Melhor';
   const peso = num(row.peso_ebitda, num(kpi.peso_ebitda, 0));
@@ -1218,8 +1217,6 @@ function dmxApiToLaunch(row) {
     unidade: row.unidade || kpi.unidade || '%',
     sentido: sentido,
     meta: meta,
-    minimo: minimo,
-    maximo: maximo,
     peso_ebitda: peso,
     realizado: realizado,
     status: calcStatus(sentido, realizado, meta),
@@ -1604,11 +1601,8 @@ function resolveRef(kpi, mes, ano) {
       }
       return null; // Sem meta lançada = sem meta (não usa meta_padrao)
     }
-    // Outros campos: lançamento > catálogo
-    if (l && l[field] !== undefined && l[field] !== null && l[field] !== '') {
-      const lv = numOrNull(l[field]);
-      if (lv !== null) return lv;
-    }
+    // Outros campos: catálogo apenas (lançamento não tem mais minimo/maximo)
+    // minimo/maximo nunca vêm do lançamento — calculados via tolerancia_pct
     const kv = numOrNull(kpi[field] !== undefined ? kpi[field] : (kpi[field+'_padrao'] !== undefined ? kpi[field+'_padrao'] : null));
     return kv !== null ? kv : null;
   };
@@ -1783,7 +1777,7 @@ function renderDashboard() {
   // Recalcula status/criticidade no momento do render para não depender de status antigo salvo.
   const data = byPeriod(currentMes, currentAno).map(l => {
     const k = getKPI(l.id_kpi);
-    const ref = k ? resolveRef(k, currentMes, currentAno) : { meta: l.meta, minimo: l.minimo, maximo: l.maximo };
+    const ref = k ? resolveRef(k, currentMes, currentAno) : { meta: l.meta, minimo: null, maximo: null };
     const metaAtual = (ref && ref.meta !== null && ref.meta !== undefined) ? ref.meta : l.meta;
     const statusAtual = calcStatus(l.sentido, l.realizado, metaAtual);
     const impactoAtual = calcImpact(l.sentido, l.realizado, metaAtual, l.peso_ebitda || 0);
