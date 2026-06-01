@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v87 — 01/06/2026 — Catalogo: filtro+coluna Pilar Estrategico, novo filtro Impacto, fix meta do mes -->
+<!-- DMX KPI System — v87.1 — 01/06/2026 — Catalogo: coluna Impacto + filtro de impacto agora persiste (FILTER_IDS) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v87",data:"01/06/2026",build:"catalogo-pilar-estrategico-impacto-filtros-meta"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v87.1",data:"01/06/2026",build:"catalogo-coluna-impacto-filtro-persistente"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -839,7 +839,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       </div>
       <div class="table-wrap">
         <table class="data-table" id="kpi-catalog-table">
-          <thead><tr><th>ID</th><th>Pilar</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Meta</th><th>Realizado</th><th>Atingimento</th><th>Status</th><th>Responsável</th></tr></thead>
+          <thead><tr><th>ID</th><th>Pilar Estr.</th><th>Impacto</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Meta</th><th>Realizado</th><th>Atingimento</th><th>Status</th><th>Responsável</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -2765,6 +2765,7 @@ function renderKPICatalog() {
     return '<tr style="cursor:pointer" onclick="openKPIModal(\''+k.id+'\')">'+
       '<td><span class="font-mono text-muted" style="font-size:11px">'+k.id+'</span></td>'+
       '<td><span class="tag tag-pilar">'+(k.pilar_estrategico||'—')+'</span></td>'+
+      '<td><span class="tag tag-area" style="background:#EEF2FF;color:#4338CA">'+(k.impacto_principal||'—')+'</span></td>'+
       '<td><span class="tag tag-area">'+k.area+'</span></td>'+
       '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+k.indicador+'</td>'+
       '<td class="text-muted">'+k.unidade+'</td>'+
@@ -12316,7 +12317,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const FILTER_IDS = [
     'mes-sel','ano-sel','area-mes-sel','slide-mes-sel',
     'weekly-area-filter','weekly-month-filter','weekly-year-filter','weekly-entry-step-filter','weekly-slide-mes-sel',
-    'kpi-area-filter','kpi-pilar-filter','kpi-status-filter','kpi-search',
+    'kpi-area-filter','kpi-pilar-filter','kpi-impacto-filter','kpi-status-filter','kpi-search',
     'upd-area-filter','upd-vertente-filter','upd-search',
     'plano-area-filter','plano-status-filter','plano-search',
     'indice-area-filter','indice-search','watch-search'
