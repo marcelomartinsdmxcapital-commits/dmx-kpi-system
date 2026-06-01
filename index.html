@@ -992,16 +992,14 @@ function dmxNormalizeCatalogAreas(arr) {
 function dmxApplyCatalog(arr) {
   if (!Array.isArray(arr) || !arr.length) return false;
   arr = dmxNormalizeCatalogAreas(arr);
-  // Marca KPIs com tolerância — min/max calculados pelo resolveRef mês a mês
-  // NÃO pré-calcula aqui pois a meta_padrao do catálogo ≠ meta mensal real
+  // Marca KPIs com tolerância — resolveRef calcula min/max usando meta DO MÊS
   arr.forEach(function(k){
     const tol = k.tolerancia_pct !== undefined && k.tolerancia_pct !== null && k.tolerancia_pct !== ''
       ? Number(k.tolerancia_pct) : null;
     if(tol !== null && isFinite(tol) && tol > 0) {
       k._tol_aplicada = tol;
-      // Zera min/max do catálogo para evitar que sejam usados no lugar do cálculo real
-      k.minimo = null; k.maximo = null;
-      k.minimo_padrao = null; k.maximo_padrao = null;
+      // Mantém meta_padrao como referência mas NÃO pré-calcula min/max aqui
+      // O resolveRef usa a meta mensal real (Dados_Mensais) para calcular mês a mês
     }
   });
   KPI_CATALOG.length = 0;
@@ -1598,11 +1596,20 @@ function calcImpact(sentido, val, meta, peso) {
 function resolveRef(kpi, mes, ano) {
   const l = getLaunch(kpi.id, mes, ano);
   const pick = (field) => {
+    // Meta: usa SOMENTE o lançamento mensal — catálogo não tem meta própria
+    if (field === 'meta') {
+      if (l && l.meta !== undefined && l.meta !== null && l.meta !== '') {
+        const lv = numOrNull(l.meta);
+        if (lv !== null) return lv;
+      }
+      return null; // Sem meta lançada = sem meta (não usa meta_padrao)
+    }
+    // Outros campos: lançamento > catálogo
     if (l && l[field] !== undefined && l[field] !== null && l[field] !== '') {
       const lv = numOrNull(l[field]);
       if (lv !== null) return lv;
     }
-    const kv = numOrNull(kpi[field] !== undefined ? kpi[field] : kpi[field+'_padrao']);
+    const kv = numOrNull(kpi[field] !== undefined ? kpi[field] : (kpi[field+'_padrao'] !== undefined ? kpi[field+'_padrao'] : null));
     return kv !== null ? kv : null;
   };
   const meta = pick('meta');
