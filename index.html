@@ -1612,10 +1612,23 @@ function resolveRef(kpi, mes, ano) {
   const tol = (tolRaw !== null && isFinite(tolRaw) && tolRaw > 0) ? tolRaw : null;
   let minimo, maximo;
   if (tol !== null) {
-    // Tolerância definida: calcula SEMPRE a partir da meta real do mês (lançamento)
-    // meta = pick('meta') já usa l.meta (mensal) com fallback para kpi.meta (catálogo)
-    const metaRef = (meta !== null && meta !== 0) ? meta
-      : Number(kpi.meta_padrao || kpi.meta || 0);
+    // Tolerância definida: calcula a partir da meta do mês
+    // Se não há meta no mês, busca a última meta conhecida no ano (meses anteriores)
+    let metaRef = (meta !== null && meta !== 0) ? meta : 0;
+    if (metaRef === 0 && typeof getLaunch === 'function') {
+      // Busca meta do mês mais recente com lançamento
+      for (let m2 = mes - 1; m2 >= 1; m2--) {
+        const l2 = getLaunch(kpi.id, m2, ano);
+        if (l2 && l2.meta && Number(l2.meta) !== 0) { metaRef = Number(l2.meta); break; }
+      }
+      // Se não achou, busca nos meses futuros
+      if (metaRef === 0) {
+        for (let m2 = mes + 1; m2 <= 12; m2++) {
+          const l2 = getLaunch(kpi.id, m2, ano);
+          if (l2 && l2.meta && Number(l2.meta) !== 0) { metaRef = Number(l2.meta); break; }
+        }
+      }
+    }
     if (metaRef !== 0) {
       const fator = tol / 100;
       minimo = Math.round(metaRef * (1 - fator) * 10000) / 10000;
