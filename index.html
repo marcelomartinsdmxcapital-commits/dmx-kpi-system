@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v83 — 01/06/2026 — resolveRef com tolerancia_pct validado -->
+<!-- DMX KPI System — v83.1 — 01/06/2026 — fix resolveRef ATIVO (linha 4997) com tolerancia_pct -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v83",data:"01/06/2026",build:"resolveRef-tolerancia-validado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v83.1",data:"01/06/2026",build:"resolveRef-ativo-tolerancia-fix"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -4938,7 +4938,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.dmxIsMaiorMelhor=function(sentido){ const s=ns(sentido); return s.includes('maior')||s.includes('higher')||s==='up'; };
   window.calcAting=calcAting=function(sentido,val,meta){ val=nvlNum(val); meta=nvlNum(meta); if(val===null||meta===null||meta===0)return null; return window.dmxIsMaiorMelhor(sentido)?val/meta:meta/(val||0.000001); };
   window.calcStatus=calcStatus=function(sentido,val,meta){ const r=calcAting(sentido,val,meta); if(r===null)return 'N/A'; return r>=1?'VERDE':r>=0.9?'AMARELO':'VERMELHO'; };
-  window.resolveRef=resolveRef=function(kpi,mes,ano){ const l=getLaunch(kpi.id,mes,ano); const pick=f=>{ const lv=l?nvlNum(l[f]):null; if(lv!==null)return lv; const kv=nvlNum(kpi[f]); return kv!==null?kv:null; }; return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')}; };
+  window.resolveRef=resolveRef=function(kpi,mes,ano){ const l=getLaunch(kpi.id,mes,ano); const pick=f=>{ const lv=l?nvlNum(l[f]):null; if(lv!==null)return lv; const kv=nvlNum(kpi[f]); return kv!==null?kv:null; }; const ref={meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')}; const tol=nvlNum(kpi.tolerancia_pct); if(tol!==null && tol>0 && ref.meta!==null && ref.meta!==0){ if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000; if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000; } return ref; };
   window.fmtVal=fmtVal=function(v,u){ const n=nvlNum(v); if(n===null)return '—'; if(u==='R$')return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); if(u==='%')return n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; return n.toLocaleString('pt-BR',{maximumFractionDigits:1}); };
 })();
 </script>
@@ -5008,7 +5008,14 @@ window.addEventListener('DOMContentLoaded', init);
       if(kv!==null && kv!==0) return kv;
       return null;
     }
-    return {meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
+    const ref={meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
+    // Tolerância: se minimo/maximo não vieram e há tolerancia_pct + meta, calcula a banda
+    const tol=toNum(kpi.tolerancia_pct);
+    if(tol!==null && tol>0 && ref.meta!==null && ref.meta!==0){
+      if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000;
+      if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000;
+    }
+    return ref;
   };
 
   // Versão sem fallback para catálogo — para uso futuro quando Dados_Mensais estiver completo
