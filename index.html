@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v83.4 — 01/06/2026 — Dashboard: sem cards topo, total no donut, filtros cruzados estilo Excel -->
+<!-- DMX KPI System — v83.5 — 01/06/2026 — Dashboard: graficos 50/50, total lateral no donut, KPIs mais acima -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v83.4",data:"01/06/2026",build:"dashboard-sem-cards-topo-filtros-cruzados"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v83.5",data:"01/06/2026",build:"dashboard-graficos-iguais-total-lateral"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -190,14 +190,16 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 @media (max-width: 1300px){ #area-grid { grid-template-columns: repeat(4, 1fr) !important; } }
 @media (max-width: 820px){ #area-grid { grid-template-columns: repeat(2, 1fr) !important; } }
 
-/* faixa de gráficos: linha (maior) + pizza (menor) lado a lado, abaixo dos cards */
-.dash-charts-row { display: grid; grid-template-columns: 2.8fr 1fr; gap: 14px; margin-top: 16px; }
+/* faixa de gráficos: linha + pizza lado a lado em larguras iguais, abaixo dos cards */
+.dash-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; align-items: stretch; }
+.dash-charts-row .dash-chart-main .block-card,
+.dash-charts-row .dash-chart-side .block-card { height: calc(100% - 34px); }
 @media (max-width: 900px){ .dash-charts-row { grid-template-columns: 1fr; } }
 
 /* cabeçalho moderno da lista de KPIs */
 .dash-kpi-header {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  margin-top: 22px; padding: 16px 20px;
+  margin-top: 14px; padding: 16px 20px;
   background: linear-gradient(135deg, var(--teal,#0E9E82) 0%, #0b7d68 100%);
   border-radius: 12px 12px 0 0;
   box-shadow: 0 4px 14px rgba(14,158,130,0.18);
@@ -747,14 +749,14 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
         </div>
         <div class="dash-chart-side">
           <div class="section-header"><div class="section-title">Distribuição</div></div>
-          <div class="block-card" style="padding:16px;height:calc(100% - 34px)">
-            <div style="text-align:center;margin-bottom:10px">
+          <div class="block-card" style="padding:16px;position:relative">
+            <div style="position:absolute;top:14px;left:18px;z-index:2">
               <div style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--teal,#0E9E82);line-height:1" id="donut-total">—</div>
-              <div style="font-size:10.5px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted)">KPIs Monitorados</div>
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);max-width:80px;line-height:1.2;margin-top:2px">KPIs Monitorados</div>
             </div>
-            <div class="donut-wrap" style="flex-direction:column;align-items:center;gap:12px">
-              <div style="width:140px;height:140px;flex-shrink:0"><canvas id="donut-chart"></canvas></div>
-              <div class="donut-legend" id="donut-legend" style="width:100%"></div>
+            <div class="donut-wrap" style="display:flex;flex-direction:row;align-items:center;justify-content:flex-end;gap:18px">
+              <div style="width:130px;height:130px;flex-shrink:0"><canvas id="donut-chart"></canvas></div>
+              <div class="donut-legend" id="donut-legend" style="min-width:150px"></div>
             </div>
           </div>
         </div>
