@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v83.1 — 01/06/2026 — fix resolveRef ATIVO (linha 4997) com tolerancia_pct -->
+<!-- DMX KPI System — v83.2 — 01/06/2026 — Dashboard Operacional enxuto: filtro status, slide no clique, mini-cards -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v83.1",data:"01/06/2026",build:"resolveRef-ativo-tolerancia-fix"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v83.2",data:"01/06/2026",build:"dashboard-operacional-enxuto"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -178,6 +178,16 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(-
 .area-stat.a .area-stat-num { color: var(--amber); }
 .area-stat.r .area-stat-num { color: var(--red); }
 .area-stat-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.3px; color: var(--muted); }
+/* v83.2 — mini-cards compactos na grade do Dashboard Operacional */
+#area-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+#area-grid .area-card { padding: 9px 10px; border-radius: 8px; }
+#area-grid .area-card-name { font-size: 11.5px; margin-bottom: 7px; gap: 4px; }
+#area-grid .area-card-name .text-sm { font-size: 9px !important; }
+#area-grid .area-card-stats { gap: 4px; }
+#area-grid .area-stat { padding: 3px 2px; border-radius: 5px; }
+#area-grid .area-stat-num { font-size: 13px; }
+#area-grid .area-stat-lbl { font-size: 8px; }
+@media (max-width: 1100px){ #area-grid { grid-template-columns: repeat(2, 1fr) !important; } }
 
 /* ─── TABLE ─── */
 .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
@@ -716,8 +726,20 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           </div>
         </div>
       </div>
-      <div class="section-header"><div class="section-title">🔴 KPIs em Alerta / Crítico</div></div>
-      <div class="scroll-box">
+      <div class="section-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div class="section-title" id="dash-kpi-list-title">KPIs do Mês</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="text-muted text-sm" style="font-weight:600">Status:</span>
+          <select id="dash-status-filter" onchange="renderDashboardKpiTable()" style="background:#fff;border:1px solid #DDE2EE;border-radius:7px;padding:6px 10px;font-size:12.5px;color:var(--ink,#1a2233);cursor:pointer;font-family:inherit;outline:none">
+            <option value="ALL">Todos</option>
+            <option value="VERDE">🟢 Verde</option>
+            <option value="AMARELO">🟡 Alerta</option>
+            <option value="VERMELHO">🔴 Crítico</option>
+            <option value="NA">⚪ Sem dado</option>
+          </select>
+        </div>
+      </div>
+      <div class="scroll-box" style="max-height:420px;overflow:auto">
         <div class="scroll-box-body">
           <table class="data-table" id="critical-table">
             <thead><tr><th>KPI</th><th>Área</th><th>Realizado</th><th>Meta</th><th>Atingimento</th><th>Status</th></tr></thead>
@@ -1810,11 +1832,41 @@ function renderDashboard() {
   renderDonut(verde, amarelo, vermelho, total);
   renderTrend();
 
-  const criticals = data.filter(l => l.status !== 'VERDE' && l.status !== 'N/A')
-    .sort((a,b) => (a.impacto||0)-(b.impacto||0)).slice(0,12);
-  document.querySelector('#critical-table tbody').innerHTML = criticals.map(l => {
+  // Guarda os dados recalculados para o filtro da tabela
+  window._dashKpiData = data;
+  renderDashboardKpiTable();
+}
+
+function renderDashboardKpiTable() {
+  const data = window._dashKpiData || [];
+  const filtro = (document.getElementById('dash-status-filter') || {}).value || 'ALL';
+  const titleEl = document.getElementById('dash-kpi-list-title');
+
+  let rows = data.slice();
+  if (filtro === 'NA') {
+    rows = rows.filter(l => l.status === 'N/A' || l.status == null);
+  } else if (filtro !== 'ALL') {
+    rows = rows.filter(l => l.status === filtro);
+  }
+
+  // Ordena por criticidade (pior primeiro) e, dentro disso, por menor impacto
+  const ord = { 'VERMELHO': 0, 'AMARELO': 1, 'VERDE': 2, 'N/A': 3 };
+  rows.sort((a, b) => (ord[a.status] ?? 4) - (ord[b.status] ?? 4) || (a.impacto || 0) - (b.impacto || 0));
+
+  if (titleEl) {
+    const labels = { ALL: 'KPIs do Mês', VERDE: 'KPIs no Verde', AMARELO: 'KPIs em Alerta', VERMELHO: 'KPIs Críticos', NA: 'KPIs sem Dado' };
+    titleEl.textContent = (labels[filtro] || 'KPIs do Mês') + ' (' + rows.length + ')';
+  }
+
+  const tbody = document.querySelector('#critical-table tbody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-sm" style="text-align:center;padding:20px">Nenhum KPI neste filtro.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(l => {
     const at = calcAting(l.sentido, l.realizado, l.meta);
-    return '<tr style="cursor:pointer" onclick="openKPIModal(\'' + l.id_kpi + '\')">' +
+    return '<tr style="cursor:pointer" onclick="openKPISlide(\'' + l.id_kpi + '\')">' +
       '<td><span class="font-mono text-muted text-sm">' + l.id_kpi + '</span> ' + l.indicador.slice(0,30) + (l.indicador.length>30?'\u2026':'') + '</td>' +
       '<td><span class="tag tag-area">' + l.area + '</span></td>' +
       '<td>' + fmtVal(l.realizado, l.unidade) + '</td>' +
