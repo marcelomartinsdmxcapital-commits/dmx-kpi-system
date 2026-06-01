@@ -992,17 +992,21 @@ function dmxNormalizeCatalogAreas(arr) {
 function dmxApplyCatalog(arr) {
   if (!Array.isArray(arr) || !arr.length) return false;
   arr = dmxNormalizeCatalogAreas(arr);
-  // Recalcula minimo/maximo via tolerancia_pct antes de aplicar
+  // Recalcula minimo/maximo via tolerancia_pct — SEMPRE sobrescreve valores do Sheets
   arr.forEach(function(k){
     const tol = k.tolerancia_pct !== undefined && k.tolerancia_pct !== null && k.tolerancia_pct !== ''
       ? Number(k.tolerancia_pct) : null;
     const meta = Number(k.meta_padrao || k.meta || 0);
-    if(tol !== null && isFinite(tol) && tol > 0 && meta !== 0) {
+    if(tol !== null && isFinite(tol) && tol > 0) {
+      // Usa meta=1 como fallback se meta=0 (ainda não definida mensalmente)
+      const metaRef = meta !== 0 ? meta : 1;
       const fator = tol / 100;
-      k.minimo = Math.round(meta * (1 - fator) * 10000) / 10000;
-      k.maximo = Math.round(meta * (1 + fator) * 10000) / 10000;
+      k.minimo = Math.round(metaRef * (1 - fator) * 10000) / 10000;
+      k.maximo = Math.round(metaRef * (1 + fator) * 10000) / 10000;
       k.minimo_padrao = k.minimo;
       k.maximo_padrao = k.maximo;
+      // Limpa valores antigos do Sheets que possam ter vindo errados
+      k._tol_aplicada = tol;
     }
   });
   KPI_CATALOG.length = 0;
@@ -1605,20 +1609,25 @@ function resolveRef(kpi, mes, ano) {
     return kv !== null ? kv : null;
   };
   const meta = pick('meta');
-  // Se tolerancia_pct está definida no catálogo, calcula min/max automaticamente
-  // Lê tolerancia_pct APENAS do objeto kpi passado (nunca de outro KPI)
-  const tolRaw = kpi && kpi.tolerancia_pct !== undefined && kpi.tolerancia_pct !== null && kpi.tolerancia_pct !== '' 
+  const tolRaw = kpi && kpi.tolerancia_pct !== undefined && kpi.tolerancia_pct !== null && kpi.tolerancia_pct !== ''
     ? Number(kpi.tolerancia_pct) : null;
   const tol = (tolRaw !== null && isFinite(tolRaw) && tolRaw > 0) ? tolRaw : null;
   let minimo, maximo;
-  if (tol !== null && meta !== null) {
-    const fator = tol / 100;
-    minimo = Math.round(meta * (1 - fator) * 10000) / 10000;
-    maximo = Math.round(meta * (1 + fator) * 10000) / 10000;
+  if (tol !== null) {
+    // Tolerância definida: SEMPRE calcula a partir da meta — ignora valores antigos do Sheets
+    const metaRef = (meta !== null && meta !== 0) ? meta
+      : Number(kpi.meta || kpi.meta_padrao || 0);
+    if (metaRef !== 0) {
+      const fator = tol / 100;
+      minimo = Math.round(metaRef * (1 - fator) * 10000) / 10000;
+      maximo = Math.round(metaRef * (1 + fator) * 10000) / 10000;
+    } else {
+      minimo = null; maximo = null;
+    }
   } else {
-    // Fallback: lê do lançamento ou catálogo (comportamento anterior)
-    minimo = pick('minimo');
-    maximo = pick('maximo');
+    // Sem tolerância: usa valores do catálogo (já recalculados pelo dmxApplyCatalog)
+    minimo = numOrNull(kpi.minimo) || numOrNull(kpi.minimo_padrao) || pick('minimo');
+    maximo = numOrNull(kpi.maximo) || numOrNull(kpi.maximo_padrao) || pick('maximo');
   }
   return { meta, minimo, maximo };
 }
@@ -7935,13 +7944,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">Área</span><input id="adm-kpi-area" list="adm-area-list" class="filter-input" value="${esc(k.area||'')}" style="width:100%"><datalist id="adm-area-list">${areaOpts}</datalist></label>
           <label><span class="card-label">Pilar</span><input id="adm-kpi-pilar" list="adm-pilar-list" class="filter-input" value="${esc(k.pilar||'')}" style="width:100%"><datalist id="adm-pilar-list">${pilarOpts}</datalist></label>
         </div>
-        <!-- Meta: editável apenas para KPIs manuais -->
+        <!-- Meta definida mês a mês nas Metas Mensais abaixo — campo oculto para compatibilidade -->
+        <input id="adm-kpi-meta" type="hidden" value="${esc(k.meta ?? k.meta_padrao ?? 0)}">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-          ${k.tipo_lancamento==='calculado' ?
-            '<label><span class="card-label">Meta padrão</span><div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--teal)">Calculada pela fórmula: '+esc(k.formula_kpi||'—')+'</div><input id="adm-kpi-meta" type="hidden" value="'+esc(k.meta ?? k.meta_padrao ?? 0)+'"></label>'
-          :
-            '<label><span class="card-label">Meta padrão</span><input id="adm-kpi-meta" type="number" step="0.01" class="filter-input" value="'+esc(k.meta ?? k.meta_padrao ?? 0)+'" style="width:100%"><div style="font-size:10px;color:var(--muted);margin-top:2px">Pode ser sobrescrita mês a mês nas Metas Mensais</div></label>'
-          }
           <label><span class="card-label">Unidade</span><input id="adm-kpi-unidade" class="filter-input" value="${esc(k.unidade||'%')}" style="width:100%"></label>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px">
