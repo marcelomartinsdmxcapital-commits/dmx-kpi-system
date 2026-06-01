@@ -9,12 +9,12 @@
 // Limpeza de versões antigas do cache — roda antes de tudo
 (function(){
   var CURRENT = 'dmx_kpi_catalog_v14';
-  var OLD_KEYS = ['dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
+  var OLD_KEYS = ['dmx_kpi_catalog_v14','dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
                   'dmx_kpi_catalog_v10','dmx_kpi_catalog','kpi_catalog'];
   OLD_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
   // Marca que a limpeza foi feita nesta versão
-  if(!localStorage.getItem('dmx_cache_clean_v14')){
-    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v14','1'); }catch(e){}
+  if(!localStorage.getItem('dmx_cache_clean_v15')){
+    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v15','1'); }catch(e){}
   }
 })();
 </script>
@@ -26,12 +26,12 @@
 // Limpeza de versões antigas do cache — roda antes de tudo
 (function(){
   var CURRENT = 'dmx_kpi_catalog_v14';
-  var OLD_KEYS = ['dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
+  var OLD_KEYS = ['dmx_kpi_catalog_v14','dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
                   'dmx_kpi_catalog_v10','dmx_kpi_catalog','kpi_catalog'];
   OLD_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
   // Marca que a limpeza foi feita nesta versão
-  if(!localStorage.getItem('dmx_cache_clean_v14')){
-    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v14','1'); }catch(e){}
+  if(!localStorage.getItem('dmx_cache_clean_v15')){
+    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v15','1'); }catch(e){}
   }
 })();
 </script>
@@ -966,7 +966,7 @@ let launches = [];
 let planos = [];
 
 // Catálogo editável e persistente: mantém alterações importadas via CSV mesmo após atualização/reabertura.
-const DMX_CATALOG_KEY = 'dmx_kpi_catalog_v14'; // v14: tolerancia_pct, tipo_lancamento, formula_kpi
+const DMX_CATALOG_KEY = 'dmx_kpi_catalog_v15'; // v14: tolerancia_pct, tipo_lancamento, formula_kpi
 function dmxLoadCatalogFromStorage() {
   try {
     const raw = localStorage.getItem(DMX_CATALOG_KEY);
