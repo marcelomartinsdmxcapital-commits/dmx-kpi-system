@@ -7901,8 +7901,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function applyKpiLocal(payload){
     const arr = adminAllKpis();
     const idx = arr.findIndex(k=>String(k.id)===String(payload.id));
+    // Calcula minimo/maximo via tolerancia_pct antes de aplicar localmente
+    const meta = Number(payload.meta || payload.meta_padrao || 0);
+    const tol  = payload.tolerancia_pct != null && payload.tolerancia_pct !== '' ? Number(payload.tolerancia_pct) : null;
+    const minCalc = (tol && meta) ? Math.round(meta*(1-tol/100)*10000)/10000 : (payload.minimo || payload.minimo_padrao || 0);
+    const maxCalc = (tol && meta) ? Math.round(meta*(1+tol/100)*10000)/10000 : (payload.maximo || payload.maximo_padrao || 0);
     const obj = Object.assign({}, idx>=0 ? arr[idx] : {}, payload, {
-      meta: payload.meta_padrao, minimo: payload.minimo_padrao, maximo: payload.maximo_padrao
+      meta, meta_padrao: meta, minimo: minCalc, maximo: maxCalc, minimo_padrao: minCalc, maximo_padrao: maxCalc
     });
     if(idx>=0) arr[idx] = obj; else arr.push(obj);
     try{ if(Array.isArray(window.KPI_CATALOG)){ const j=window.KPI_CATALOG.findIndex(k=>String(k.id)===String(payload.id)); if(j>=0) window.KPI_CATALOG[j]=obj; else window.KPI_CATALOG.push(obj); } }catch(e){}
@@ -7999,7 +8004,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">
             <div>
               <span style="font-family:Syne,sans-serif;font-weight:800;font-size:13px">📅 Metas Mensais</span>
-              <span style="font-size:11px;color:var(--muted);margin-left:8px">Meta, Mínimo e Máximo por mês — fonte oficial: Dados_Mensais</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:8px">Meta por mês — Mín/Máx calculados via tolerância do catálogo</span>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:11px;color:var(--muted)">Ano:</span>
@@ -8015,8 +8020,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
                 <tr style="background:var(--bg2)">
                   <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase;width:80px">Mês</th>
                   <th style="padding:8px 12px;text-align:center;font-weight:700;color:#2563EB;font-size:10px;text-transform:uppercase">Meta</th>
-                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#DC2626;font-size:10px;text-transform:uppercase">Mínimo</th>
-                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#DC2626;font-size:10px;text-transform:uppercase">Máximo</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:#D97706;font-size:10px;text-transform:uppercase">Tolerância</th>
+                  <th style="padding:8px 12px;text-align:center;font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase">Mín – Máx</th>
                   <th style="padding:8px 12px;text-align:center;font-weight:700;color:var(--muted);font-size:10px;text-transform:uppercase">Status</th>
                 </tr>
               </thead>
@@ -8056,52 +8061,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       ok = !!(r && r.ok !== false);
     }
 
-    // ── Replica meta/mín/máx para Dados_Mensais nos meses sem valor ─────────
-    // Para cada mês que já tem um lançamento do KPI mas sem meta/mín/máx,
-    // grava o valor do catálogo naquele mês.
-    if(typeof dmxApiPost === 'function' && payload.id_kpi){
-      const anoAtual = window.currentAno || new Date().getFullYear();
-      const mesAtual = window.currentMes || new Date().getMonth()+1;
-      const mesesParaReplicar = [];
-      // Verifica meses de jan até o mês atual do ano corrente
-      for(let m=1; m<=mesAtual; m++){
-        const l = typeof getLaunch==='function' ? getLaunch(payload.id_kpi, m, anoAtual) : null;
-        // Só replica se o mês já tem lançamento mas meta/mín/máx está vazio/zero
-        if(l){
-          const metaVazia = !l.meta || Number(l.meta)===0;
-          const minVazio  = !l.minimo || Number(l.minimo)===0;
-          const maxVazio  = !l.maximo || Number(l.maximo)===0;
-          if(metaVazia || minVazio || maxVazio){
-            mesesParaReplicar.push(m);
-          }
-        }
-      }
-      if(mesesParaReplicar.length > 0){
-        // Replica em paralelo — não bloqueia o fluxo principal
-        Promise.all(mesesParaReplicar.map(m => {
-          const l = getLaunch(payload.id_kpi, m, anoAtual);
-          const rowUpdate = {
-            id_kpi: payload.id_kpi,
-            ano: anoAtual,
-            mes_num: m,
-            meta:   (!l.meta   || Number(l.meta)===0)   ? payload.meta   : l.meta,
-            minimo: (!l.minimo || Number(l.minimo)===0)  ? payload.minimo : l.minimo,
-            maximo: (!l.maximo || Number(l.maximo)===0)  ? payload.maximo : l.maximo,
-            atualizado_em: new Date().toISOString(),
-            atualizado_por: 'Admin'
-          };
-          // Atualiza localmente também
-          if(l){ l.meta=rowUpdate.meta; l.minimo=rowUpdate.minimo; l.maximo=rowUpdate.maximo; }
-          return dmxApiPost('salvarMensal', rowUpdate);
-        })).then(results => {
-          const ok2 = results.every(r => r && r.ok !== false);
-          if(mesesParaReplicar.length > 0){
-            toast('✓ Meta/mín/máx replicados para ' + mesesParaReplicar.length + ' mês(es) em Dados_Mensais');
-          }
-        }).catch(()=>{});
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    // min/max não são mais replicados para Dados_Mensais — calculados via tolerancia_pct
 
     try{ document.getElementById('adm-kpi-modal')?.remove(); }catch(e){}
     try{ if(typeof buildSidebar==='function') buildSidebar(); if(typeof buildFilters==='function') buildFilters(); if(typeof renderCurrentPage==='function') renderCurrentPage(); }catch(e){}
@@ -16400,57 +16360,60 @@ setTimeout(()=>{
     var sentido = String(kpi.sentido||'Maior Melhor');
     var isMaior = sentido.toLowerCase().indexOf('maior')>=0;
 
+    // KPI calculado? meta vem da fórmula, não é editável
+    var isCalc = kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi;
+    var tol = kpi.tolerancia_pct != null && kpi.tolerancia_pct !== '' ? Number(kpi.tolerancia_pct) : null;
+
     var rows = '';
     for(var m=1; m<=12; m++){
       var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
-      var meta   = l && l.meta   && Number(l.meta)!==0   ? l.meta   : '';
-      var minimo = l && l.minimo && Number(l.minimo)!==0 ? l.minimo : '';
-      var maximo = l && l.maximo && Number(l.maximo)!==0 ? l.maximo : '';
+      var metaVal = l && l.meta && Number(l.meta)!==0 ? l.meta : '';
+      // Se KPI calculado, mostrar meta calculada via fórmula
+      if(isCalc && typeof avaliarFormula==='function'){
+        var metaCalc = avaliarFormula(kpi.formula_kpi.replace(/KPI(\d+)/g, function(match, num){
+          var k2 = (window.kpis||[]).find(function(x){ return x.id===match; });
+          if(!k2) return 'null';
+          var l2 = getLaunch(match, m, ano);
+          return l2 && l2.meta!=null && l2.meta!==0 ? String(l2.meta) : (k2.meta||'null');
+        }), m, ano);
+        if(metaCalc!==null) metaVal = metaCalc;
+      }
+      // Mín/Máx calculados via tolerância
+      var minShow = tol && metaVal!=='' ? Math.round(Number(metaVal)*(1-tol/100)*100)/100 : '';
+      var maxShow = tol && metaVal!=='' ? Math.round(Number(metaVal)*(1+tol/100)*100)/100 : '';
       var temReal = l && l.realizado!==null && l.realizado!=='';
       var bg = m%2===0 ? 'background:#F8FAFC' : '';
       var statusCell = temReal
         ? '<span style="font-size:10px;color:var(--green)">✓ tem dados</span>'
         : '<span style="font-size:10px;color:var(--muted)">sem lançamento</span>';
 
-      // Dica de qual campo preencher conforme sentido
-      var minHint = isMaior ? 'Limite inferior' : '(N/A para Menor Melhor)';
-      var maxHint = isMaior ? '(N/A para Maior Melhor)' : 'Limite superior';
-
       rows += '<tr style="'+bg+';border-bottom:1px solid var(--border)">' +
         '<td style="padding:7px 12px;font-weight:600;color:var(--text)">' + MESES_SHORT[m] + '</td>' +
         '<td style="padding:5px 8px;text-align:center">' +
-          '<input type="number" step="0.01" inputmode="decimal" ' +
-          'id="admm-meta-'+m+'" value="'+esc(meta)+'" ' +
-          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg)" ' +
-          'placeholder="Meta">' +
+          (isCalc
+            ? '<div style="width:90px;text-align:center;padding:4px 6px;font-size:12px;color:var(--teal);background:var(--bg3);border-radius:5px;display:inline-block">' + (metaVal!==''?metaVal:'—') + '</div>'
+            : '<input type="number" step="0.01" inputmode="decimal" id="admm-meta-'+m+'" value="'+esc(metaVal)+'" style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg)" placeholder="Meta">'
+          ) +
         '</td>' +
-        '<td style="padding:5px 8px;text-align:center">' +
-          '<input type="number" step="0.01" inputmode="decimal" ' +
-          'id="admm-min-'+m+'" value="'+esc(minimo)+'" ' +
-          (isMaior?'':'disabled title="Não se aplica para Menor Melhor" ') +
-          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'var(--bg)':'#F1F5F9')+'" ' +
-          'placeholder="'+(isMaior?'Mínimo':'—')+'">' +
+        '<td style="padding:5px 12px;text-align:center;font-size:12px;color:var(--muted)">' +
+          (tol ? '<span style="color:#D97706">±'+tol+'%</span>' : '—') +
         '</td>' +
-        '<td style="padding:5px 8px;text-align:center">' +
-          '<input type="number" step="0.01" inputmode="decimal" ' +
-          'id="admm-max-'+m+'" value="'+esc(maximo)+'" ' +
-          (isMaior?'disabled title="Não se aplica para Maior Melhor" ':'') +
-          'style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:'+(isMaior?'#F1F5F9':'var(--bg)')+'" ' +
-          'placeholder="'+(isMaior?'—':'Máximo')+'">' +
+        '<td style="padding:5px 12px;text-align:center;font-size:12px">' +
+          (minShow!==''&&maxShow!=='' ? '<span style="color:var(--muted)">'+minShow+' – '+maxShow+'</span>' : '—') +
         '</td>' +
         '<td style="padding:5px 12px;text-align:center">' + statusCell + '</td>' +
       '</tr>';
     }
 
-    // Linha de ação rápida: copiar valor de Jan para todos
-    rows += '<tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">' +
-      '<td colspan="5" style="padding:8px 12px">' +
-        '<span style="font-size:11px;color:#1E40AF">Copiar Jan para todos os meses: </span>' +
-        '<button onclick="dmxAdminCopiarJanParaTodos()" style="font-size:11px;padding:3px 10px;background:#2563EB;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:6px">📋 Meta</button>' +
-        '<button onclick="dmxAdminCopiarJanParaTodos(\'min\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Mín</button>' +
-        '<button onclick="dmxAdminCopiarJanParaTodos(\'max\')" style="font-size:11px;padding:3px 10px;background:#DC2626;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:4px">📋 Máx</button>' +
-      '</td>' +
-    '</tr>';
+    // Linha de ação rápida: copiar meta de Jan para todos (só para KPIs manuais)
+    if(!isCalc){
+      rows += '<tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">' +
+        '<td colspan="5" style="padding:8px 12px">' +
+          '<span style="font-size:11px;color:#1E40AF">Copiar Jan para todos os meses: </span>' +
+          '<button onclick="dmxAdminCopiarJanParaTodos()" style="font-size:11px;padding:3px 10px;background:#2563EB;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:6px">📋 Meta</button>' +
+        '</td>' +
+      '</tr>';
+    }
 
     tbody.innerHTML = rows;
   };
@@ -16481,24 +16444,25 @@ setTimeout(()=>{
     var salvos = 0, erros = 0;
     var promises = [];
 
-    for(var m=1; m<=12; m++){
-      var metaEl  = document.getElementById('admm-meta-'+m);
-      var minEl   = document.getElementById('admm-min-'+m);
-      var maxEl   = document.getElementById('admm-max-'+m);
-      var meta    = metaEl  ? toN(metaEl.value)  : null;
-      var minimo  = minEl   ? toN(minEl.value)   : null;
-      var maximo  = maxEl   ? toN(maxEl.value)   : null;
+    var kpiObj = (window.kpis||[]).find(function(k){ return k.id===kpiId; }) || {};
+    var tolPct = kpiObj.tolerancia_pct!=null ? Number(kpiObj.tolerancia_pct) : null;
 
-      // Só salva meses onde pelo menos a meta foi preenchida
+    for(var m=1; m<=12; m++){
+      var metaEl = document.getElementById('admm-meta-'+m);
+      var meta   = metaEl ? toN(metaEl.value) : null;
+
+      // Só salva meses onde a meta foi preenchida
       if(meta === null) continue;
+
+      // Calcula min/max via tolerância
+      var minimo = (tolPct && meta) ? Math.round(meta*(1-tolPct/100)*100)/100 : null;
+      var maximo = (tolPct && meta) ? Math.round(meta*(1+tolPct/100)*100)/100 : null;
 
       var row = {
         id_kpi: kpiId,
         ano: ano,
         mes_num: m,
-        meta:   meta,
-        minimo: minimo !== null ? minimo : 0,
-        maximo: maximo !== null ? maximo : 0,
+        meta: meta,
         atualizado_em: new Date().toISOString(),
         atualizado_por: 'Admin'
       };
@@ -16506,7 +16470,7 @@ setTimeout(()=>{
       // Atualiza localmente também
       var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
       if(l){
-        l.meta = row.meta; l.minimo = row.minimo; l.maximo = row.maximo;
+        l.meta = meta; if(minimo!==null) l.minimo=minimo; if(maximo!==null) l.maximo=maximo;
       } else {
         // Cria entrada local se não existir
         if(Array.isArray(window.launches)){
