@@ -5,10 +5,36 @@
 <script>window.DMX_VERSION={versao:"v82.0",data:"25/05/2026",build:"painel-financeiro-retorno-risco-eficiencia"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>
+// Limpeza de versões antigas do cache — roda antes de tudo
+(function(){
+  var CURRENT = 'dmx_kpi_catalog_v14';
+  var OLD_KEYS = ['dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
+                  'dmx_kpi_catalog_v10','dmx_kpi_catalog','kpi_catalog'];
+  OLD_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  // Marca que a limpeza foi feita nesta versão
+  if(!localStorage.getItem('dmx_cache_clean_v14')){
+    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v14','1'); }catch(e){}
+  }
+})();
+</script>
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<script>
+// Limpeza de versões antigas do cache — roda antes de tudo
+(function(){
+  var CURRENT = 'dmx_kpi_catalog_v14';
+  var OLD_KEYS = ['dmx_kpi_catalog_v13','dmx_kpi_catalog_v12','dmx_kpi_catalog_v11',
+                  'dmx_kpi_catalog_v10','dmx_kpi_catalog','kpi_catalog'];
+  OLD_KEYS.forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  // Marca que a limpeza foi feita nesta versão
+  if(!localStorage.getItem('dmx_cache_clean_v14')){
+    try{ localStorage.removeItem(CURRENT); localStorage.setItem('dmx_cache_clean_v14','1'); }catch(e){}
+  }
+})();
+</script>
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <style id="dmx-hide-areas-static">
