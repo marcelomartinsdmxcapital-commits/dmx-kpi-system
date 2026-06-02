@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v89.3 — 01/06/2026 — Operacoes: fix getLaunch wrapper + desenha graficos (renderGroupCharts) + fichario legivel -->
+<!-- DMX KPI System — v89.5 — 01/06/2026 — Operacoes: coluna Total Geral (soma por vertente) no grafico de barras -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v89.3",data:"01/06/2026",build:"operacoes-fix-getlaunch-render-graficos-fichario"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v89.5",data:"01/06/2026",build:"operacoes-coluna-total-geral-barras"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1668,7 +1668,7 @@ function getKPI(id) {
   if (String(id||'').indexOf('OP-')===0) return operacoes.find(k => k.id === id);
   return kpis.find(k => k.id === id);
 }
-function getPlansForKPI(id) { return planos.filter(p => p.id_kpi === id); }
+function getPlansForKPI(id) { if (String(id||'').indexOf('OP-')===0) return []; return planos.filter(p => p.id_kpi === id); }
 
 function isOutOfRange(kpi, mes, ano) {
   const l = getLaunch(kpi.id, mes, ano);
@@ -2336,7 +2336,8 @@ function buildKPIChart(kpi, canvas, height) {
     return 'sem_plano';
   }
 
-  outMonths.forEach(m => {
+  const _ehOperacao = String(kpi.id||'').indexOf('OP-')===0;
+  if (!_ehOperacao) outMonths.forEach(m => {
     const lm = getLaunch(kpi.id, m, currentAno);
     const yv = lm && lm.realizado !== null ? lm.realizado : resolveRef(kpi, m, currentAno).meta;
     const status = getPlanoStatusParaMes(kpi.id, m, currentAno);
@@ -2941,24 +2942,34 @@ function renderOpsBarChart(){
   if (!canvas || typeof Chart === 'undefined') return;
   if (window._opsBarInst) { try { window._opsBarInst.destroy(); } catch(e){} }
   const list = opsList();
-  const labels = list.map(o => o[1]);
+  const labels = ['TOTAL GERAL', ...list.map(o => o[1])];
   const colors = { VOP:'#0E9E82', REC:'#2563EB', INAD:'#DC2626' };
-  const datasets = OPS_VERTENTES.map(([vert,nome]) => ({
-    label: nome,
-    data: list.map(([code]) => {
+  // versões escuras para a coluna de total (primeira barra de cada vertente)
+  const colorsTotal = { VOP:'#0B5D4E', REC:'#1E3A8A', INAD:'#7F1D1D' };
+  const datasets = OPS_VERTENTES.map(([vert,nome]) => {
+    const valores = list.map(([code]) => {
       const l = getLaunch(opId(_opsSub, code, vert), currentMes, currentAno);
       return l ? Number(l.realizado) || 0 : 0;
-    }),
-    backgroundColor: colors[vert] || '#94A3B8',
-    borderRadius: 4
-  }));
+    });
+    const total = valores.reduce((a,b)=>a+b,0);
+    const data = [total, ...valores];
+    // primeira barra (total) com cor escura, demais com cor normal
+    const bg = data.map((_,i)=> i===0 ? (colorsTotal[vert]||'#475569') : (colors[vert]||'#94A3B8'));
+    return { label: nome, data, backgroundColor: bg, borderRadius: 4 };
+  });
   window._opsBarInst = new Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: { x: { ticks: { font: { family: 'Arial' } } }, y: { ticks: { font: { family: 'Arial' } } } }
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: { callbacks: { title: (items)=> items[0].label === 'TOTAL GERAL' ? 'Total Geral (soma de todas)' : items[0].label } }
+      },
+      scales: {
+        x: { ticks: { font: { family: 'Arial' } } },
+        y: { ticks: { font: { family: 'Arial' } } }
+      }
     }
   });
 }
