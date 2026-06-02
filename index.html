@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v89.2 — 01/06/2026 — Operacoes: carga async, fichario sub-abas, cabecalho em caixas, descricoes, ano ate 2030 -->
+<!-- DMX KPI System — v89.3 — 01/06/2026 — Operacoes: fix getLaunch wrapper + desenha graficos (renderGroupCharts) + fichario legivel -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v89.2",data:"01/06/2026",build:"operacoes-async-fichario-descricoes-ano2030"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v89.3",data:"01/06/2026",build:"operacoes-fix-getlaunch-render-graficos-fichario"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -900,9 +900,9 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       .ops-subtab.active { color:var(--teal,#0E9E82); border-bottom-color:var(--teal,#0E9E82); }
       .ops-bar-card { margin-bottom:16px; }
       .ops-subtabs { display:flex; gap:6px; margin-bottom:16px; }
-      .ops-subtab { padding:11px 24px; cursor:pointer; font-weight:700; font-size:13px; color:#fff; border-radius:10px 10px 0 0; background:#7CC9B8; opacity:0.75; transition:all .15s; border:1px solid transparent; border-bottom:none; }
-      .ops-subtab:hover { opacity:0.9; }
-      .ops-subtab.active { background:#0E9E82; opacity:1; box-shadow:0 -2px 8px rgba(14,158,130,0.25); }
+      .ops-subtab { padding:11px 24px; cursor:pointer; font-weight:700; font-size:13px; color:#ffffff !important; border-radius:10px 10px 0 0; background:#7CC9B8; transition:all .15s; border:1px solid transparent; border-bottom:none; user-select:none; }
+      .ops-subtab:hover { background:#5FB8A4; }
+      .ops-subtab.active { background:#0E9E82; color:#ffffff !important; box-shadow:0 -2px 8px rgba(14,158,130,0.25); }
       .ops-col-header { position:sticky; top:0; z-index:5; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
       .ops-col-header > div { text-align:center; background:linear-gradient(90deg,#0E9E82,#0B7A66); color:#fff; font-weight:800; font-size:12.5px; text-transform:uppercase; letter-spacing:0.6px; padding:12px; border-radius:10px; box-shadow:0 2px 8px rgba(14,158,130,0.2); }
       .ops-block { margin-bottom:22px; }
@@ -2926,6 +2926,13 @@ function renderOperacoes(){
   }).join('');
 
   cont.innerHTML = barHtml + colHeader + blocks;
+  // desenha os gráficos de linha de cada indicador de operação (igual aos cards de área)
+  const todosOps = [];
+  list.forEach(([code]) => OPS_VERTENTES.forEach(([vert]) => {
+    const op = getKPI(opId(_opsSub, code, vert));
+    if (op) todosOps.push(op);
+  }));
+  if (typeof renderGroupCharts === 'function') renderGroupCharts(todosOps);
   renderOpsBarChart();
 }
 
@@ -5362,6 +5369,9 @@ window.addEventListener('DOMContentLoaded', init);
 
   // Busca lançamento sem falhar quando mês/ano/id vierem como texto.
   window.getLaunch = getLaunch = function(id, mes, ano){
+    if (String(id||'').indexOf('OP-')===0) {
+      return (window.launchesOp||[]).find(l => same(l.id_kpi,id) && Number(l.mes_num)===Number(mes) && Number(l.ano)===Number(ano));
+    }
     return allLaunches().find(l => same(l.id_kpi,id) && Number(l.mes_num)===Number(mes) && Number(l.ano)===Number(ano));
   };
 
