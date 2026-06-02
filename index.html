@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v87.2 — 01/06/2026 — Admin: campo Impacto Principal no cadastro de KPI -->
+<!-- DMX KPI System — v87.3 — 01/06/2026 — Admin: pilar e impacto como dropdown fixo (4 opcoes cada) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v87.2",data:"01/06/2026",build:"admin-campo-impacto-principal"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v87.3",data:"01/06/2026",build:"admin-selects-fixos-pilar-impacto"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -8134,8 +8134,6 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   window.dmxAdminEditarKPI = function(id, preset){
     const k = preset || getKpi(id) || {};
     const areaOpts = allAreas().map(a=>`<option value="${esc(a)}" ${String(k.area||'')===String(a)?'selected':''}>${esc(a)}</option>`).join('');
-    const pilarOpts = allPilares().map(a=>`<option value="${esc(a)}" ${String(k.pilar_estrategico||'')===String(a)?'selected':''}>${esc(a)}</option>`).join('');
-    const impactoOpts = allImpactos().map(a=>`<option value="${esc(a)}" ${String(k.impacto_principal||'')===String(a)?'selected':''}>${esc(a)}</option>`).join('');
     const html = `
       <div class="modal-backdrop open" id="adm-kpi-modal"><div class="modal" style="max-width:980px">
         <button class="modal-close" onclick="document.getElementById('adm-kpi-modal').remove()">×</button>
@@ -8145,8 +8143,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <label><span class="card-label">ID</span><input id="adm-kpi-id" class="filter-input" value="${esc(k.id||'')}" style="width:100%"></label>
           <label><span class="card-label">Nome / Indicador</span><input id="adm-kpi-indicador" class="filter-input" value="${esc(k.indicador||'')}" style="width:100%"></label>
           <label><span class="card-label">Área</span><input id="adm-kpi-area" list="adm-area-list" class="filter-input" value="${esc(k.area||'')}" style="width:100%"><datalist id="adm-area-list">${areaOpts}</datalist></label>
-          <label><span class="card-label">Pilar Estratégico</span><input id="adm-kpi-pilar" list="adm-pilar-list" class="filter-input" value="${esc(k.pilar_estrategico||'')}" style="width:100%"><datalist id="adm-pilar-list">${pilarOpts}</datalist></label>
-          <label><span class="card-label">Impacto Principal</span><input id="adm-kpi-impacto" list="adm-impacto-list" class="filter-input" value="${esc(k.impacto_principal||'')}" style="width:100%"><datalist id="adm-impacto-list">${impactoOpts}</datalist></label>
+          <label><span class="card-label">Pilar Estratégico</span><select id="adm-kpi-pilar" class="filter-input" style="width:100%">${['','Eficiência','Pessoas','Retorno','Risco'].map(o=>`<option value="${esc(o)}" ${String(k.pilar_estrategico||'')===o?'selected':''}>${o||'— selecione —'}</option>`).join('')}</select></label>
+          <label><span class="card-label">Impacto Principal</span><select id="adm-kpi-impacto" class="filter-input" style="width:100%">${['','Pessoas','Produtividade','Rentabilidade','Risco'].map(o=>`<option value="${esc(o)}" ${String(k.impacto_principal||'')===o?'selected':''}>${o||'— selecione —'}</option>`).join('')}</select></label>
         </div>
         <!-- Meta definida mês a mês nas Metas Mensais abaixo — campo oculto para compatibilidade -->
         <input id="adm-kpi-meta" type="hidden" value="${esc(k.meta ?? k.meta_padrao ?? 0)}">
