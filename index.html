@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v87.3 — 01/06/2026 — Admin: pilar e impacto como dropdown fixo (4 opcoes cada) -->
+<!-- DMX KPI System — v89 — 01/06/2026 — Analise de Operacoes: pagina + Admin (cadastro/edicao) completo -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v87.3",data:"01/06/2026",build:"admin-selects-fixos-pilar-impacto"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v89",data:"01/06/2026",build:"analise-operacoes-completo-com-admin"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -710,6 +710,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
     <div class="nav-item" data-page="semanal-operacional" onclick="nav(this)"><span class="icon">▣</span> Semanal</div>
     <div class="nav-item" data-page="indice" onclick="nav(this)"><span class="icon">◎</span> Índice Eficiência</div>
     <div class="nav-item" data-page="ppr" onclick="nav(this)"><span class="icon">◉</span> Plano PPR</div>
+    <div class="nav-item" data-page="operacoes" onclick="nav(this)"><span class="icon">▦</span> Análise de Operações</div>
     <div class="nav-section-label">Área</div>
     <div id="area-nav-items"></div>
   </nav>
@@ -892,6 +893,37 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       <div id="planos-board" style="margin-top:12px"></div>
     </div>
 
+    <!-- ANÁLISE DE OPERAÇÕES -->
+    <style>
+      .ops-subtabs { display:flex; gap:8px; border-bottom:2px solid var(--border,#E5E7EB); margin-bottom:16px; }
+      .ops-subtab { padding:10px 18px; cursor:pointer; font-weight:700; font-size:13px; color:var(--muted); border-bottom:3px solid transparent; margin-bottom:-2px; }
+      .ops-subtab.active { color:var(--teal,#0E9E82); border-bottom-color:var(--teal,#0E9E82); }
+      .ops-bar-card { margin-bottom:16px; }
+      .ops-col-header { position:sticky; top:0; z-index:5; background:var(--bg,#F8FAFC); display:grid; grid-template-columns:160px 1fr 1fr 1fr; gap:12px; padding:10px 0; border-bottom:2px solid var(--border,#E5E7EB); font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text); }
+      .ops-col-header > div { text-align:center; }
+      .ops-col-header > div:first-child { text-align:left; }
+      .ops-row { display:grid; grid-template-columns:160px 1fr 1fr 1fr; gap:12px; align-items:stretch; padding:10px 0; border-bottom:1px solid var(--border,#F1F5F9); }
+      .ops-row-label { display:flex; align-items:center; font-weight:700; font-size:13px; color:var(--text); line-height:1.3; }
+      .ops-cell-empty { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; border:1px dashed var(--border,#E5E7EB); border-radius:8px; min-height:140px; }
+    </style>
+    <div class="page" id="page-operacoes">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Análise de Operações</div>
+          <div class="text-muted text-sm mt-1">Comportamento dos produtos por VOP, Receita e Inadimplência — apenas análise, sem cálculo de índice.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <select class="filter-input" id="ops-mes-sel" onchange="renderOperacoes()"></select>
+          <select class="filter-input" id="ops-ano-sel" onchange="renderOperacoes()"></select>
+        </div>
+      </div>
+      <div class="ops-subtabs">
+        <div class="ops-subtab active" data-opsub="risco" onclick="setOpsSub('risco')">Classes de Risco</div>
+        <div class="ops-subtab" data-opsub="titulo" onclick="setOpsSub('titulo')">Tipos de Títulos</div>
+      </div>
+      <div id="ops-content"></div>
+    </div>
+
     <!-- SEMANAL OPERACIONAL -->
     <div class="page" id="page-semanal-operacional">
       <div class="section-header">
@@ -1041,6 +1073,9 @@ let editingPlanoId = null;
 let pendingUpdates = {};
 let _importRows = null;
 let launches = [];
+let operacoes = [];      // catálogo de indicadores de Análise de Operações (aba separada)
+let launchesOp = [];     // lançamentos mensais das operações (aba separada)
+window.operacoes = operacoes; window.launchesOp = launchesOp;
 let planos = [];
 
 // Catálogo editável e persistente: mantém alterações importadas via CSV mesmo após atualização/reabertura.
@@ -1096,11 +1131,11 @@ let kpis = dmxNormalizeCatalogAreas(KPI_CATALOG);
 window.kpis = kpis;
 try { dmxSaveCatalogToStorage(); } catch(e) {}
 const MES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-let AREAS = [...new Set(kpis.map(k => k.area))].filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())).sort(); window.AREAS = AREAS;
+let AREAS = [...new Set(kpis.map(k => k.area))].filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())).sort(); window.AREAS = AREAS;
 let PILARES = [...new Set(kpis.map(k => k.pilar_estrategico).filter(Boolean))].sort(); let IMPACTOS = [...new Set(kpis.map(k => k.impacto_principal).filter(Boolean))].sort();
 function refreshDimensions() {
   try { dmxNormalizeCatalogAreas(kpis); } catch(e) {}
-  const _hideAreas = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+  const _hideAreas = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'];
   AREAS = [...new Set(kpis.map(k => k.area).filter(a => { const s=String(a||'').trim(); return s && s !== 'Mensal' && !_hideAreas.includes(s); }))].sort(); window.AREAS = AREAS;
   PILARES = [...new Set(kpis.map(k => k.pilar_estrategico).filter(Boolean))].sort(); IMPACTOS = [...new Set(kpis.map(k => k.impacto_principal).filter(Boolean))].sort();
 }
@@ -1444,10 +1479,12 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
   if (!url) return false;
   dmxApiStatus.loading = true;
   try {
-    const [rawKpis, rawMensal, rawSemanal, debug] = await Promise.all([
+    const [rawKpis, rawMensal, rawSemanal, rawOps, rawOpsMensal, debug] = await Promise.all([
       dmxFetchJsonTipo(url, 'kpis'),
       dmxFetchJsonTipo(url, 'mensal'),
       dmxFetchJsonTipo(url, 'semanal'),
+      dmxFetchJsonTipo(url, 'operacoes').catch(()=>null),
+      dmxFetchJsonTipo(url, 'operacoes_mensal').catch(()=>null),
       dmxCarregarDebugAPI(url)
     ]);
     const dataKpis = dmxNormalizeApiList(rawKpis, 'kpis');
@@ -1483,6 +1520,20 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
     }
     dmxReconcileLaunchesWithCatalog();
     const qtdMensal = dmxApplyMensalRows(dataMensal);
+    // ── Análise de Operações (aba separada) ──
+    try {
+      const dataOps = dmxNormalizeApiList(rawOps, 'kpis');
+      const dataOpsM = dmxNormalizeApiList(rawOpsMensal, 'mensal');
+      if (Array.isArray(dataOps) && dataOps.length) {
+        operacoes = dataOps.map((row, idx) => dmxApiToKpi(row, idx)).filter(k => k && String(k.id||'').trim());
+        window.operacoes = operacoes;
+      }
+      if (Array.isArray(dataOpsM) && dataOpsM.length) {
+        launchesOp = dataOpsM.map(row => dmxApiToLaunch(row)).filter(Boolean);
+        window.launchesOp = launchesOp;
+      }
+      console.log('Operações:', operacoes.length, 'indicadores |', launchesOp.length, 'lançamentos');
+    } catch(e) { console.warn('Falha ao carregar Análise de Operações:', e); }
     const qtdSemanal = (typeof dmxApplySemanalRows === 'function') ? dmxApplySemanalRows(dataSemanal) : 0;
     buildSidebar();
     buildFilters();
@@ -1619,8 +1670,14 @@ function persist() {
 
 // \u2500\u2500\u2500 HELPERS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function byPeriod(mes, ano) { return launches.filter(l => l.mes_num === mes && l.ano === ano); }
-function getLaunch(id, mes, ano) { return launches.find(l => l.id_kpi === id && l.mes_num === mes && l.ano === ano); }
-function getKPI(id) { return kpis.find(k => k.id === id); }
+function getLaunch(id, mes, ano) {
+  if (String(id||'').indexOf('OP-')===0) return launchesOp.find(l => l.id_kpi === id && l.mes_num === mes && l.ano === ano);
+  return launches.find(l => l.id_kpi === id && l.mes_num === mes && l.ano === ano);
+}
+function getKPI(id) {
+  if (String(id||'').indexOf('OP-')===0) return operacoes.find(k => k.id === id);
+  return kpis.find(k => k.id === id);
+}
 function getPlansForKPI(id) { return planos.filter(p => p.id_kpi === id); }
 
 function isOutOfRange(kpi, mes, ano) {
@@ -1805,6 +1862,7 @@ function nav(el, areaName) {
     if (page === 'kpi-slide' || page === 'weekly-slide') pageEl.style.display = 'flex';
   }
   if (page === 'dashboard') renderDashboard();
+  else if (page === 'operacoes') renderOperacoes();
   else if (page === 'areas') renderAreas();
   else if (page === 'kpis') renderKPICatalog();
   else if (page === 'atualizar') renderAtualizar();
@@ -1826,6 +1884,7 @@ function onPeriodChange() {
   currentMes = parseInt(document.getElementById('mes-sel').value);
   currentAno = parseInt(document.getElementById('ano-sel').value);
   if (currentPage === 'dashboard') renderDashboard();
+  else if (currentPage === 'operacoes') renderOperacoes();
   else if (currentPage === 'kpis') renderKPICatalog();
   else if (currentPage === 'atualizar') renderAtualizar();
   
@@ -1840,7 +1899,7 @@ function buildSidebar() {
   const cont = document.getElementById('area-nav-items');
   if (!cont) return;
   cont.innerHTML = ''; // evita duplicar áreas quando o app reinicializa
-  const _HIDE1 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+  const _HIDE1 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'];
   AREAS.forEach(area => {
     if(_HIDE1.includes(area)) return;
     const div = document.createElement('div');
@@ -2740,6 +2799,103 @@ function goBackFromSlide() {
   navTo('areas');
 }
 
+
+// ─── ANÁLISE DE OPERAÇÕES ───────────────────────────────────────────────
+// Operações por sub-aba. Cada operação vira 3 indicadores: -VOP, -REC, -INAD
+const OPS_RISCO = [
+  ['P','Boleto Padrão'],['E','Boleto Especial'],['C','Comissária'],['CE','Comissária com Escrow'],
+  ['I','Intercompany'],['CL','Operação Clean'],['BG','Boleto Garantido'],['T','Tranche'],
+  ['BA','Barter'],['B','Boleto Especial + Tranche']
+];
+const OPS_TITULO = [
+  ['DMR','Duplicata Mercantil'],['DSR','Duplicata de Prestação de Serviços'],['CHQ','Cheque'],
+  ['NCO','Nota Comercial'],['ADC','Adiantamento a Cliente'],['NPP','Nota Promissória'],
+  ['CCB','Cédula de Crédito Bancário'],['OUT','Outros'],['JPT','Juros de Prorrogação de Título'],
+  ['MTP','Multa de Prorrogação de Título'],['TAR','Tarifas'],['TDC','Tarifa Despesa de Cartório']
+];
+const OPS_VERTENTES = [['VOP','VOP'],['REC','Receita'],['INAD','Inadimplência']];
+let _opsSub = 'risco';
+
+function opsList(){ return _opsSub === 'titulo' ? OPS_TITULO : OPS_RISCO; }
+// id de uma operação×vertente. ex: OP-RISCO-P-VOP
+function opId(sub, code, vert){ return 'OP-'+(sub==='titulo'?'TIT':'RISCO')+'-'+code+'-'+vert; }
+
+function setOpsSub(sub){
+  _opsSub = sub;
+  document.querySelectorAll('.ops-subtab').forEach(t => t.classList.toggle('active', t.dataset.opsub === sub));
+  renderOperacoes();
+}
+
+function renderOperacoes(){
+  // popula e sincroniza os seletores de mês/ano da aba
+  const ms = document.getElementById('ops-mes-sel'), as = document.getElementById('ops-ano-sel');
+  if (ms && ms.options.length === 0) {
+    for (let m=1;m<=12;m++){ const o=document.createElement('option'); o.value=m; o.textContent=MES[m]; ms.appendChild(o); }
+  }
+  if (as && as.options.length === 0) {
+    const yNow = new Date().getFullYear();
+    for (let y=yNow-2;y<=yNow+1;y++){ const o=document.createElement('option'); o.value=y; o.textContent=y; as.appendChild(o); }
+  }
+  if (ms) { if (ms.value && +ms.value!==currentMes && document.activeElement===ms) currentMes=+ms.value; else ms.value=currentMes; }
+  if (as) { if (as.value && +as.value!==currentAno && document.activeElement===as) currentAno=+as.value; else as.value=currentAno; }
+  const cont = document.getElementById('ops-content');
+  if (!cont) return;
+  const list = opsList();
+
+  // Gráfico de barras comparativo (VOP/Receita/Inadimplência por operação, mês selecionado)
+  const barHtml =
+    '<div class="block-card ops-bar-card">' +
+      '<div class="section-title" style="margin-bottom:10px">Comparativo do mês — ' +
+        (_opsSub==='titulo'?'Tipos de Títulos':'Classes de Risco') + ' (' + MES[currentMes] + '/' + currentAno + ')</div>' +
+      '<div style="height:300px"><canvas id="ops-bar-chart"></canvas></div>' +
+    '</div>';
+
+  // Cabeçalho congelado das colunas
+  const colHeader =
+    '<div class="ops-col-header"><div>Indicador</div>' +
+      OPS_VERTENTES.map(v => '<div>'+v[1]+'</div>').join('') +
+    '</div>';
+
+  // Grade: uma linha por operação, com sub-cabeçalho à esquerda + 3 gráficos de linha
+  const rows = list.map(([code,nome]) => {
+    const cells = OPS_VERTENTES.map(([vert]) => {
+      const op = getKPI(opId(_opsSub, code, vert));
+      if (!op) return '<div class="ops-cell-empty">— sem cadastro —</div>';
+      return '<div>' + kpiChartCard(op, '__operacoes__') + '</div>';
+    }).join('');
+    return '<div class="ops-row"><div class="ops-row-label">'+nome+'</div>'+cells+'</div>';
+  }).join('');
+
+  cont.innerHTML = barHtml + colHeader + rows;
+  renderOpsBarChart();
+}
+
+function renderOpsBarChart(){
+  const canvas = document.getElementById('ops-bar-chart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (window._opsBarInst) { try { window._opsBarInst.destroy(); } catch(e){} }
+  const list = opsList();
+  const labels = list.map(o => o[1]);
+  const colors = { VOP:'#0E9E82', REC:'#2563EB', INAD:'#DC2626' };
+  const datasets = OPS_VERTENTES.map(([vert,nome]) => ({
+    label: nome,
+    data: list.map(([code]) => {
+      const l = getLaunch(opId(_opsSub, code, vert), currentMes, currentAno);
+      return l ? Number(l.realizado) || 0 : 0;
+    }),
+    backgroundColor: colors[vert] || '#94A3B8',
+    borderRadius: 4
+  }));
+  window._opsBarInst = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { ticks: { font: { family: 'Arial' } } }, y: { ticks: { font: { family: 'Arial' } } } }
+    }
+  });
+}
 
 function renderKPICatalog() {
   const search = document.getElementById('kpi-search').value.toLowerCase();
@@ -7013,7 +7169,7 @@ window.buildShareSection = function(kpiId){
       });
       if(Array.isArray(window.AREAS)){
         const uniq = [...new Set(window.AREAS.map(normArea).filter(Boolean))].sort();
-        window.AREAS = uniq.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim()));
+        window.AREAS = uniq.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim()));
         try { AREAS = uniq; } catch(e) {}
       }
     }catch(e){}
@@ -7085,7 +7241,7 @@ window.buildShareSection = function(kpiId){
       const filtered = businessAreas();
       try { window.AREAS = filtered; AREAS = filtered; } catch(e) {}
       oldBuildSidebar();
-      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
       ensureFinanceNav();
       removeFinanceFromAreaNav();
     };
@@ -7100,7 +7256,7 @@ window.buildShareSection = function(kpiId){
       const dataFiltered = Array.isArray(data) ? data.filter(l => !isFin(l.area)) : data;
       try { window.AREAS = filtered; AREAS = filtered; } catch(e) {}
       oldRenderAreaCards(containerId, dataFiltered, cols);
-      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
     };
   }
   // renderAreas também deve excluir Painel Financeiro
@@ -7109,9 +7265,9 @@ window.buildShareSection = function(kpiId){
     window.renderAreas = renderAreas = function(){
       normalizeFinanceData();
       const saved = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
-      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
+      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
       oldRenderAreas();
-      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
     };
   }
   // Qualquer chamada para CEO passa a abrir Painel Financeiro; remove card/patch PPR acumulado dessa visão.
@@ -7142,9 +7298,9 @@ window.buildShareSection = function(kpiId){
     window.renderPPR = renderPPR = function(){
       normalizeFinanceData();
       const saved = Array.isArray(window.AREAS) ? window.AREAS.slice() : [];
-      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
+      try { window.AREAS = businessAreas().filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); AREAS = window.AREAS; } catch(e) {}
       oldRenderPPR();
-      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
+      try { var savedF=saved.filter(a=>!['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'].includes(String(a||'').trim())); window.AREAS = savedF; AREAS = savedF; } catch(e) {}
       setTimeout(function(){
         document.querySelectorAll('#ppr-area-tables .block-card').forEach(card => {
           const head = card.querySelector('div[style*="font-family:Arial,sans-serif"]')?.textContent || card.textContent || '';
@@ -8387,7 +8543,129 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   window.dmxVisibleKpisForCurrentUser = function(list){ return list || []; };
 
   // Execução única — chamadas duplicadas causavam re-renders em cascata
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); }, 1200); });
+  // ─── ADMIN: ANÁLISE DE OPERAÇÕES ───────────────────────────────────────
+  function opsAll(){ return Array.isArray(window.operacoes) ? window.operacoes : []; }
+
+  function opsAdminPanelHtml(){
+    const rows = opsAll().slice().sort((a,b)=>String(a.id||'').localeCompare(String(b.id||'')));
+    const body = rows.length
+      ? rows.map(k=>`<tr>
+          <td><span class="font-mono text-muted">${esc(k.id)}</span></td>
+          <td>${esc(k.indicador||'')}</td>
+          <td class="text-muted">${esc(k.unidade||'')}</td>
+          <td class="text-muted text-sm">${esc(k.sentido||'')}</td>
+          <td class="text-muted text-sm">${esc(k.frequencia||'')}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="dmxOpsEditar('${esc(k.id)}')">Editar</button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:18px">Nenhum indicador de operação cadastrado. Cadastre pelo Sheets (abas Cadastro_Operacoes / Dados_Operacoes) ou clique em "+ Nova Operação".</td></tr>';
+    return `<div class="block-card" style="margin-top:16px">
+      <div class="section-header">
+        <div><div class="section-title">Painel de Administração — Análise de Operações</div><div class="dmx-admin-compact-note">Indicadores de VOP, Receita e Inadimplência por operação. Aba separada do Cadastro de KPIs.</div></div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxOpsNovo()">+ Nova Operação</button></div>
+      </div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Frequência</th><th>Editar</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  window.dmxOpsNovo = function(){
+    dmxOpsEditar('', { id:'OP-RISCO--VOP', indicador:'', unidade:'R$', sentido:'Maior Melhor',
+      frequencia:'Mensal', controle:'', responsavel:'', acumulado:'Soma', tolerancia_pct:'',
+      tipo_lancamento:'Manual', formula_kpi:'' });
+  };
+
+  window.dmxOpsEditar = function(id, preset){
+    const k = id ? (opsAll().find(o=>o.id===id) || {}) : (preset || {});
+    const v = (x)=> esc(x==null?'':String(x));
+    const sentOpts = ['Maior Melhor','Menor Melhor'].map(o=>`<option ${String(k.sentido||'')===o?'selected':''}>${o}</option>`).join('');
+    const uniOpts  = ['R$','%','Num'].map(o=>`<option ${String(k.unidade||'')===o?'selected':''}>${o}</option>`).join('');
+    const freqOpts = ['Mensal','Trimestral','Anual'].map(o=>`<option ${String(k.frequencia||'')===o?'selected':''}>${o}</option>`).join('');
+    const acumOpts = ['Soma','Média'].map(o=>`<option ${String(k.acumulado||'')===o?'selected':''}>${o}</option>`).join('');
+    const tipoOpts = ['Manual','Calculado'].map(o=>`<option ${String(k.tipo_lancamento||'')===o?'selected':''}>${o}</option>`).join('');
+    const metasHtml = Array.from({length:12},(_,i)=>{
+      const mnum=i+1; const lan=(window.launchesOp||[]).find(l=>l.id_kpi===k.id && l.mes_num===mnum && l.ano===currentAno);
+      const metaVal = lan && lan.meta!=null ? lan.meta : '';
+      return `<label style="font-size:11px"><span style="color:var(--muted)">${MES[mnum]}</span><input id="ops-meta-${mnum}" class="filter-input" type="number" step="0.01" value="${metaVal}" style="width:100%"></label>`;
+    }).join('');
+    document.getElementById('ops-edit-modal')?.remove();
+    const html = `<div class="modal-backdrop open" id="ops-edit-modal"><div class="modal" style="max-width:920px">
+      <button class="modal-close" onclick="document.getElementById('ops-edit-modal').remove()">×</button>
+      <div class="modal-title">${k.id && id ? 'Editar Operação' : 'Nova Operação'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+        <label><span class="card-label">ID</span><input id="ops-f-id" class="filter-input" value="${v(k.id)}" placeholder="OP-RISCO-P-VOP" style="width:100%;font-family:monospace"></label>
+        <label><span class="card-label">Nome do Indicador</span><input id="ops-f-ind" class="filter-input" value="${v(k.indicador)}" style="width:100%"></label>
+        <label><span class="card-label">Unidade</span><select id="ops-f-uni" class="filter-input" style="width:100%">${uniOpts}</select></label>
+        <label><span class="card-label">Sentido</span><select id="ops-f-sent" class="filter-input" style="width:100%">${sentOpts}</select></label>
+        <label><span class="card-label">Frequência</span><select id="ops-f-freq" class="filter-input" style="width:100%">${freqOpts}</select></label>
+        <label><span class="card-label">Controle</span><input id="ops-f-ctrl" class="filter-input" value="${v(k.controle)}" style="width:100%"></label>
+        <label><span class="card-label">Responsável</span><input id="ops-f-resp" class="filter-input" value="${v(k.responsavel)}" style="width:100%"></label>
+        <label><span class="card-label">Acumulado</span><select id="ops-f-acum" class="filter-input" style="width:100%">${acumOpts}</select></label>
+        <label><span class="card-label">Tolerância (%)</span><input id="ops-f-tol" class="filter-input" type="number" step="0.01" value="${v(k.tolerancia_pct)}" style="width:100%"></label>
+        <label><span class="card-label">Tipo de Lançamento</span><select id="ops-f-tipo" class="filter-input" style="width:100%">${tipoOpts}</select></label>
+        <label style="grid-column:1/3"><span class="card-label">Fórmula (se Calculado)</span><input id="ops-f-formula" class="filter-input" value="${v(k.formula_kpi)}" placeholder="ex: OP-RISCO-P-REC/OP-RISCO-P-VOP" style="width:100%;font-family:monospace"></label>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="card-label" style="margin-bottom:8px">Metas Mensais (${currentAno})</div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">${metasHtml}</div>
+      </div>
+      <div class="filter-row" style="margin-top:16px;justify-content:flex-end;gap:8px">
+        <button class="btn btn-primary" onclick="dmxOpsSalvar('${esc(id||'')}')">Salvar no Sheets</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('ops-edit-modal').remove()">Cancelar</button>
+      </div>
+    </div></div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  };
+
+  window.dmxOpsSalvar = async function(origId){
+    const g=(id)=>document.getElementById(id)?.value || '';
+    const id=g('ops-f-id').trim();
+    if(!id){ alert('Informe o ID da operação.'); return; }
+    if(!/^OP-/.test(id)){ alert('O ID deve começar com OP- (ex: OP-RISCO-P-VOP).'); return; }
+    const payload = {
+      id, id_kpi:id, area:'__operacoes__',
+      indicador: g('ops-f-ind').trim(),
+      unidade: g('ops-f-uni'), sentido: g('ops-f-sent'), frequencia: g('ops-f-freq'),
+      controle: g('ops-f-ctrl').trim(), responsavel: g('ops-f-resp').trim(),
+      acumulado: g('ops-f-acum'),
+      tolerancia_pct: (g('ops-f-tol').trim()===''? null : Number(g('ops-f-tol'))),
+      tipo_lancamento: g('ops-f-tipo'), formula_kpi: g('ops-f-formula').trim(),
+      atualizado_em: new Date().toISOString()
+    };
+    try {
+      if (typeof dmxApiPost==='function') await dmxApiPost('editarOperacao', payload);
+      // metas mensais
+      for (let m=1;m<=12;m++){
+        const mv=document.getElementById('ops-meta-'+m)?.value;
+        if (mv!=='' && mv!=null){
+          await dmxApiPost('salvarOperacaoMensal', { id_kpi:id, mes:m, mes_num:m, ano:currentAno, meta:Number(mv) });
+        }
+      }
+      toast('✓ Operação salva no Sheets. Recarregue para ver atualizado.');
+      document.getElementById('ops-edit-modal')?.remove();
+      if (typeof renderAdminDMX==='function') renderAdminDMX(true);
+    } catch(e){ alert('Falha ao salvar: '+e); }
+  };
+
+  // anexa o painel de operações ao Admin (após o de KPIs)
+  function installOpsAdminAppend(){
+    if(typeof window.renderAdminDMX !== 'function') return setTimeout(installOpsAdminAppend, 500);
+    if(window.__dmxOpsAdminWrapped) return;
+    window.__dmxOpsAdminWrapped = true;
+    const old = window.renderAdminDMX;
+    window.renderAdminDMX = async function(force){
+      const ret = await old.apply(this, arguments);
+      const host = document.getElementById('admin-root');
+      if(host && !document.getElementById('dmx-admin-ops-panel')){
+        const wrap=document.createElement('div'); wrap.id='dmx-admin-ops-panel'; wrap.innerHTML=opsAdminPanelHtml(); host.appendChild(wrap);
+      } else if(host && document.getElementById('dmx-admin-ops-panel')){
+        document.getElementById('dmx-admin-ops-panel').innerHTML = opsAdminPanelHtml();
+      }
+      return ret;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(()=>{ installAdminAppend(); installUpdateLocks(); installOpsAdminAppend(); }, 1200); });
 })();
 </script>
 
@@ -9386,7 +9664,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const cont=document.getElementById('area-nav-items'); if(!cont) return;
     cont.innerHTML='';
     // Áreas a ocultar da sidebar (CEO, Painel Financeiro, Painel Executivo são internos)
-    const SIDEBAR_HIDE = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+    const SIDEBAR_HIDE = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'];
     (window.AREAS||[]).forEach(area=>{
       if(SIDEBAR_HIDE.includes(area)) return; // nunca cria o item na sidebar
       const div=document.createElement('div'); div.className='nav-item'; div.dataset.page='area-detail'; div.dataset.area=area;
@@ -11536,7 +11814,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     const next=allowed.map(norm).join('|');
     if(current===next) return;
     cont.innerHTML='';
-    const _HIDE2 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+    const _HIDE2 = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'];
     allowed.filter(a=>!_HIDE2.includes(a)).forEach(area=>{
       const div=document.createElement('div'); div.className='nav-item'; div.dataset.page='area-detail'; div.dataset.area=area;
       div.innerHTML='<span class="icon">▸</span> '+area;
@@ -16262,7 +16540,7 @@ setTimeout(()=>{
   if(window.__dmxHideFinArea) return;
   window.__dmxHideFinArea = true;
 
-  var HIDE_AREAS = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__'];
+  var HIDE_AREAS = ['CEO','Painel Financeiro','Painel Executivo','__fin_interno__','__operacoes__'];
 
   function injectCSS(){
     if(document.getElementById('dmx-hide-fin-css')) return;
