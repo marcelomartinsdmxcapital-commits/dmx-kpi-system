@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.0 — 01/06/2026 — KPI inativo some de todas as telas (dashboard, area, catalogo, atualizar); indice recalcula sem ele; admin mantem -->
+<!-- DMX KPI System — v90.1 — 01/06/2026 — Operacoes: rotulos do eixo X na horizontal com quebra de linha -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.0",data:"01/06/2026",build:"kpi-inativo-some-das-telas-indice-recalcula"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.1",data:"01/06/2026",build:"operacoes-rotulos-horizontais"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -2953,7 +2953,7 @@ function renderOpsBarChart(){
   if (window._opsBarInst) { try { window._opsBarInst.destroy(); } catch(e){} }
   const list = opsList();
   // rótulos com quebra de linha: nomes longos viram array de palavras (Chart.js renderiza multi-linha)
-  const wrap = (txt)=>{ const w=String(txt).split(' '); const out=[]; let line=''; w.forEach(p=>{ if((line+' '+p).trim().length>14){ out.push(line.trim()); line=p; } else { line=(line+' '+p).trim(); } }); if(line) out.push(line); return out; };
+  const wrap = (txt)=>{ const w=String(txt).split(' '); const out=[]; let line=''; w.forEach(p=>{ if((line+' '+p).trim().length>10){ out.push(line.trim()); line=p; } else { line=(line+' '+p).trim(); } }); if(line) out.push(line); return out; };
   const labels = ['TOTAL GERAL', ...list.map(o => wrap(o[1]))];
   const colors = { VOP:'#0E9E82', REC:'#2563EB', INAD:'#DC2626' };
   const colorsTotal = { VOP:'#0B5D4E', REC:'#1E3A8A', INAD:'#7F1D1D' };
@@ -2992,7 +2992,7 @@ function renderOpsBarChart(){
         tooltip: { callbacks: { title: (items)=> items[0].label === 'TOTAL GERAL' ? 'Total Geral (eixo direito)' : (Array.isArray(items[0].label)?items[0].label.join(' '):items[0].label) } }
       },
       scales: {
-        x: { ticks: { font: { family: 'Arial', size: 10 }, maxRotation: 90, minRotation: 90, autoSkip: false } },
+        x: { ticks: { font: { family: 'Arial', size: 10 }, maxRotation: 0, minRotation: 0, autoSkip: false } },
         y: { position: 'left', beginAtZero: true, title: { display: true, text: 'Por operação', font: { family: 'Arial', size: 10 } }, ticks: { font: { family: 'Arial' } } },
         yTotal: { position: 'right', beginAtZero: true, title: { display: true, text: 'Total Geral', font: { family: 'Arial', size: 10 } }, grid: { drawOnChartArea: false }, ticks: { font: { family: 'Arial' } } }
       }
