@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.1 — 01/06/2026 — Operacoes: rotulos do eixo X na horizontal com quebra de linha -->
+<!-- DMX KPI System — v90.2 — 01/06/2026 — Admin: botao Inativar/Reativar dinamico + indice renormaliza pesos dos KPIs ativos -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.1",data:"01/06/2026",build:"operacoes-rotulos-horizontais"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.2",data:"01/06/2026",build:"botao-reativar-renormaliza-pesos"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5045,8 +5045,11 @@ window.addEventListener('DOMContentLoaded', init);
   }
   window.dmxIndiceArea=function(area,mes,ano){
     let indiceAcum=0, indiceMes=0, somaPesos=0;
-    const itens=(window.kpis||[]).filter(k=>k.area===area&&k.vertente==='Meta').map(k=>{
-      const p=peso(k.id);
+    const _ativos2=(window.kpis||[]).filter(k=>k.area===area&&k.vertente==='Meta'&&(typeof dmxKpiAtivo==='function'?dmxKpiAtivo(k):true));
+    const _tp2=_ativos2.reduce((acc,k)=>acc+(Number(peso(k.id))||0),0);
+    const _f2=_tp2>0?(100/_tp2):1;
+    const itens=_ativos2.map(k=>{
+      const p=(Number(peso(k.id))||0)*_f2;
       const m=mensalKPI(k,mes,ano);
       const a=acumuladoKPI(k,mes,ano);
       const contribMes=m.atingPct==null?0:m.atingPct*p/100;
@@ -5226,8 +5229,13 @@ window.addEventListener('DOMContentLoaded', init);
   }
   window.dmxIndiceArea = function(area, mes, ano){
     let indiceAcum = 0, indiceMes = 0, somaPesos = 0;
-    const itens = (window.kpis||[]).filter(k => k.area === area && k.vertente === 'Meta').map(k => {
-      const p = (typeof window.dmxPesoIndice === 'function') ? window.dmxPesoIndice(k.id) : (Number((JSON.parse(localStorage.getItem('dmx_pesos_indice_v1')||'{}'))[k.id]||k.peso_indice||0));
+    // soma os pesos dos KPIs Meta ATIVOS desta área para renormalizar (restantes fecham 100%)
+    const _ativosArea = (window.kpis||[]).filter(k => k.area === area && k.vertente === 'Meta' && (typeof dmxKpiAtivo==='function' ? dmxKpiAtivo(k) : true));
+    const _totalPeso = _ativosArea.reduce((acc,k)=>{ const pb=(typeof window.dmxPesoIndice==='function')?window.dmxPesoIndice(k.id):(Number((JSON.parse(localStorage.getItem('dmx_pesos_indice_v1')||'{}'))[k.id]||k.peso_indice||0)); return acc+(Number(pb)||0); },0);
+    window.__fatorPesoArea = _totalPeso > 0 ? (100/_totalPeso) : 1;
+    const itens = (window.kpis||[]).filter(k => k.area === area && k.vertente === 'Meta' && (typeof dmxKpiAtivo==='function' ? dmxKpiAtivo(k) : true)).map(k => {
+      const pBruto = (typeof window.dmxPesoIndice === 'function') ? window.dmxPesoIndice(k.id) : (Number((JSON.parse(localStorage.getItem('dmx_pesos_indice_v1')||'{}'))[k.id]||k.peso_indice||0));
+      const p = (Number(pBruto)||0) * (window.__fatorPesoArea||1);
       const m = mensalKPI_v135(k, mes, ano);
       const a = acumuladoKPI_v135(k, ano);
       const contribMes = m.atingPct == null ? 0 : m.atingPct * p / 100;
@@ -8537,12 +8545,15 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   window.dmxAdminInativarKPI = async function(id){
     const k = getKpi(id); if(!k) return;
-    if(!confirm('Inativar o KPI '+id+'? Ele não será apagado; ficará como ativo = NAO.')) return;
-    const payload = Object.assign({}, k, {ativo:'NAO'});
+    const estaAtivo = String(k.ativo||'SIM').trim().toUpperCase()!=='NAO' && String(k.ativo||'SIM').trim().toUpperCase()!=='NÃO';
+    const novoStatus = estaAtivo ? 'NAO' : 'SIM';
+    const verbo = estaAtivo ? 'Inativar' : 'Reativar';
+    if(!confirm(verbo+' o KPI '+id+'? '+(estaAtivo?'Ele não será apagado; ficará como ativo = NAO e sairá das telas.':'Ele voltará a aparecer nas telas e no cálculo.'))) return;
+    const payload = Object.assign({}, k, {ativo:novoStatus});
     applyKpiLocal(payload);
     if(typeof dmxApiPost==='function') await dmxApiPost('editarKPI', payload);
     if(typeof renderAdminDMX==='function') renderAdminDMX(true);
-    toast('✓ KPI inativado');
+    toast(estaAtivo ? '✓ KPI inativado' : '✓ KPI reativado');
   };
 
   function adminKpiPanelHtml(){
@@ -8557,7 +8568,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <b>Origem:</b> ${manualApiUrl() ? 'manual salva neste navegador' : (defaultApiUrl() ? 'padrão gravada no código' : 'nenhuma')}
       </div>
       <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Tolerância</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
-        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${(function(){ var l=typeof getLaunch==='function'?getLaunch(k.id,currentMes,currentAno):null; var m=l&&l.meta&&Number(l.meta)!==0?l.meta:(k.meta??k.meta_padrao??''); return esc(m); })()}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:180px;font-size:11px;color:var(--muted)">${esc(cargosToText(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area)}</span></td><td style="max-width:300px">${esc(k.indicador)}</td><td>${(function(){ var l=typeof getLaunch==='function'?getLaunch(k.id,currentMes,currentAno):null; var m=l&&l.meta&&Number(l.meta)!==0?l.meta:(k.meta??k.meta_padrao??''); return esc(m); })()}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:180px;font-size:11px;color:var(--muted)">${esc(cargosToText(k.cargos_permitidos || k.allowedRoles || k.acesso_cargos || k.cargos || '')) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-sm ${(String(k.ativo||'SIM').trim().toUpperCase()==='NAO'||String(k.ativo||'SIM').trim().toUpperCase()==='NÃO')?'btn-primary':'btn-danger'}" onclick="dmxAdminInativarKPI('${esc(k.id)}')">${(String(k.ativo||'SIM').trim().toUpperCase()==='NAO'||String(k.ativo||'SIM').trim().toUpperCase()==='NÃO')?'Reativar':'Inativar'}</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
       </tbody></table></div>
     </div>`;
   }
@@ -9345,7 +9356,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         <b>Regra aplicada:</b> administradores visualizam todos os KPIs; filtros de área/cargo valem apenas fora do Admin.
       </div>
       <div class="table-wrap" id="dmx-admin-kpi-table-wrap"><table class="data-table"><thead><tr><th>ID</th><th>Área</th><th>KPI</th><th>Meta</th><th>Tolerância</th><th>Sentido</th><th>Cargos acesso</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
-        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area||'—')}</span></td><td style="max-width:320px">${esc(k.indicador||'')}${kpiBadges(k)}</td><td>${(function(){ var l=typeof getLaunch==='function'?getLaunch(k.id,currentMes,currentAno):null; var m=l&&l.meta&&Number(l.meta)!==0?l.meta:(k.meta??k.meta_padrao??''); return esc(m); })()}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:190px;font-size:11px;color:var(--muted)">${esc(cargosText(k)) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-danger btn-sm" onclick="dmxAdminInativarKPI('${esc(k.id)}')">Inativar</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
+        ${rows.length ? rows.map(k=>`<tr><td><span class="font-mono text-muted">${esc(k.id)}</span></td><td><span class="tag tag-area">${esc(k.area||'—')}</span></td><td style="max-width:320px">${esc(k.indicador||'')}${kpiBadges(k)}</td><td>${(function(){ var l=typeof getLaunch==='function'?getLaunch(k.id,currentMes,currentAno):null; var m=l&&l.meta&&Number(l.meta)!==0?l.meta:(k.meta??k.meta_padrao??''); return esc(m); })()}</td><td style="text-align:center">${k.tolerancia_pct ? '±'+k.tolerancia_pct+'%' : '—'}</td><td>${esc(k.sentido||'')}</td><td style="max-width:190px;font-size:11px;color:var(--muted)">${esc(cargosText(k)) || '—'}</td><td>${esc(k.ativo||'SIM')}</td><td><button class="btn btn-primary btn-sm" onclick="dmxAdminEditarKPI('${esc(k.id)}')">Editar</button> <button class="btn btn-sm ${(String(k.ativo||'SIM').trim().toUpperCase()==='NAO'||String(k.ativo||'SIM').trim().toUpperCase()==='NÃO')?'btn-primary':'btn-danger'}" onclick="dmxAdminInativarKPI('${esc(k.id)}')">${(String(k.ativo||'SIM').trim().toUpperCase()==='NAO'||String(k.ativo||'SIM').trim().toUpperCase()==='NÃO')?'Reativar':'Inativar'}</button></td></tr>`).join('') : '<tr><td colspan="10" class="text-muted">Nenhum KPI carregado.</td></tr>'}
       </tbody></table></div>
     </div>`;
   }
