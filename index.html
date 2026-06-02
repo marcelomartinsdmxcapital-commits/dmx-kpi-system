@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v89.8 — 01/06/2026 — Operacoes: aba na governanca de usuarios (liberacao de acesso) -->
+<!-- DMX KPI System — v89.9 — 01/06/2026 — Operacoes: barras grossas (skipNull), redraw anti-branco, altura maior -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v89.8",data:"01/06/2026",build:"operacoes-governanca-aba-acesso"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v89.9",data:"01/06/2026",build:"operacoes-barras-grossas-skipnull-redraw"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -2904,7 +2904,7 @@ function renderOperacoes(){
     '<div class="block-card ops-bar-card">' +
       '<div class="section-title" style="margin-bottom:10px">Comparativo do mês — ' +
         (_opsSub==='titulo'?'Tipos de Títulos':'Classes de Risco') + ' (' + MES[currentMes] + '/' + currentAno + ')</div>' +
-      '<div style="height:300px"><canvas id="ops-bar-chart"></canvas></div>' +
+      '<div style="height:380px"><canvas id="ops-bar-chart"></canvas></div>' +
     '</div>';
 
   // Cabeçalho congelado: 3 colunas de vertente
@@ -2935,6 +2935,13 @@ function renderOperacoes(){
   }));
   if (typeof renderGroupCharts === 'function') renderGroupCharts(todosOps);
   renderOpsBarChart();
+  // reforço: redesenha após o container assentar (evita gráficos em branco na 1ª abertura)
+  clearTimeout(window.__opsRedraw);
+  window.__opsRedraw = setTimeout(() => {
+    if (currentPage !== 'operacoes') return;
+    if (typeof renderGroupCharts === 'function') renderGroupCharts(todosOps);
+    renderOpsBarChart();
+  }, 250);
 }
 
 function renderOpsBarChart(){
@@ -2976,7 +2983,7 @@ function renderOpsBarChart(){
     data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      categoryPercentage: 0.9, barPercentage: 0.95,
+      categoryPercentage: 0.92, barPercentage: 0.98, skipNull: true,
       plugins: {
         legend: { position: 'top', labels: { filter: (item)=> !item.text.includes('(total)'), font:{family:'Arial'} } },
         tooltip: { callbacks: { title: (items)=> items[0].label === 'TOTAL GERAL' ? 'Total Geral (eixo direito)' : (Array.isArray(items[0].label)?items[0].label.join(' '):items[0].label) } }
