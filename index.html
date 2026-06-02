@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.2 — 01/06/2026 — Admin: botao Inativar/Reativar dinamico + indice renormaliza pesos dos KPIs ativos -->
+<!-- DMX KPI System — v90.4 — 01/06/2026 — Limpeza automatica do cache de pesos obsoleto no boot (sem console) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.2",data:"01/06/2026",build:"botao-reativar-renormaliza-pesos"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.4",data:"01/06/2026",build:"limpeza-automatica-cache-pesos-no-boot"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1579,6 +1579,17 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
 
 // \u2500\u2500\u2500 INIT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function init() {
+  // ── Migração automática de cache: limpa dados obsoletos uma única vez por navegador ──
+  // Incremente MIGRATION_VERSION sempre que precisar forçar nova limpeza nos usuários.
+  try {
+    const MIGRATION_VERSION = '2026-06-01-pesos-sheets';
+    if (localStorage.getItem('dmx_migration_done') !== MIGRATION_VERSION) {
+      // pesos antigos cacheados localmente que sobrepunham o Sheets — removidos para o Sheets mandar
+      ['dmx_indice_pesos_v12','dmx_pesos_indice_v1'].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+      localStorage.setItem('dmx_migration_done', MIGRATION_VERSION);
+      console.log('[DMX] Cache de pesos obsoleto limpo automaticamente. Sheets é a fonte de verdade.');
+    }
+  } catch(e) {}
   try { dmxApplyCatalog(dmxLoadCatalogFromStorage()); } catch(e) {}
   try { launches = JSON.parse(localStorage.getItem('dmx_launches') || 'null') || buildLaunches(); } catch(e) { launches = buildLaunches(); }
   try { planos = JSON.parse(localStorage.getItem('dmx_planos') || 'null') || PLANOS_RAW.map(p => ({...p})); } catch(e) { planos = PLANOS_RAW.map(p => ({...p})); }
@@ -3097,7 +3108,7 @@ function renderAtualizar() {
       '<td id="upd-at-' + kpi.id + '" style="font-size:12px;font-weight:600;color:' + stC + '">' + (at !== null ? Math.round(at * 100) + '%' : '\u2014') + '</td>' +
       '<td id="upd-st-' + kpi.id + '">' + pill(st) + '</td>' +
       (function(){
-        var _p=0; try{var _s=JSON.parse(localStorage.getItem('dmx_indice_pesos_v12')||'{}');_p=Number(_s[kpi.id]!==undefined?_s[kpi.id]:(kpi.peso_indice||0));}catch(e){}
+        var _p=0; try{ _p = (typeof window.dmxPesoIndice==='function') ? Number(window.dmxPesoIndice(kpi.id)||0) : Number(kpi.peso_indice||0); }catch(e){ _p=Number(kpi.peso_indice||0); }
         var _pesoCell = kpi.vertente==='Meta'
           ? '<input class="edit-cell" type="number" min="0" max="100" step="0.01" value="'+_p.toFixed(2)+'" style="width:72px" onchange="dmxUpdSetPeso(\''+kpi.id+'\',this.value)"> %'
           : '<span style="color:var(--muted);font-size:11px">—</span>';
@@ -5531,7 +5542,7 @@ window.addEventListener('DOMContentLoaded', init);
     const planBadge=plans.length>0?'<span style="background:#FEF3C7;color:#B45309;border:1px solid #FCD34D;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;cursor:pointer;white-space:nowrap" onclick="event.stopPropagation();openEditPlano(\''+plans[0].id+'\')">\uD83D\uDCCB '+plans.length+'</span>':'';
     const plansRows=plans.slice(0,2).map(p=>'<div class="kpi-plan-row" onclick="openEditPlano(\''+p.id+'\')"><span style="color:#D97706;font-size:10px">\u25B2</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#92400E">'+(p.acoes&&p.acoes[0]?p.acoes[0].what:p.acao||'Plano').slice(0,50)+'</span><span style="font-size:9px;color:var(--muted);white-space:nowrap">'+(p.prazo?String(p.prazo).split('T')[0].split(' ')[0]:'')+'</span></div>').join('');
     // Peso e contribuição inline nos cards
-    var _pm=0; try{var _ps=JSON.parse(localStorage.getItem('dmx_indice_pesos_v12')||'{}');_pm=Number(_ps[kpi.id]!==undefined?_ps[kpi.id]:(kpi.peso_indice||0));}catch(e){}
+    var _pm=0; try{ _pm = (typeof window.dmxPesoIndice==='function') ? Number(window.dmxPesoIndice(kpi.id)||0) : Number(kpi.peso_indice||0); }catch(e){ _pm=Number(kpi.peso_indice||0); }
     var _isMeta=String(kpi.vertente||'').trim().toLowerCase()==='meta';
     var _wm=(_isMeta&&_pm>0)?' ('+_pm.toFixed(1)+'%)':'';
     var _cm=(_isMeta&&at!==null&&_pm>0)?' ('+(at*_pm).toFixed(1)+'%)':'';
@@ -5731,10 +5742,13 @@ window.addEventListener('DOMContentLoaded', init);
   }
   window.dmxPesoIndice=function(id){
     const k=getKpisSafe().find(x=>String(x.id)===String(id));
+    // FONTE DE VERDADE: peso_indice do Sheets/catálogo prevalece sempre que estiver definido (>0).
+    const cat = k ? Number(k.peso_indice||0) : 0;
+    if(cat>0) return cat;
+    // Sheets sem peso definido → usa edição local pendente (cache), se houver.
     const stored=getStoredPeso(id);
-    // Proteção: pesos salvos como zero em versões anteriores zeravam todo o índice.
-    // Se o catálogo tem peso positivo, ele prevalece quando o armazenamento local veio zerado.
     if(stored!==null && stored>0) return stored;
+    // Nada definido → redistribui igualmente entre os KPIs Meta da área.
     if(k) return fallbackPeso(k);
     return stored||0;
   };
