@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v89.9 — 01/06/2026 — Operacoes: barras grossas (skipNull), redraw anti-branco, altura maior -->
+<!-- DMX KPI System — v90.0 — 01/06/2026 — KPI inativo some de todas as telas (dashboard, area, catalogo, atualizar); indice recalcula sem ele; admin mantem -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v89.9",data:"01/06/2026",build:"operacoes-barras-grossas-skipnull-redraw"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.0",data:"01/06/2026",build:"kpi-inativo-some-das-telas-indice-recalcula"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1669,6 +1669,9 @@ function getKPI(id) {
   return kpis.find(k => k.id === id);
 }
 function getPlansForKPI(id) { if (String(id||'').indexOf('OP-')===0) return []; return planos.filter(p => p.id_kpi === id); }
+// helper central: KPI ativo? (inativo = some das telas de exibição, mas fica no catálogo/admin)
+function dmxKpiAtivo(k){ return String((k&&k.ativo)||'SIM').trim().toUpperCase()!=='NAO' && String((k&&k.ativo)||'SIM').trim().toUpperCase()!=='NÃO'; }
+window.dmxKpiAtivo = dmxKpiAtivo;
 
 function isOutOfRange(kpi, mes, ano) {
   const l = getLaunch(kpi.id, mes, ano);
@@ -1916,7 +1919,7 @@ function buildFilters() {
 // \u2500\u2500\u2500 DASHBOARD \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function renderDashboard() {
   // Recalcula status/criticidade no momento do render para não depender de status antigo salvo.
-  const data = byPeriod(currentMes, currentAno).map(l => {
+  const data = byPeriod(currentMes, currentAno).filter(l => { const k = getKPI(l.id_kpi); return !k || dmxKpiAtivo(k); }).map(l => {
     const k = getKPI(l.id_kpi);
     const ref = k ? resolveRef(k, currentMes, currentAno) : { meta: l.meta, minimo: null, maximo: null };
     const metaAtual = (ref && ref.meta !== null && ref.meta !== undefined) ? ref.meta : l.meta;
@@ -2106,7 +2109,7 @@ function renderTrend() {
 
 // \u2500\u2500\u2500 AREAS PAGE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 function renderAreas() {
-  renderAreaCards('area-grid-full', byPeriod(currentMes, currentAno), 3);
+  renderAreaCards('area-grid-full', byPeriod(currentMes, currentAno).filter(l => { const k = getKPI(l.id_kpi); return !k || dmxKpiAtivo(k); }), 3);
 }
 
 // \u2500\u2500\u2500 AREA DETAIL \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -3004,6 +3007,7 @@ function renderKPICatalog() {
   const imf = document.getElementById('kpi-impacto-filter') ? document.getElementById('kpi-impacto-filter').value : '';
   const sf = document.getElementById('kpi-status-filter').value;
   const filtered = kpis.filter(k => {
+    if (!dmxKpiAtivo(k)) return false;
     if (af && k.area!==af) return false;
     if (pf && k.pilar_estrategico!==pf) return false;
     if (imf && k.impacto_principal!==imf) return false;
@@ -3044,6 +3048,7 @@ function renderAtualizar() {
   const vf   = document.getElementById('upd-vertente-filter').value;
   const srch = document.getElementById('upd-search').value.toLowerCase();
   const filtered = kpis.filter(k => {
+    if (!dmxKpiAtivo(k)) return false;
     if (af && k.area !== af) return false;
     if (vf && k.vertente !== vf) return false;
     if (srch && !k.indicador.toLowerCase().includes(srch) && !k.id.toLowerCase().includes(srch)) return false;
@@ -3283,6 +3288,7 @@ function openEditLancamento(id_kpi, mes, ano) {
   const vf = (document.getElementById('upd-vertente-filter')||{}).value||'';
   const srch = ((document.getElementById('upd-search')||{}).value||'').toLowerCase();
   const kpisVisiveis = kpis.filter(k => {
+    if(!dmxKpiAtivo(k)) return false;
     if(k.tipo_lancamento==='calculado') return false;
     if(af && k.area!==af) return false;
     if(vf && k.vertente!==vf) return false;
@@ -5657,7 +5663,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.renderAreaDetail = renderAreaDetail = function(area){
     const allKRaw = (window.kpis||KPI_CATALOG||[]);
     const allK = allKRaw;
-    const areaKPIs = allK.filter(k => String(k.area||'').trim() === String(area||'').trim());
+    const areaKPIs = allK.filter(k => String(k.area||'').trim() === String(area||'').trim() && dmxKpiAtivo(k));
     const data = byPeriod(currentMes, currentAno).filter(l => String(l.area||'').trim() === String(area||'').trim());
     const v = data.filter(l => l.status === 'VERDE').length;
     const a = data.filter(l => l.status === 'AMARELO').length;
