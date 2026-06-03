@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.2",data:"02/06/2026",build:"fix-spinner-salvar-pesos-paralelo-nao-trava"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.3",data:"02/06/2026",build:"kpi-global-ppr-aceita-area-financeiro-executivo-normalizada"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1685,7 +1685,7 @@ function dmxElegivelGlobalPPR(k){
   if(!k) return false;
   const vert = String(k.vertente||'').trim().toLowerCase();
   const area = String(k.area||'').trim().toLowerCase();
-  const areasFin = ['painel financeiro','painel executivo','__fin_interno__'];
+  const areasFin = ['painel financeiro','painel executivo','financeiro','executivo','__fin_interno__'];
   if(typeof dmxKpiAtivo==='function' && !dmxKpiAtivo(k)) return false;
   return vert.includes('meta') || areasFin.includes(area);
 }
