@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.1",data:"02/06/2026",build:"fix-colisao-indice-search-email-config-pesos-popula"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.2",data:"02/06/2026",build:"fix-spinner-salvar-pesos-paralelo-nao-trava"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5367,17 +5367,20 @@ window.addEventListener('DOMContentLoaded', init);
     if(btn){ btn.disabled=true; btn.innerHTML='<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .6s linear infinite;vertical-align:middle;margin-right:6px"></span> Salvando…'; }
     try{
       const metas=getKpis().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta' && (typeof dmxKpiAtivo==='function'?dmxKpiAtivo(k):true));
-      let ok=0, fail=0;
-      for(const k of metas){
+      let ok=0;
+      // dispara todas as gravacoes em paralelo (JSONP via GET) e aplica localmente
+      metas.forEach(k=>{
         const p=(typeof window.dmxPesoIndice==='function')?Number(window.dmxPesoIndice(k.id)||0):Number(k.peso_indice||0);
         try{
           const payload=Object.assign({}, k, {peso_indice:p});
           if(typeof applyKpiLocal==='function'){ try{ applyKpiLocal(payload); }catch(e){ k.peso_indice=p; } } else { k.peso_indice=p; }
-          if(typeof dmxApiPost==='function') await dmxApiPost('editarKPI', payload);
+          if(typeof dmxApiPost==='function'){ try{ Promise.resolve(dmxApiPost('editarKPI', payload)).catch(()=>{}); }catch(e){} }
           ok++;
-        }catch(e){ fail++; console.warn('Falha ao salvar peso de',k.id,e); }
-      }
-      if(typeof showToast==='function') showToast(fail? ('⚠ '+ok+' salvos, '+fail+' falharam') : ('✓ '+ok+' pesos salvos no Sheets'));
+        }catch(e){ console.warn('Falha ao salvar peso de',k.id,e); }
+      });
+      // tempo fixo para as requisicoes saírem, depois libera o botao (nao depende de resposta JSONP)
+      await new Promise(res=>setTimeout(res, Math.min(800+metas.length*60, 4000)));
+      if(typeof showToast==='function') showToast('✓ '+ok+' pesos enviados ao Sheets');
       if(typeof renderIndice==='function') renderIndice();
     }catch(e){ alert('Erro ao salvar pesos: '+e); }
     finally{ if(btn){ btn.disabled=false; btn.innerHTML=txtOrig; } }
