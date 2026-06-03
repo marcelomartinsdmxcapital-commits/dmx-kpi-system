@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.4 — 01/06/2026 — Limpeza automatica do cache de pesos obsoleto no boot (sem console) -->
+<!-- DMX KPI System — v90.6 — 01/06/2026 — Botao Salvar pesos no Sheets (loading) + KPIs do Painel Financeiro elegiveis como KPI global PPR (semestral e mensal) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.4",data:"01/06/2026",build:"limpeza-automatica-cache-pesos-no-boot"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.6",data:"01/06/2026",build:"salvar-pesos-sheets-loading-kpis-financeiros-no-ppr-global"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -49,6 +49,7 @@
 <title>DMX Capital · Sistema de Gestão de Performance v82</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+@keyframes dmx-spin{to{transform:rotate(360deg)}}
 
 :root {
   --bg:       #F4F6FA;
@@ -1679,6 +1680,16 @@ function getKPI(id) {
   if (String(id||'').indexOf('OP-')===0) return operacoes.find(k => k.id === id);
   return kpis.find(k => k.id === id);
 }
+// helper central: KPI elegível para ser KPI Global do PPR (Meta OU das áreas financeiras)
+function dmxElegivelGlobalPPR(k){
+  if(!k) return false;
+  const vert = String(k.vertente||'').trim().toLowerCase();
+  const area = String(k.area||'').trim().toLowerCase();
+  const areasFin = ['painel financeiro','painel executivo','__fin_interno__'];
+  if(typeof dmxKpiAtivo==='function' && !dmxKpiAtivo(k)) return false;
+  return vert.includes('meta') || areasFin.includes(area);
+}
+window.dmxElegivelGlobalPPR = dmxElegivelGlobalPPR;
 function getPlansForKPI(id) { if (String(id||'').indexOf('OP-')===0) return []; return planos.filter(p => p.id_kpi === id); }
 // helper central: KPI ativo? (inativo = some das telas de exibição, mas fica no catálogo/admin)
 function dmxKpiAtivo(k){ return String((k&&k.ativo)||'SIM').trim().toUpperCase()!=='NAO' && String((k&&k.ativo)||'SIM').trim().toUpperCase()!=='NÃO'; }
@@ -5001,7 +5012,7 @@ window.addEventListener('DOMContentLoaded', init);
       <div class="cards-row" id="indice-summary-cards" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="two-col"><div><div class="section-header"><div class="section-title">Ranking de Eficiência por Área</div></div><div class="table-wrap"><table class="data-table" id="indice-ranking-table"><thead><tr><th>Área</th><th>Índice</th><th>Status</th><th>Pesos</th><th>KPIs Meta</th></tr></thead><tbody></tbody></table></div></div><div><div class="section-header"><div class="section-title">Validação dos Pesos</div></div><div class="block-card" id="indice-validacao" style="min-height:128px"></div></div></div>
       <div class="section-header"><div class="section-title">Configuração de Pesos por KPI de Meta</div><span class="section-link">A soma por área deve fechar 100%</span></div>
-      <div class="filter-row"><select class="filter-input" id="indice-area-filter" onchange="renderIndice()"><option value="">Todas as áreas</option></select><input class="filter-input" id="indice-search" placeholder="🔍 Buscar KPI de meta..." oninput="renderIndice()" style="flex:1"><button class="btn btn-ghost" onclick="dmxResetPesosIndice()">Redistribuir pesos iguais</button><button class="btn btn-primary" onclick="renderIndice();showToast('✓ Índice recalculado')">Recalcular</button></div>
+      <div class="filter-row"><select class="filter-input" id="indice-area-filter" onchange="renderIndice()"><option value="">Todas as áreas</option></select><input class="filter-input" id="indice-search" placeholder="🔍 Buscar KPI de meta..." oninput="renderIndice()" style="flex:1"><button class="btn btn-primary" id="btn-salvar-pesos" onclick="dmxSalvarPesosSheets()">💾 Salvar pesos no Sheets</button><button class="btn btn-ghost" onclick="dmxResetPesosIndice()">Redistribuir pesos iguais</button><button class="btn btn-primary" onclick="renderIndice();showToast('✓ Índice recalculado')">Recalcular</button></div>
       <div class="table-wrap"><table class="data-table" id="indice-config-table"><thead><tr><th>Área</th><th>ID</th><th>KPI de Meta</th><th>Peso no Índice</th><th>Atingimento Mês</th><th>Contribuição</th><th>Status</th></tr></thead><tbody></tbody></table></div>`;content.appendChild(page);}
     const sel=document.getElementById('indice-area-filter');if(sel&&sel.options.length<=1)(window.AREAS||[]).forEach(a=>sel.add(new Option(a,a)));
   }
@@ -5347,6 +5358,28 @@ window.addEventListener('DOMContentLoaded', init);
   function pesoIndice(id){ return Number(loadPesos()[id]||0); }
   window.dmxPesoIndice = pesoIndice;
   window.dmxSetPesoIndice=function(id,v){ const pesos=loadPesos(); pesos[id]=Number(String(v).replace(',','.')||0); localStorage.setItem(PESO_KEY,JSON.stringify(pesos)); if(typeof renderIndice==='function'&&currentPage==='indice')renderIndice(); if(typeof renderAreas==='function'&&currentPage==='areas')renderAreas(); if(typeof showToast==='function')showToast('✓ Peso atualizado'); };
+  // Salva no Sheets os pesos editados (peso_indice de cada KPI de Meta ativo), com loading no botão.
+  window.dmxSalvarPesosSheets = async function(){
+    const btn=document.getElementById('btn-salvar-pesos');
+    const txtOrig=btn?btn.innerHTML:'';
+    if(btn){ btn.disabled=true; btn.innerHTML='<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:dmx-spin .6s linear infinite;vertical-align:middle;margin-right:6px"></span> Salvando…'; }
+    try{
+      const metas=getKpis().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta' && (typeof dmxKpiAtivo==='function'?dmxKpiAtivo(k):true));
+      let ok=0, fail=0;
+      for(const k of metas){
+        const p=(typeof window.dmxPesoIndice==='function')?Number(window.dmxPesoIndice(k.id)||0):Number(k.peso_indice||0);
+        try{
+          const payload=Object.assign({}, k, {peso_indice:p});
+          if(typeof applyKpiLocal==='function'){ try{ applyKpiLocal(payload); }catch(e){ k.peso_indice=p; } } else { k.peso_indice=p; }
+          if(typeof dmxApiPost==='function') await dmxApiPost('editarKPI', payload);
+          ok++;
+        }catch(e){ fail++; console.warn('Falha ao salvar peso de',k.id,e); }
+      }
+      if(typeof showToast==='function') showToast(fail? ('⚠ '+ok+' salvos, '+fail+' falharam') : ('✓ '+ok+' pesos salvos no Sheets'));
+      if(typeof renderIndice==='function') renderIndice();
+    }catch(e){ alert('Erro ao salvar pesos: '+e); }
+    finally{ if(btn){ btn.disabled=false; btn.innerHTML=txtOrig; } }
+  };
   function brPct(v){return Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'}
   function statusIndice(v){return v>=105?{c:'VERDE',t:'Excelente',cls:'green',cor:'var(--green)'}:v>=90?{c:'AMARELO',t:'Dentro',cls:'amber',cor:'var(--amber)'}:{c:'VERMELHO',t:'Abaixo',cls:'red',cor:'var(--red)'}}
   function fmtNum(v,u){try{return fmtVal(v,u)}catch(e){return v==null?'—':Number(v).toLocaleString('pt-BR')}}
@@ -5913,7 +5946,7 @@ window.addEventListener('DOMContentLoaded', init);
   function safeKpis(){ try { return (Array.isArray(window.kpis) && window.kpis.length) ? window.kpis : (Array.isArray(kpis) ? kpis : KPI_CATALOG); } catch(e) { return []; } }
   function safeAreas(){ try { const base = (Array.isArray(window.AREAS) && window.AREAS.length) ? window.AREAS : [...new Set(safeKpis().map(k=>k.area).filter(Boolean))].sort(); return base.filter(a => !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim())); } catch(e) { return []; } }
   function kpiById(id){ return safeKpis().find(k=>String(k.id)===String(id)); }
-  function defaultConfig(){ const metas = safeKpis().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta'); return {kpi1: metas[0]?.id || '', peso1: 20, kpi2: metas[1]?.id || '', peso2: 20, kpi3: metas[2]?.id || '', peso3: 20, pesoArea: 40}; }
+  function defaultConfig(){ const metas = safeKpis().filter(k=>dmxElegivelGlobalPPR(k)); return {kpi1: metas[0]?.id || '', peso1: 20, kpi2: metas[1]?.id || '', peso2: 20, kpi3: metas[2]?.id || '', peso3: 20, pesoArea: 40}; }
   function loadConfigPPR(){ try { return Object.assign(defaultConfig(), JSON.parse(localStorage.getItem(PPR_KEY)||'{}')||{}); } catch(e){ return defaultConfig(); } }
   window.dmxLoadConfigPPR = loadConfigPPR;
   window.salvarConfigPPR = function(){
@@ -5953,7 +5986,7 @@ window.addEventListener('DOMContentLoaded', init);
         '</div>'+ 
         '<div class="section-header"><div class="section-title">Resultado final por área</div><span class="text-muted text-sm">3 KPIs globais + índice PPR acumulado da área</span></div><div id="ppr-area-tables"></div>'; content?.appendChild(page); }
   }
-  function fillSelects(){ const cfg = loadConfigPPR(); const opts = safeKpis().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta').map(k=>'<option value="'+k.id+'">'+k.id+' · '+(k.area||'')+' · '+(k.indicador||'')+'</option>').join(''); ['1','2','3'].forEach(i=>{ const sel = document.getElementById('ppr-kpi-'+i); if(sel){ sel.innerHTML = '<option value="">Selecione um KPI global</option>'+opts; sel.value = cfg['kpi'+i] || ''; } }); ['1','2','3'].forEach(i=>{ const el=document.getElementById('ppr-peso-'+i); if(el) el.value = cfg['peso'+i] ?? 0; }); const pa=document.getElementById('ppr-peso-area'); if(pa) pa.value = cfg.pesoArea ?? 0; ['ppr-kpi-1','ppr-kpi-2','ppr-kpi-3','ppr-peso-1','ppr-peso-2','ppr-peso-3','ppr-peso-area'].forEach(id=>{ const el=document.getElementById(id); if(el && !el.dataset.pprBound){ el.addEventListener('change', salvarConfigPPR); el.dataset.pprBound='1'; } }); }
+  function fillSelects(){ const cfg = loadConfigPPR(); const opts = safeKpis().filter(k=>dmxElegivelGlobalPPR(k)).map(k=>'<option value="'+k.id+'">'+k.id+' · '+(k.area||'')+' · '+(k.indicador||'')+'</option>').join(''); ['1','2','3'].forEach(i=>{ const sel = document.getElementById('ppr-kpi-'+i); if(sel){ sel.innerHTML = '<option value="">Selecione um KPI global</option>'+opts; sel.value = cfg['kpi'+i] || ''; } }); ['1','2','3'].forEach(i=>{ const el=document.getElementById('ppr-peso-'+i); if(el) el.value = cfg['peso'+i] ?? 0; }); const pa=document.getElementById('ppr-peso-area'); if(pa) pa.value = cfg.pesoArea ?? 0; ['ppr-kpi-1','ppr-kpi-2','ppr-kpi-3','ppr-peso-1','ppr-peso-2','ppr-peso-3','ppr-peso-area'].forEach(id=>{ const el=document.getElementById(id); if(el && !el.dataset.pprBound){ el.addEventListener('change', salvarConfigPPR); el.dataset.pprBound='1'; } }); }
   function rowHtml(label, values, finalValue, highlight){ const tds = values.map(v=>'<td style="text-align:center">'+pct(v)+'</td>').join(''); const bg = highlight ? 'background:#F0FDF9;font-weight:800' : ''; return '<tr style="'+bg+'"><td style="font-weight:700;min-width:260px">'+label+'</td>'+tds+'<td style="text-align:center;font-weight:800">'+pct(finalValue)+'</td></tr>'; }
   window.renderPPR = function(){
     ensurePPRPage(); fillSelects(); const cfg = loadConfigPPR(); const ano = window.currentAno || currentAno || 2026; const pesoTotal = somaPesos(cfg); const val = document.getElementById('ppr-validacao'); if(val) val.innerHTML = Math.abs(pesoTotal-100) < 0.01 ? '<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>' : '<span style="color:var(--red);font-weight:700">⚠ Pesos somam '+pct(pesoTotal)+'. Ajuste para 100%.</span>';
@@ -10109,6 +10142,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
     const label = PAGE_TO_ABA[page] || page;
     if(page === 'admin') return false;
+    if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
 
     if(page === 'diretoria' && !isDiretoriaCargo(u)) return false;
 
@@ -10783,6 +10817,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!u) return false;
     if(isAdmin(u)) return true;
     if(page === 'admin') return false;
+    if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return true; // cada área será validada por canArea
     const abas = userAbas(u);
     if(hasAll(abas)) return true;
@@ -11045,6 +11080,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!u) return false;
     if(isAdmin(u)) return true;
     if(page === 'admin') return false;
+    if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return true;
     const abas = userAbas(u);
     if(hasAll(abas)) return true;
@@ -11289,7 +11325,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     ensurePprPage485();
     const page=document.getElementById('page-ppr'); if(!page) return;
     const cfg=getPprCfg();
-    const metas=kpis485().filter(k=>String(k.vertente||'').toLowerCase().includes('meta'));
+    const metas=kpis485().filter(k=>dmxElegivelGlobalPPR(k));
     const opts='<option value="">Selecione um KPI global</option>'+metas.map(k=>`<option value="${esc485(k.id)}">${esc485(k.id)} · ${esc485(k.area)} · ${esc485(k.indicador)}</option>`).join('');
     const ano=Number(window.currentAno||currentAno||2026), mes=Number(window.currentMes||currentMes||12);
     const areaList=areas485();
@@ -11785,6 +11821,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!u) return false;
     if(isAdmin(u)) return true;
     if(page === 'admin') return false;
+    if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return userAreas(u).length > 0 || hasAll(userTabs(u)) || userTabs(u).map(norm).includes('AREA');
     const tabs = userTabs(u);
     if(hasAll(tabs)) return true;
@@ -12094,6 +12131,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(!u) return false;
     if(isAdmin(u)) return true;
     if(page === 'admin') return false;
+    if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return true;
     const t = tabs(u);
     // Se não houver abas explícitas, usuário NÃO recebe menu geral por padrão.
@@ -15501,7 +15539,7 @@ setTimeout(()=>{
   function setPPRCfg(c){ localStorage.setItem(PPR_CFG_KEY, JSON.stringify(c||{})); }
   function kpisAll(){ return window.kpis||[]; }
   function kpiById(id){ return kpisAll().find(k=>String(k.id)===String(id)); }
-  function metaKpis(){ return kpisAll().filter(k=>String(k.vertente||'').trim().toLowerCase()==='meta'); }
+  function metaKpis(){ return kpisAll().filter(k=>dmxElegivelGlobalPPR(k)); }
 
   // ── SEMESTRE ───────────────────────────────────────────────────────────────
   const SEMS = {
