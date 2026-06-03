@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.0",data:"02/06/2026",build:"config-table-fonte-unica-independente-autocorrige"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.1",data:"02/06/2026",build:"fix-colisao-indice-search-email-config-pesos-popula"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -20195,7 +20195,7 @@ window.dmxNavLancamento = function(direcao){
     const tb = document.querySelector('#indice-config-table tbody');
     if(!tb) return;
     const af = document.getElementById('indice-area-filter')?.value || '';
-    const srch = (document.getElementById('indice-search')?.value || '').toLowerCase();
+    const srch = '';
     const ehMeta = k => String(k.vertente||'').trim().toLowerCase()==='meta';
     const ativo = k => (typeof window.dmxKpiAtivo!=='function') || window.dmxKpiAtivo(k);
     const rows = (window.kpis||[]).filter(k => ehMeta(k) && ativo(k) && (!af||k.area===af) &&
