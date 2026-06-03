@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.6 — 01/06/2026 — Botao Salvar pesos no Sheets (loading) + KPIs do Painel Financeiro elegiveis como KPI global PPR (semestral e mensal) -->
+<!-- DMX KPI System — v90.7 — 02/06/2026 — Corrige select de KPI global no Admin PPR (16599) para incluir KPIs do Painel Financeiro -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.6",data:"01/06/2026",build:"salvar-pesos-sheets-loading-kpis-financeiros-no-ppr-global"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.7",data:"02/06/2026",build:"kpi-global-ppr-financeiros-select-admin-corrigido"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -16596,7 +16596,7 @@ setTimeout(()=>{
   // ── Config mensal no Admin ────────────────────────────────────────────────
   function buildAdminMensalPanel(){
     var cfg=getCfg('mensal');
-    var metas=(window.kpis||[]).filter(function(k){ return String(k.vertente||'').toLowerCase().indexOf('meta')>=0; });
+    var metas=(window.kpis||[]).filter(function(k){ return (typeof dmxElegivelGlobalPPR==='function') ? dmxElegivelGlobalPPR(k) : String(k.vertente||'').toLowerCase().indexOf('meta')>=0; });
     var opts='<option value="">— Selecione um KPI —</option>'+
       metas.map(function(k){ return '<option value="'+esc(k.id)+'">'+esc(k.id)+' · '+esc(k.area)+' · '+esc(k.indicador)+'</option>'; }).join('');
     function row(label,kpiId,pesoId,val){
