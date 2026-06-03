@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.9",data:"02/06/2026",build:"config-table-populada-no-wrapper-ativo"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.0",data:"02/06/2026",build:"config-table-fonte-unica-independente-autocorrige"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5191,24 +5191,7 @@ window.addEventListener('DOMContentLoaded', init);
           '<div class="kpi-card blue"><div class="card-label">Índice Mensal Médio</div><div class="card-value blue">'+fmtPct(mediaMes)+'</div><div class="card-sub">referência operacional</div></div>';
         }
         // popula a tabela de Configuração de Pesos por KPI de Meta (robusto, dados globais)
-        try{
-          const tb=document.querySelector('#indice-config-table tbody');
-          if(tb){
-            const af=document.getElementById('indice-area-filter')?.value||'';
-            const srch=(document.getElementById('indice-search')?.value||'').toLowerCase();
-            const ehMeta=k=>String(k.vertente||'').trim().toLowerCase()==='meta';
-            const rows=(window.kpis||[]).filter(k=>ehMeta(k)&&(typeof dmxKpiAtivo!=='function'||dmxKpiAtivo(k))&&(!af||k.area===af)&&(!srch||String(k.indicador||'').toLowerCase().includes(srch)||String(k.id||'').toLowerCase().includes(srch)));
-            const pesoDe=id=>{ try{ return (typeof window.dmxPesoIndice==='function')?Number(window.dmxPesoIndice(id)||0):0; }catch(e){ return 0; } };
-            tb.innerHTML=rows.map(k=>{
-              const p=pesoDe(k.id);
-              return '<tr><td><span class="tag tag-area">'+(k.area||'')+'</span></td>'+
-                '<td><span class="font-mono text-muted">'+k.id+'</span></td>'+
-                '<td style="max-width:320px">'+(k.indicador||'')+'<div class="text-muted text-sm">'+(k.sentido||'')+' · '+(k.unidade||'')+'</div></td>'+
-                '<td><input class="edit-cell" type="number" step="0.01" value="'+p+'" style="width:80px" onchange="dmxSetPesoIndice(\''+k.id+'\',this.value)"></td>'+
-                '<td colspan="3" class="text-muted text-sm">peso atual: '+p.toFixed(1)+'%</td></tr>';
-            }).join('') || '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:18px">Nenhum KPI de Meta para esta seleção.</td></tr>';
-          }
-        }catch(ec){console.warn('config-table',ec)}
+        try{ if(typeof window.dmxPreencheConfigPesos==="function") window.dmxPreencheConfigPesos(); }catch(ec){console.warn("config-table",ec)}
       }catch(e){console.warn('patch indice cards',e)}
     };
   }
@@ -20204,6 +20187,44 @@ window.dmxNavLancamento = function(direcao){
   }
   openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
 };
+</script>
+<script>
+// Config-table de pesos da Indice: fonte unica e independente
+(function(){
+  window.dmxPreencheConfigPesos = function(){
+    const tb = document.querySelector('#indice-config-table tbody');
+    if(!tb) return;
+    const af = document.getElementById('indice-area-filter')?.value || '';
+    const srch = (document.getElementById('indice-search')?.value || '').toLowerCase();
+    const ehMeta = k => String(k.vertente||'').trim().toLowerCase()==='meta';
+    const ativo = k => (typeof window.dmxKpiAtivo!=='function') || window.dmxKpiAtivo(k);
+    const rows = (window.kpis||[]).filter(k => ehMeta(k) && ativo(k) && (!af||k.area===af) &&
+      (!srch || String(k.indicador||'').toLowerCase().includes(srch) || String(k.id||'').toLowerCase().includes(srch)));
+    const pesoDe = id => { try { return (typeof window.dmxPesoIndice==='function') ? Number(window.dmxPesoIndice(id)||0) : 0; } catch(e){ return 0; } };
+    const html = rows.map(k => {
+      const p = pesoDe(k.id);
+      return '<tr><td><span class="tag tag-area">'+(k.area||'')+'</span></td>'+
+        '<td><span class="font-mono text-muted">'+k.id+'</span></td>'+
+        '<td style="max-width:320px">'+(k.indicador||'')+'<div class="text-muted text-sm">'+(k.sentido||'')+' \u00b7 '+(k.unidade||'')+'</div></td>'+
+        '<td><input class="edit-cell" type="number" step="0.01" value="'+p+'" style="width:80px" onchange="dmxSetPesoIndice(\''+k.id+'\',this.value)"></td>'+
+        '<td class="text-muted text-sm">'+p.toFixed(1)+'%</td>'+
+        '<td colspan="2"></td></tr>';
+    }).join('');
+    tb.innerHTML = html || '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:18px">Nenhum KPI de Meta para esta selecao.</td></tr>';
+  };
+  setInterval(function(){
+    try{
+      if(window.currentPage==='indice'){
+        const tb=document.querySelector('#indice-config-table tbody');
+        if(tb && (tb.children.length===0 || (tb.children.length===1 && tb.textContent.includes('Nenhum')))){
+          const af=document.getElementById('indice-area-filter')?.value||'';
+          const temMeta=(window.kpis||[]).some(k=>String(k.vertente||'').trim().toLowerCase()==='meta'&&(!af||k.area===af));
+          if(temMeta) window.dmxPreencheConfigPesos();
+        }
+      }
+    }catch(e){}
+  }, 800);
+})();
 </script>
 </body>
 </html>
