@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.7 — 02/06/2026 — Corrige select de KPI global no Admin PPR (16599) para incluir KPIs do Painel Financeiro -->
+<!-- DMX KPI System — v90.8 — 02/06/2026 — Fix: tabela de pesos da Indice volta a popular (wrapper que sobrescrevia o render completo neutralizado) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v90.7",data:"02/06/2026",build:"kpi-global-ppr-financeiros-select-admin-corrigido"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v90.8",data:"02/06/2026",build:"fix-indice-config-table-render-ativo"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5326,7 +5326,7 @@ window.addEventListener('DOMContentLoaded', init);
     };
   }
   const oldRenderIndice = window.renderIndice;
-  if (typeof oldRenderIndice === 'function') {
+  if (false && typeof oldRenderIndice === 'function') {
     window.renderIndice = renderIndice = function(){
       oldRenderIndice();
       const note = document.getElementById('indice-ppr-info');
