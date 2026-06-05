@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v90.9 — 02/06/2026 — Config-table de pesos populada direto no wrapper ativo (dados globais) -->
+<!-- DMX KPI System — v91.5 — 04/06/2026 — Navegacao de mes dentro do modal de lancamento (setas + select), lanca varios meses do mesmo KPI sem sair -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.4",data:"02/06/2026",build:"kpi-global-ppr-aceita-area-ceo-rotulo-painel-financeiro"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.5",data:"04/06/2026",build:"navegacao-de-mes-no-modal-de-lancamento"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -3337,7 +3337,12 @@ function openEditLancamento(id_kpi, mes, ano) {
       '</div>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--navy);border-radius:8px;margin-bottom:2px">' +
-      '<span style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;color:#fff">' + MES[mes] + ' / ' + ano + '</span>' +
+      '<button onclick="dmxNavLancamentoMes(-1)" title="Mês anterior" style="padding:2px 8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:#fff;border-radius:6px;cursor:pointer;font-size:13px">◄</button>' +
+      '<select id="lf-mes-nav" onchange="dmxIrParaMesLancamento(parseInt(this.value,10))" style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;color:#fff;background:transparent;border:none;cursor:pointer;outline:none">' +
+        MES.slice(1).map(function(m,i){ return '<option value="'+(i+1)+'"'+((i+1)===mes?' selected':'')+' style="color:#111">'+m+'</option>'; }).join('') +
+      '</select>' +
+      '<span style="font-family:Arial,sans-serif;font-size:14px;font-weight:800;color:#fff">/ ' + ano + '</span>' +
+      '<button onclick="dmxNavLancamentoMes(1)" title="Próximo mês" style="padding:2px 8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:#fff;border-radius:6px;cursor:pointer;font-size:13px">►</button>' +
       '<span class="tag" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.7);margin-left:4px">' + kpi.unidade + '</span>' +
       '<span style="margin-left:auto">' + pill(l ? l.status : 'N/A') + '</span>' +
     '</div>' +
@@ -20189,6 +20194,23 @@ window.dmxNavLancamento = function(direcao){
     try{ saveLancamento(true); }catch(e){}
   }
   openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
+};
+
+// Navegação de MÊS dentro do modal de lançamento (mesmo KPI, troca o mês)
+window.dmxNavLancamentoMes = function(direcao){
+  if(typeof editingLancId==='undefined' || !editingLancId) return;
+  var novoMes = (editingLancId.mes||window.currentMes||1) + direcao;
+  if(novoMes < 1 || novoMes > 12) return;
+  dmxIrParaMesLancamento(novoMes);
+};
+window.dmxIrParaMesLancamento = function(novoMes){
+  if(typeof editingLancId==='undefined' || !editingLancId) return;
+  if(novoMes < 1 || novoMes > 12) return;
+  var idk = editingLancId.id_kpi, ano = editingLancId.ano || window.currentAno || 2026;
+  // salva o lançamento atual silenciosamente antes de trocar de mês
+  var real = document.getElementById('lf-real');
+  if(real && real.value !== '') { try{ saveLancamento(true); }catch(e){} }
+  openEditLancamento(idk, novoMes, ano);
 };
 </script>
 <script>
