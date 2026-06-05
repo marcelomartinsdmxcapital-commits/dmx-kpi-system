@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v91.9 — 04/06/2026 — KPI calculado aparece no grafico/cards (via formula) e mostra selo Calculado em vez de botao Editar -->
+<!-- DMX KPI System — v92.0 — 04/06/2026 — KPI calculado: modal de apresentacao salva so justificativa (valor readonly); formula visivel em Atualizar Dados -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.9",data:"04/06/2026",build:"kpi-calculado-aparece-no-grafico-e-cards-e-selo-em-vez-de-editar"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v92.0",data:"04/06/2026",build:"kpi-calculado-modal-so-justificativa-e-formula-visivel-em-atualizar"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -3319,6 +3319,8 @@ function openEditLancamento(id_kpi, mes, ano) {
   if (!kpi) return;
   const l   = getLaunch(id_kpi, mes, ano);
   const ref = resolveRef(kpi, mes, ano);
+  const _ehCalc = kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi;
+  const _valCalc = _ehCalc && typeof dmxGetRealizado === 'function' ? dmxGetRealizado(id_kpi, mes, ano) : null;
   editingLancId = { id_kpi, mes, ano };
   document.getElementById('lanc-modal-title').textContent = 'Atualizar KPI';
   // Guarda contexto para navegação entre KPIs
@@ -3363,7 +3365,10 @@ function openEditLancamento(id_kpi, mes, ano) {
       '<span style="margin-left:auto">' + pill(l ? l.status : 'N/A') + '</span>' +
     '</div>' +
     formField('Valor Realizado',
-      '<input class="filter-input" id="lf-real" type="text" inputmode="decimal" value="' + (l ? (l.realizado ?? '') : '') + '" style="width:100%;font-size:18px;font-weight:700;text-align:center" autofocus>') +
+      _ehCalc
+        ? '<input class="filter-input" id="lf-real" type="text" value="' + (_valCalc!=null ? _valCalc : '—') + '" readonly style="width:100%;font-size:18px;font-weight:700;text-align:center;background:#EFF6FF;color:#1D4ED8;cursor:not-allowed">' +
+          '<div style="font-size:11px;color:#1D4ED8;margin-top:4px">🧮 Valor calculado automaticamente — fórmula: <strong>' + (kpi.formula_kpi||'') + '</strong></div>'
+        : '<input class="filter-input" id="lf-real" type="text" inputmode="decimal" value="' + (l ? (l.realizado ?? '') : '') + '" style="width:100%;font-size:18px;font-weight:700;text-align:center" autofocus>') +
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:2px">' +
       formField('<span style="color:#2563EB;font-size:10px;font-weight:700">META</span>',
         '<input class="filter-input" id="lf-meta" type="text" inputmode="decimal" value="' + ref.meta + '" style="width:100%;border-color:#2563EB55;background:#EFF6FF">') +
@@ -3413,6 +3418,23 @@ function saveLancamento() {
   const minRaw  = dmxNumBR(document.getElementById('lf-min')?.value);
   const maxRaw  = dmxNumBR(document.getElementById('lf-max')?.value);
   const obs     = document.getElementById('lf-obs')?.value ?? '';
+  // KPI calculado: não grava número (é derivado da fórmula). Salva só a justificativa.
+  if (kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi) {
+    try { localStorage.setItem(obsKey(id_kpi, mes, ano), obs); } catch(e) {}
+    const exC = getLaunch(id_kpi, mes, ano);
+    if (exC) { exC.comentario = obs; }
+    if (typeof dmxApiPost === 'function') {
+      try { dmxApiPost('salvarJustificativa', { id_kpi, mes, mes_num: mes, ano, justificativa: obs, comentario: obs }); } catch(e) {}
+    }
+    persist();
+    closeModal('lanc-modal');
+    if (currentPage === 'dashboard')    renderDashboard();
+    if (currentPage === 'atualizar')    renderAtualizar();
+    if (currentPage === 'kpi-slide')    renderKPISlide();
+    if (currentPage === 'area-detail') { const a = document.getElementById('topbar-title').textContent; renderAreaDetail(a); }
+    showToast('\u2713 Justificativa salva');
+    return;
+  }
   const ex0 = getLaunch(id_kpi, mes, ano);
   // Se campo vazio: preserva valor do lançamento existente → depois catálogo → 0
   const newMeta = metaRaw !== null ? metaRaw : (ex0 && ex0.meta  != null && ex0.meta  !== 0 ? ex0.meta   : kpi.meta   ?? 0);
@@ -7279,6 +7301,11 @@ window.buildShareSection = function(kpiId){
         var _kpiAtu = (typeof getKPI==='function') ? getKPI(id) : (window.kpis||[]).find(function(k){return k.id===id;});
         if(_kpiAtu && _kpiAtu.tipo_lancamento==='calculado'){
           editTd.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8;white-space:nowrap" title="Valor calculado automaticamente pela fórmula: '+esc(_kpiAtu.formula_kpi||'')+'">🧮 Calculado</span>';
+          // mostra a fórmula visível abaixo do indicador, alertando para não esquecer os KPIs de origem
+          var indTd = tr.children[2];
+          if(indTd && _kpiAtu.formula_kpi && !indTd.querySelector('.dmx-formula-hint')){
+            indTd.innerHTML += '<div class="dmx-formula-hint" style="font-size:10px;color:#1D4ED8;margin-top:3px;line-height:1.3">🧮 <strong>Fórmula:</strong> '+esc(_kpiAtu.formula_kpi)+'<br><span style="color:#92400E">Lance os KPIs de origem para este cálculo funcionar.</span></div>';
+          }
         } else {
           editTd.innerHTML = '<button class="btn btn-primary btn-sm" onclick="openEditAtualizar(\''+esc(id)+'\','+currentMes+','+currentAno+',\''+esc(area)+'\')">✎ Editar</button>';
         }
