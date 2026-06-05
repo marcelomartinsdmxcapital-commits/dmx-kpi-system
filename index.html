@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v92.1 — 04/06/2026 — KPI calculado: card Realizado, atingimento, status e barra de acumulado agora usam o valor da formula (nao somem apos a API) -->
+<!-- DMX KPI System — v92.2 — 04/06/2026 — Fix: calcAccumValue ativa (havia 3 wrappers) agora usa valor calculado; barra de acumulado do KPI calculado nao some mais -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v92.1",data:"04/06/2026",build:"kpi-calculado-card-realizado-e-barra-acumulado-usam-valor-calculado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v92.2",data:"04/06/2026",build:"fix-calcAccumValue-ativa-usa-valor-calculado-barra-acumulado-aparece"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5618,15 +5618,16 @@ window.addEventListener('DOMContentLoaded', init);
   // Acumulado oficial: todos os meses lançados/importados no ano, não mês selecionado.
   window.calcAccumValue = calcAccumValue = function(kpi, mesIgnorado, ano, field){
     const vals=[];
+    const _ehCalc = kpi.tipo_lancamento==='calculado' && kpi.formula_kpi;
+    const realDe = (m)=> _ehCalc && typeof dmxGetRealizado==='function' ? dmxGetRealizado(kpi.id,m,ano) : toNum((getLaunch(kpi.id,m,ano)||{}).realizado);
     for(let m=1;m<=12;m++){
       const l=getLaunch(kpi.id,m,ano);
       if(field==='realizado'){
-        if(!l) continue;
-        const rv=toNum(l.realizado);
+        const rv=toNum(realDe(m));
         if(rv!==null) vals.push(rv);
       } else {
-        // Para meta/mín/máx, só considera meses onde existe realizado lançado, mantendo paridade do acumulado.
-        if(!l || toNum(l.realizado)===null) continue;
+        // Para meta/mín/máx, só considera meses onde há realizado (lançado OU calculado)
+        if(toNum(realDe(m))===null) continue;
         const ref=resolveRef(kpi,m,ano);
         const v=toNum(ref[field]);
         if(v!==null) vals.push(v);
