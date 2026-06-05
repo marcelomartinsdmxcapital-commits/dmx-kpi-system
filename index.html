@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v91.6 — 04/06/2026 — Abreviacao K/mi/bi em cards e rotulos do grafico; tooltip formatado em pt-BR -->
+<!-- DMX KPI System — v91.7 — 04/06/2026 — Cap de atingimento 50%-120% no indice/PPR (nao distorce com variacoes atipicas) + fix: realizado 0 aceito -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.6",data:"04/06/2026",build:"abreviacao-kmb-cards-e-rotulos-tooltip-ptbr"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.7",data:"04/06/2026",build:"cap-atingimento-50-120-no-indice-e-ppr-mais-fix-realizado-zero"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5463,6 +5463,18 @@ window.addEventListener('DOMContentLoaded', init);
   window.calcAting=calcAting=function(sentido,val,meta){ val=nvlNum(val); meta=nvlNum(meta); if(val===null||meta===null||meta===0)return null; return window.dmxIsMaiorMelhor(sentido)?val/meta:meta/(val||0.000001); };
   window.calcStatus=calcStatus=function(sentido,val,meta){ const r=calcAting(sentido,val,meta); if(r===null)return 'N/A'; return r>=1?'VERDE':r>=0.9?'AMARELO':'VERMELHO'; };
   window.resolveRef=resolveRef=function(kpi,mes,ano){ const l=getLaunch(kpi.id,mes,ano); const pick=f=>{ const lv=l?nvlNum(l[f]):null; if(lv!==null)return lv; const kv=nvlNum(kpi[f]); return kv!==null?kv:null; }; const ref={meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')}; const tol=nvlNum(kpi.tolerancia_pct); if(tol!==null && tol>0 && ref.meta!==null && ref.meta!==0){ if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000; if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000; } return ref; };
+  // Cap de atingimento para o cálculo do índice/PPR: limita entre piso e teto
+  // para que variações atípicas de um KPI não distorçam o índice da área.
+  // NÃO afeta o atingimento exibido nos cards — só o que entra na conta.
+  window.DMX_ATING_TETO = 120;
+  window.DMX_ATING_PISO = 50;
+  window.dmxCapAting = function(atp){
+    if(atp === null || atp === undefined || isNaN(Number(atp))) return atp;
+    let v = Number(atp);
+    if(v > window.DMX_ATING_TETO) v = window.DMX_ATING_TETO;
+    if(v < window.DMX_ATING_PISO) v = window.DMX_ATING_PISO;
+    return v;
+  };
   // Abrevia números grandes: 1.234.567 -> "1,23 mi"; mantém sinal e prefixo de unidade
   window.dmxAbrevia = function(v, u){
     const n = nvlNum(v); if(n===null) return '—';
@@ -6002,7 +6014,8 @@ window.addEventListener('DOMContentLoaded', init);
   }
   function getIndiceArea(area, mes, ano, acumulado){ try { if(typeof window.dmxIndiceArea !== 'function') return null; const r = window.dmxIndiceArea(area, mes, ano); if(!r || !r.itens || !r.itens.length) return null; return acumulado ? r.indiceAcum : r.indiceMes; } catch(e){ return null; } }
   function calcPPRArea(area, mes, ano, acumulado){
-    const cfg = loadConfigPPR(); const vals = [{v:getAtingKPI(cfg.kpi1,mes,ano,acumulado),p:Number(cfg.peso1||0)}, {v:getAtingKPI(cfg.kpi2,mes,ano,acumulado),p:Number(cfg.peso2||0)}, {v:getAtingKPI(cfg.kpi3,mes,ano,acumulado),p:Number(cfg.peso3||0)}, {v:getIndiceArea(area,mes,ano,acumulado),p:Number(cfg.pesoArea||0)}];
+    const cap = (x)=> (x!==null && x!==undefined && Number.isFinite(Number(x)) && typeof dmxCapAting==='function') ? dmxCapAting(Number(x)) : x;
+    const cfg = loadConfigPPR(); const vals = [{v:cap(getAtingKPI(cfg.kpi1,mes,ano,acumulado)),p:Number(cfg.peso1||0)}, {v:cap(getAtingKPI(cfg.kpi2,mes,ano,acumulado)),p:Number(cfg.peso2||0)}, {v:cap(getAtingKPI(cfg.kpi3,mes,ano,acumulado)),p:Number(cfg.peso3||0)}, {v:getIndiceArea(area,mes,ano,acumulado),p:Number(cfg.pesoArea||0)}];
     let total=0, ok=0; vals.forEach(c=>{ if(c.v !== null && c.v !== undefined && Number.isFinite(Number(c.v))) { total += Number(c.v)*c.p/100; ok += c.p; } }); return ok ? total : null;
   }
   window.dmxCalcPPRArea = calcPPRArea;
@@ -7090,7 +7103,7 @@ window.buildShareSection = function(kpiId){
         const ref  = (typeof resolveRef==='function')  ? resolveRef(k, mes, ano)   : {meta:k.meta};
         const at   = (l && typeof calcAting==='function') ? calcAting(k.sentido, l.realizado, ref.meta) : null;
         const atp  = at!==null ? at*100 : null;
-        const contrib = atp==null ? 0 : atp*peso/100;
+        const contrib = atp==null ? 0 : (typeof dmxCapAting==='function'?dmxCapAting(atp):atp)*peso/100;
         // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
         r.itens.push({kpi:k, lanc:l, atingPct:atp, peso:0, contrib:0, contribMes:0, contribAcum:0, _shared:true});
       });
@@ -7679,6 +7692,8 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
     const l = getLaunch(id_kpi, mes, ano) || {};
     // nz: retorna valor apenas se não for null/undefined/0
     const nz = (v, fb) => (v !== null && v !== undefined && v !== 0 && !isNaN(Number(v))) ? Number(v) : fb;
+    // n: preserva 0 como valor válido (só cai no fallback se null/undefined/''/NaN)
+    const n = (v, fb) => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? fb : Number(v);
     return {
       id_kpi, ano, mes, mes_num: mes,
       area: l.area || kpi.area || '',
@@ -8281,7 +8296,7 @@ function sharedEntriesFor(area){
         const ref=(typeof resolveRef==='function')?resolveRef(k,mes,ano):{meta:k.meta};
         const at=(l&&typeof calcAting==='function')?calcAting(k.sentido,l.realizado,ref.meta):null;
         const atp=at!==null?at*100:null;
-        const contrib=atp==null?0:atp*peso/100;
+        const contrib=atp==null?0:(typeof dmxCapAting==='function'?dmxCapAting(atp):atp)*peso/100;
         // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
         r.itens.push({kpi:k,lanc:l,atingPct:atp,peso:0,contrib:0,contribMes:0,contribAcum:0,_shared:true});
       });
@@ -11341,7 +11356,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     try{ if(typeof window.dmxIndiceArea==='function'){ const r=window.dmxIndiceArea(area,mes,ano); if(r) return accum ? (r.indiceAcum??r.indiceMes??null) : (r.indiceMes??r.indiceAcum??null); } }catch(e){}
     const ks=kpis485().filter(k=>String(k.area||'')===String(area) && String(k.vertente||'').toLowerCase().includes('meta'));
     let s=0,w=0;
-    ks.forEach(k=>{ const peso=Number(k.peso_indice||0); const at=ating485(k,mes,ano,accum); if(peso>0 && at!=null){s+=at*peso/100; w+=peso;} });
+    ks.forEach(k=>{ const peso=Number(k.peso_indice||0); const at=ating485(k,mes,ano,accum); if(peso>0 && at!=null){s+=(typeof dmxCapAting==='function'?dmxCapAting(at):at)*peso/100; w+=peso;} });
     return w ? s : null;
   }
 
@@ -11763,7 +11778,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
         const ref=typeof resolveRef==='function' ? resolveRef(k,mes,ano) : {meta:k.meta};
         const at=(l && typeof calcAting==='function') ? calcAting(k.sentido,l.realizado,ref.meta) : null;
         const atp=at!==null ? at*100 : null;
-        const contrib=atp==null ? 0 : atp*peso/100;
+        const contrib=atp==null ? 0 : (typeof dmxCapAting==='function'?dmxCapAting(atp):atp)*peso/100;
         // KPIs compartilhados: visíveis nos cards, mas peso=0 no índice PPR
         r.itens.push({kpi:k,lanc:l,atingPct:atp,peso:0,contrib:0,contribMes:0,contribAcum:0,_shared:true});
       });
