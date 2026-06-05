@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v92.0 — 04/06/2026 — KPI calculado: modal de apresentacao salva so justificativa (valor readonly); formula visivel em Atualizar Dados -->
+<!-- DMX KPI System — v92.1 — 04/06/2026 — KPI calculado: card Realizado, atingimento, status e barra de acumulado agora usam o valor da formula (nao somem apos a API) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v92.0",data:"04/06/2026",build:"kpi-calculado-modal-so-justificativa-e-formula-visivel-em-atualizar"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v92.1",data:"04/06/2026",build:"kpi-calculado-card-realizado-e-barra-acumulado-usam-valor-calculado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5641,8 +5641,11 @@ window.addEventListener('DOMContentLoaded', init);
   window.kpiChartCard = kpiChartCard = function(kpi, area){
     const l=getLaunch(kpi.id,currentMes,currentAno);
     const ref=resolveRef(kpi,currentMes,currentAno);
-    const at=l?calcAting(kpi.sentido,l.realizado,ref.meta):null;
-    const st=l?calcStatus(kpi.sentido,l.realizado,ref.meta):'N/A';
+    // KPI calculado: realizado vem da fórmula, não do lançamento manual
+    const _ehCalcC = kpi.tipo_lancamento==='calculado' && kpi.formula_kpi;
+    const _realC = _ehCalcC && typeof dmxGetRealizado==='function' ? dmxGetRealizado(kpi.id,currentMes,currentAno) : (l?l.realizado:null);
+    const at=_realC!=null?calcAting(kpi.sentido,_realC,ref.meta):(l?calcAting(kpi.sentido,l.realizado,ref.meta):null);
+    const st=_realC!=null?calcStatus(kpi.sentido,_realC,ref.meta):(l?calcStatus(kpi.sentido,l.realizado,ref.meta):'N/A');
     const stC=st==='VERDE'?'var(--green)':st==='AMARELO'?'var(--amber)':st==='VERMELHO'?'var(--red)':'var(--muted)';
     const plans=getPlansForKPI(kpi.id);
     const idx=(currentAreaKPIs||[]).findIndex(k=>k.id===kpi.id);
@@ -5654,7 +5657,7 @@ window.addEventListener('DOMContentLoaded', init);
     var _wm=(_isMeta&&_pm>0)?' ('+_pm.toFixed(1)+'%)':'';
     var _cm=(_isMeta&&at!==null&&_pm>0)?' ('+(at*_pm).toFixed(1)+'%)':'';
     return '<div class="kpi-chart-card"><div class="kpi-card-top"><div style="min-width:0;flex:1"><div class="kpi-card-id">'+kpi.id+' &middot; '+(kpi.pilar_estrategico||'')+'</div><div class="kpi-card-name">'+(kpi.indicador||'')+'</div>'+((kpi.objetivo||kpi.formula||kpi.pilar_estrategico||kpi.impacto_principal)?'<div style="display:flex;gap:18px;margin-top:2px;align-items:flex-start"><div style="flex:1;min-width:0">'+(kpi.objetivo?'<div style="font-size:10px;color:var(--muted);line-height:1.4"><b>Objetivo:</b> '+kpi.objetivo+'</div>':'')+(kpi.formula?'<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Fórmula:</b> '+kpi.formula+'</div>':'')+'</div>'+((kpi.pilar_estrategico||kpi.impacto_principal)?'<div style="flex:0 0 auto">'+(kpi.pilar_estrategico?'<div style="font-size:10px;color:var(--muted);line-height:1.4"><b>Pilar estratégico:</b> '+kpi.pilar_estrategico+'</div>':'')+(kpi.impacto_principal?'<div style="font-size:10px;color:var(--muted);margin-top:1px;line-height:1.4"><b>Impacto principal:</b> '+kpi.impacto_principal+'</div>':'')+'</div>':'')+'</div>':'')+'</div><div class="kpi-card-right">'+pill(st)+planBadge+'</div></div>'+
-      '<div class="kpi-card-nums"><div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div><div class="kpi-num-value" style="color:'+stC+'">'+(l?fmtVal(l.realizado,kpi.unidade):'\u2014')+(_cm?'<small style="opacity:.65;font-size:9px">'+_cm+'</small>':'')+'</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Meta</div><div class="kpi-num-value">'+fmtVal(ref.meta,kpi.unidade)+(_wm?'<small style="opacity:.65;font-size:9px">'+_wm+'</small>':'')+'</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+pct(at)+'</div></div></div>'+
+      '<div class="kpi-card-nums"><div class="kpi-num-cell"><div class="kpi-num-label">Realizado</div><div class="kpi-num-value" style="color:'+stC+'">'+(_realC!=null?fmtVal(_realC,kpi.unidade):'\u2014')+(_cm?'<small style="opacity:.65;font-size:9px">'+_cm+'</small>':'')+'</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Meta</div><div class="kpi-num-value">'+fmtVal(ref.meta,kpi.unidade)+(_wm?'<small style="opacity:.65;font-size:9px">'+_wm+'</small>':'')+'</div></div><div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+pct(at)+'</div></div></div>'+
       '<div class="kpi-card-chart"><div style="height:100px"><canvas id="chart-'+kpi.id+'"></canvas></div></div>'+
       (plans.length>0?'<div class="kpi-card-plan">'+plansRows+(plans.length>2?'<div style="font-size:9px;color:var(--muted);padding:3px 12px">+ '+(plans.length-2)+' mais</div>':'')+'</div>':'')+
       (String(kpi.id||'').indexOf('OP-')===0 ? '</div>' : '<div class="kpi-card-footer" onclick="openKPISlide(\''+kpi.id+'\','+idx+')"><span style="font-size:14px">\uD83D\uDD0E</span> Ver análise completa<span style="margin-left:auto;font-size:12px">\u203A</span></div></div>');
