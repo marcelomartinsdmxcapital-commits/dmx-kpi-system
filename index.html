@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v91.5 — 04/06/2026 — Navegacao de mes dentro do modal de lancamento (setas + select), lanca varios meses do mesmo KPI sem sair -->
+<!-- DMX KPI System — v91.6 — 04/06/2026 — Abreviacao K/mi/bi em cards e rotulos do grafico; tooltip formatado em pt-BR -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.5",data:"04/06/2026",build:"navegacao-de-mes-no-modal-de-lancamento"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.6",data:"04/06/2026",build:"abreviacao-kmb-cards-e-rotulos-tooltip-ptbr"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1039,7 +1039,10 @@ const DMXDataLabelsPlugin = {
         const raw = dataset.data[i];
         const val = (raw && typeof raw === 'object' && raw.y !== undefined) ? raw.y : raw;
         if (val === null || val === undefined || Number.isNaN(Number(val))) return;
-        const label = (typeof fmtVal === 'function') ? fmtVal(Number(val), unit) : String(val);
+        const numVal = Number(val);
+        const label = (Math.abs(numVal) >= 1e6 && typeof dmxAbrevia === 'function')
+          ? dmxAbrevia(numVal, unit)
+          : ((typeof fmtVal === 'function') ? fmtVal(numVal, unit) : String(val));
         const pos = el.tooltipPosition ? el.tooltipPosition() : {x: el.x, y: el.y};
         const yOffset = dataset.type === 'bar' ? 6 : 8;
         ctx.fillText(label, pos.x, pos.y - yOffset);
@@ -2436,7 +2439,12 @@ function buildKPIChart(kpi, canvas, height) {
           const lbl = ctx.dataset.label;
           if (lbl === 'Com Plano') { const pt = planPoints[ctx.dataIndex]; return pt ? '\uD83D\uDCCB ' + pt.planLabel : 'Com Plano'; }
           if (lbl === 'Sem Plano') return '\u26A0\uFE0F Fora do range \u2014 clique para criar plano';
-          return lbl + ': ' + (ctx.raw !== null ? ctx.raw : '\u2014');
+          if(ctx.raw === null || ctx.raw === undefined) return lbl + ': \u2014';
+          var _u = (ctx.dataset && ctx.dataset.unit) || '';
+          var _n = Number(ctx.raw);
+          var _fmt = (Math.abs(_n) >= 1e6 && typeof dmxAbrevia === 'function') ? dmxAbrevia(_n, _u)
+                   : (typeof fmtVal === 'function' ? fmtVal(_n, _u) : _n.toLocaleString('pt-BR'));
+          return lbl + ': ' + _fmt;
         }}}
       },
       animation: { duration: 280 }
@@ -2533,6 +2541,8 @@ function renderKPISlide() {
   const fmtVal2 = (v, u) => {
     const n = (typeof numOrNull === 'function') ? numOrNull(v) : (v === null || v === undefined || v === '' ? null : Number(v));
     if (n === null || !Number.isFinite(n)) return '\u2014';
+    // valores grandes: abrevia (K/mi/bi) para caber no card
+    if (Math.abs(n) >= 1e6 && typeof dmxAbrevia === 'function') return dmxAbrevia(n, u);
     if (u === 'R$') return 'R\u00a0' + n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
     if (u === '%') return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '%';
     return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -2732,7 +2742,12 @@ function renderKPISlide() {
             const lbl = ctx.dataset.label;
             if (lbl === 'Com Plano') { const p = slidePlanPts[ctx.dataIndex]; return p ? '\uD83D\uDCCB ' + p.lbl : 'Com Plano'; }
             if (lbl === 'Sem Plano') return '\u26A0\uFE0F Fora do range \u2014 clique para criar plano';
-            return lbl + ': ' + (ctx.raw !== null ? ctx.raw : '\u2014');
+            if(ctx.raw === null || ctx.raw === undefined) return lbl + ': \u2014';
+          var _u = (ctx.dataset && ctx.dataset.unit) || '';
+          var _n = Number(ctx.raw);
+          var _fmt = (Math.abs(_n) >= 1e6 && typeof dmxAbrevia === 'function') ? dmxAbrevia(_n, _u)
+                   : (typeof fmtVal === 'function' ? fmtVal(_n, _u) : _n.toLocaleString('pt-BR'));
+          return lbl + ': ' + _fmt;
           }}}
         },
         animation: { duration: 350 }
@@ -5448,6 +5463,19 @@ window.addEventListener('DOMContentLoaded', init);
   window.calcAting=calcAting=function(sentido,val,meta){ val=nvlNum(val); meta=nvlNum(meta); if(val===null||meta===null||meta===0)return null; return window.dmxIsMaiorMelhor(sentido)?val/meta:meta/(val||0.000001); };
   window.calcStatus=calcStatus=function(sentido,val,meta){ const r=calcAting(sentido,val,meta); if(r===null)return 'N/A'; return r>=1?'VERDE':r>=0.9?'AMARELO':'VERMELHO'; };
   window.resolveRef=resolveRef=function(kpi,mes,ano){ const l=getLaunch(kpi.id,mes,ano); const pick=f=>{ const lv=l?nvlNum(l[f]):null; if(lv!==null)return lv; const kv=nvlNum(kpi[f]); return kv!==null?kv:null; }; const ref={meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')}; const tol=nvlNum(kpi.tolerancia_pct); if(tol!==null && tol>0 && ref.meta!==null && ref.meta!==0){ if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000; if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000; } return ref; };
+  // Abrevia números grandes: 1.234.567 -> "1,23 mi"; mantém sinal e prefixo de unidade
+  window.dmxAbrevia = function(v, u){
+    const n = nvlNum(v); if(n===null) return '—';
+    const abs = Math.abs(n); const sinal = n<0?'-':'';
+    const pre = (u==='R$') ? 'R$ ' : '';
+    const suf = (u==='%') ? '%' : '';
+    let out;
+    if(abs >= 1e9)      out = (abs/1e9).toLocaleString('pt-BR',{maximumFractionDigits:2}) + ' bi';
+    else if(abs >= 1e6) out = (abs/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2}) + ' mi';
+    else if(abs >= 1e3) out = (abs/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1}) + ' mil';
+    else                out = abs.toLocaleString('pt-BR',{maximumFractionDigits: u==='%'?1:2});
+    return pre + sinal + out + suf;
+  };
   window.fmtVal=fmtVal=function(v,u){ const n=nvlNum(v); if(n===null)return '—'; if(u==='R$')return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); if(u==='%')return n.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%'; return n.toLocaleString('pt-BR',{maximumFractionDigits:1}); };
 })();
 </script>
