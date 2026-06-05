@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v91.8 — 04/06/2026 — Menor Melhor com realizado 0 = 120% (nao N/A); tipo_lancamento calculado agora persiste apos recarregar do Sheets -->
+<!-- DMX KPI System — v91.9 — 04/06/2026 — KPI calculado aparece no grafico/cards (via formula) e mostra selo Calculado em vez de botao Editar -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.8",data:"04/06/2026",build:"fix-menor-melhor-zero-120pct-e-tipo-lancamento-calculado-persiste"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.9",data:"04/06/2026",build:"kpi-calculado-aparece-no-grafico-e-cards-e-selo-em-vez-de-editar"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1825,8 +1825,7 @@ function calcAccumValue(kpi, mes, ano, field) {
       const ref = resolveRef(kpi, m, ano);
       v = ref ? ref.meta : null;
     } else {
-      const l = getLaunch(kpi.id, m, ano);
-      v = l ? l.realizado : null;
+      v = (typeof dmxGetRealizado === 'function') ? dmxGetRealizado(kpi.id, m, ano) : ((getLaunch(kpi.id, m, ano)||{}).realizado ?? null);
     }
     if (v !== null && v !== undefined && v !== '' && !isNaN(Number(v))) vals.push(Number(v));
   }
@@ -2321,7 +2320,7 @@ function renderGroupCharts(group) {
 function buildKPIChart(kpi, canvas, height) {
   if (areaCharts[kpi.id]) { areaCharts[kpi.id].destroy(); delete areaCharts[kpi.id]; }
   const months   = Array.from({length: 12}, (_, i) => i + 1);
-  const realized = months.map(m => { const l = getLaunch(kpi.id, m, currentAno); return l ? l.realizado : null; });
+  const realized = months.map(m => { return (typeof dmxGetRealizado==='function') ? dmxGetRealizado(kpi.id, m, currentAno) : (getLaunch(kpi.id, m, currentAno)||{}).realizado ?? null; });
   const plans    = getPlansForKPI(kpi.id);
 
   // Acumulado como UMA barra isolada no fim também na visualização completa.
@@ -2686,7 +2685,7 @@ function renderKPISlide() {
     const canvas = document.getElementById('slide-chart');
     if (!canvas) return;
     const months   = Array.from({length: 12}, (_, i) => i + 1);
-    const realized = months.map(m => { const x = getLaunch(kpi.id, m, currentAno); return x ? x.realizado : null; });
+    const realized = months.map(m => { return (typeof dmxGetRealizado==='function') ? dmxGetRealizado(kpi.id, m, currentAno) : (getLaunch(kpi.id, m, currentAno)||{}).realizado ?? null; });
     // Acumulado deve aparecer como UMA barra isolada no fim do gráfico,
     // não como uma série acumulada mês a mês. A regra vem da coluna "Acumulado": média ou soma.
     const acumuladoFinal = calcAccumValue(kpi, currentMes, currentAno, 'realizado');
@@ -4056,7 +4055,7 @@ function openKPIModal(id) {
   setTimeout(() => {
     const canvas = document.getElementById('modal-chart-'+id); if(!canvas)return;
     const months = Array.from({length:12},(_,i)=>i+1);
-    const realized = months.map(m=>{const x=getLaunch(id,m,currentAno);return x?x.realizado:null;});
+    const realized = months.map(m=>{ return (typeof dmxGetRealizado==='function') ? dmxGetRealizado(id, m, currentAno) : (getLaunch(id,m,currentAno)||{}).realizado ?? null; });
     const planScatter = plans.map(p=>{
       if(!p.prazo)return null;
       const ds=String(p.prazo).split('T')[0].split(' ')[0].split('-');
@@ -4467,7 +4466,7 @@ function openKPIModal(id) {
   setTimeout(() => {
     const canvas = document.getElementById('modal-chart-'+id); if(!canvas)return;
     const months = Array.from({length:12},(_,i)=>i+1);
-    const realized = months.map(m=>{const x=getLaunch(id,m,currentAno);return x?x.realizado:null;});
+    const realized = months.map(m=>{ return (typeof dmxGetRealizado==='function') ? dmxGetRealizado(id, m, currentAno) : (getLaunch(id,m,currentAno)||{}).realizado ?? null; });
     const planScatter = plans.map(p=>{
       if(!p.prazo)return null;
       const ds=String(p.prazo).split('T')[0].split(' ')[0].split('-');
@@ -7277,7 +7276,12 @@ window.buildShareSection = function(kpiId){
       // Botão único de edição via modal, com contexto da área para peso.
       var editTd = tr.children[13];
       if(editTd){
-        editTd.innerHTML = '<button class="btn btn-primary btn-sm" onclick="openEditAtualizar(\''+esc(id)+'\','+currentMes+','+currentAno+',\''+esc(area)+'\')">✎ Editar</button>';
+        var _kpiAtu = (typeof getKPI==='function') ? getKPI(id) : (window.kpis||[]).find(function(k){return k.id===id;});
+        if(_kpiAtu && _kpiAtu.tipo_lancamento==='calculado'){
+          editTd.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8;white-space:nowrap" title="Valor calculado automaticamente pela fórmula: '+esc(_kpiAtu.formula_kpi||'')+'">🧮 Calculado</span>';
+        } else {
+          editTd.innerHTML = '<button class="btn btn-primary btn-sm" onclick="openEditAtualizar(\''+esc(id)+'\','+currentMes+','+currentAno+',\''+esc(area)+'\')">✎ Editar</button>';
+        }
       }
     });
   }
