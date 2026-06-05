@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v91.7 — 04/06/2026 — Cap de atingimento 50%-120% no indice/PPR (nao distorce com variacoes atipicas) + fix: realizado 0 aceito -->
+<!-- DMX KPI System — v91.8 — 04/06/2026 — Menor Melhor com realizado 0 = 120% (nao N/A); tipo_lancamento calculado agora persiste apos recarregar do Sheets -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v91.7",data:"04/06/2026",build:"cap-atingimento-50-120-no-indice-e-ppr-mais-fix-realizado-zero"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v91.8",data:"04/06/2026",build:"fix-menor-melhor-zero-120pct-e-tipo-lancamento-calculado-persiste"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1291,6 +1291,8 @@ function dmxApiToKpi(row, idx) {
     selecao_semanal: dmxPick(row, ['selecao_semanal','seleção_semanal'], ''),
     obs: dmxPick(row, ['obs','observacao','observação'], ''),
     tolerancia_pct: numOrNull(dmxPick(row, ['tolerancia_pct','tolerancia','tolerância'], null)),
+    tipo_lancamento: String(dmxPick(row, ['tipo_lancamento','tipo_lançamento','tipoLancamento'], 'manual')).trim().toLowerCase() === 'calculado' ? 'calculado' : 'manual',
+    formula_kpi: dmxPick(row, ['formula_kpi','fórmula_kpi','formulaKpi'], ''),
     pilar_estrategico: String(dmxPick(row, ['pilar_estrategico','pilar_estratégico','pilar estrategico','pilar estratégico'], '')).trim(),
     impacto_principal: String(dmxPick(row, ['impacto_principal','impacto principal'], '')).trim()
   };
@@ -5522,7 +5524,8 @@ window.addEventListener('DOMContentLoaded', init);
   window.calcAting = calcAting = function(sentido,val,meta){
     val=toNum(val); meta=toNum(meta);
     if(val===null||meta===null||meta===0) return null;
-    if(!maior(sentido) && val===0) return null;
+    // Menor Melhor com realizado 0 = melhor resultado possível → atingimento no teto (não null)
+    if(!maior(sentido) && val===0) return (window.DMX_ATING_TETO || 120)/100;
     return maior(sentido) ? val/meta : meta/val;
   };
   window.calcStatus = calcStatus = function(sentido,val,meta){
