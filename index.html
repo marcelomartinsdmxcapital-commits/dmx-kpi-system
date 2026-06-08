@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v92.2 — 04/06/2026 — Fix: calcAccumValue ativa (havia 3 wrappers) agora usa valor calculado; barra de acumulado do KPI calculado nao some mais -->
+<!-- DMX KPI System — v93.0 — 08/06/2026 — Nova aba Analise Comparativa: sobrepoe realizados de varios KPIs (qualquer area) no mesmo grafico, com escala automatica/dois eixos/base 100 e modo acumulado -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v92.2",data:"04/06/2026",build:"fix-calcAccumValue-ativa-usa-valor-calculado-barra-acumulado-aparece"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v93.0",data:"08/06/2026",build:"nova-aba-analise-comparativa-multiplos-kpis-no-mesmo-grafico"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -712,6 +712,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
     <div class="nav-item" data-page="indice" onclick="nav(this)"><span class="icon">◎</span> Índice Eficiência</div>
     <div class="nav-item" data-page="ppr" onclick="nav(this)"><span class="icon">◉</span> Plano PPR</div>
     <div class="nav-item" data-page="operacoes" onclick="nav(this)"><span class="icon">▦</span> Análise de Operações</div>
+    <div class="nav-item" data-page="comparativo" onclick="nav(this)"><span class="icon">📈</span> Análise Comparativa</div>
     <div class="nav-section-label">Área</div>
     <div id="area-nav-items"></div>
   </nav>
@@ -927,6 +928,20 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
         <div class="ops-subtab" data-opsub="titulo" onclick="setOpsSub('titulo')">Tipos de Títulos</div>
       </div>
       <div id="ops-content"></div>
+    </div>
+
+    <!-- ANÁLISE COMPARATIVA -->
+    <div class="page" id="page-comparativo">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Análise Comparativa</div>
+          <div class="text-muted text-sm mt-1">Selecione 2 ou mais KPIs (de qualquer área) para sobrepor os realizados no mesmo gráfico e comparar o comportamento das curvas.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <select class="filter-input" id="cmp-ano-sel" onchange="renderComparativo()"></select>
+        </div>
+      </div>
+      <div id="cmp-content"></div>
     </div>
 
     <!-- SEMANAL OPERACIONAL -->
@@ -1873,7 +1888,7 @@ function nav(el, areaName) {
   });
   const titles = {dashboard:'Dashboard Operacional', areas:'Vis\u00E3o por \u00C1rea', kpis:'Cat\u00E1logo de KPIs',
     atualizar:'Atualizar Dados do M\u00EAs', planos:'Planos de A\u00E7\u00E3o',
-     'area-detail': areaName || '\u00C1rea', 'semanal-operacional': 'Acompanhamento Semanal'};
+     'area-detail': areaName || '\u00C1rea', 'semanal-operacional': 'Acompanhamento Semanal', comparativo: 'An\u00E1lise Comparativa'};
   document.getElementById('topbar-title').textContent = titles[page] || page;
   const pageEl = document.getElementById('page-' + page);
   if (pageEl) {
@@ -1882,6 +1897,7 @@ function nav(el, areaName) {
   }
   if (page === 'dashboard') renderDashboard();
   else if (page === 'operacoes') renderOperacoes();
+  else if (page === 'comparativo') renderComparativo();
   else if (page === 'areas') renderAreas();
   else if (page === 'kpis') renderKPICatalog();
   else if (page === 'atualizar') renderAtualizar();
@@ -1904,6 +1920,7 @@ function onPeriodChange() {
   currentAno = parseInt(document.getElementById('ano-sel').value);
   if (currentPage === 'dashboard') renderDashboard();
   else if (currentPage === 'operacoes') renderOperacoes();
+  else if (currentPage === 'comparativo') renderComparativo();
   else if (currentPage === 'kpis') renderKPICatalog();
   else if (currentPage === 'atualizar') renderAtualizar();
   
@@ -11904,6 +11921,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     ppr:['PLANO PPR','PPR'],
     indice:['ÍNDICE EFICIÊNCIA','INDICE EFICIENCIA','ÍNDICE DE EFICIÊNCIA','INDICE DE EFICIENCIA'],
     'semanal-operacional':['SEMANAL','ACOMPANHAMENTO SEMANAL'],
+    comparativo:['ANÁLISE COMPARATIVA','ANALISE COMPARATIVA','COMPARATIVO','COMPARAR KPIS'],
     admin:['ADMIN / SHEETS','ADMIN','SHEETS','ADMINISTRADOR'],
     'area-detail':['ÁREA','AREA','SETOR','SETORES']
   };
@@ -20332,5 +20350,244 @@ window.dmxIrParaMesLancamento = function(novoMes){
   }, 800);
 })();
 </script>
+<script>
+/* ===== ANÁLISE COMPARATIVA — sobrepõe realizados de múltiplos KPIs ===== */
+(function(){
+  const MES_CMP = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  // paleta de cores para as curvas
+  const CORES = ['#2563EB','#DC2626','#0E9E82','#D97706','#7C3AED','#DB2777','#0891B2','#65A30D','#9333EA','#E11D48','#0D9488','#CA8A04'];
+  // estado da aba
+  window.dmxCmpState = window.dmxCmpState || { sel: [], escala: 'auto', acumulado: false };
+  let _cmpChart = null;
+
+  function anosDisponiveis(){
+    const anos = new Set();
+    (window.kpis||[]).forEach(function(k){});
+    // usa lançamentos para descobrir anos; fallback ano atual
+    try {
+      var _ls = (typeof launches !== 'undefined') ? launches : (window.launches || []);
+      (_ls||[]).forEach(function(l){ if(l && l.ano) anos.add(Number(l.ano)); });
+    } catch(e){}
+    if(!anos.size){ anos.add(window.currentAno || new Date().getFullYear()); }
+    return Array.from(anos).sort(function(a,b){return b-a;});
+  }
+
+  function fillAnoSel(){
+    const sel = document.getElementById('cmp-ano-sel');
+    if(!sel) return;
+    const anos = anosDisponiveis();
+    const atual = Number(sel.value) || window.currentAno || anos[0];
+    sel.innerHTML = anos.map(function(a){return '<option value="'+a+'"'+(a===atual?' selected':'')+'>'+a+'</option>';}).join('');
+  }
+
+  function kpisOrdenados(){
+    // todos os KPIs visíveis, agrupados por área
+    const arr = (window.kpis||[]).filter(function(k){ return k && k.id && (typeof dmxKpiAtivo!=='function' || dmxKpiAtivo(k)); });
+    const porArea = {};
+    arr.forEach(function(k){
+      const a = k.area || 'Sem área';
+      (porArea[a] = porArea[a] || []).push(k);
+    });
+    return porArea;
+  }
+
+  function toggleKpi(id){
+    const i = window.dmxCmpState.sel.indexOf(id);
+    if(i>=0) window.dmxCmpState.sel.splice(i,1);
+    else window.dmxCmpState.sel.push(id);
+    desenhar();
+    // atualiza só os checkboxes (sem re-render completo, mantém scroll)
+    document.querySelectorAll('.cmp-kpi-chk').forEach(function(el){
+      const on = window.dmxCmpState.sel.indexOf(el.dataset.id)>=0;
+      el.style.background = on ? '#EFF6FF' : '#fff';
+      el.style.borderColor = on ? '#2563EB' : '#E2E8F0';
+      const box = el.querySelector('.cmp-box');
+      if(box) box.textContent = on ? '☑' : '☐';
+    });
+  }
+  window.dmxCmpToggle = toggleKpi;
+
+  function setEscala(v){ window.dmxCmpState.escala = v; desenhar(); pintarBotoesEscala(); }
+  window.dmxCmpSetEscala = setEscala;
+  function toggleAcum(){ window.dmxCmpState.acumulado = !window.dmxCmpState.acumulado; desenhar(); var b=document.getElementById('cmp-acum-btn'); if(b){ b.style.background = window.dmxCmpState.acumulado?'#2563EB':'#fff'; b.style.color = window.dmxCmpState.acumulado?'#fff':'#475569'; } }
+  window.dmxCmpToggleAcum = toggleAcum;
+  function limpar(){ window.dmxCmpState.sel = []; renderComparativo(); }
+  window.dmxCmpLimpar = limpar;
+
+  function pintarBotoesEscala(){
+    ['auto','dois','base100'].forEach(function(v){
+      const b = document.getElementById('cmp-esc-'+v);
+      if(b){ const on = window.dmxCmpState.escala===v; b.style.background = on?'#2563EB':'#fff'; b.style.color = on?'#fff':'#475569'; }
+    });
+  }
+
+  function valoresKpi(id, ano){
+    // retorna array de 12 posições com o realizado de cada mês (via dmxGetRealizado p/ calculados)
+    const out = [];
+    for(let m=1;m<=12;m++){
+      let v = null;
+      if(typeof dmxGetRealizado==='function') v = dmxGetRealizado(id, m, ano);
+      else { const l = (typeof getLaunch==='function')?getLaunch(id,m,ano):null; v = l?l.realizado:null; }
+      v = (v===null||v===undefined||v===''||isNaN(Number(v))) ? null : Number(v);
+      out.push(v);
+    }
+    return out;
+  }
+
+  function acumular(arr, kpi){
+    // acumulado: soma ou média conforme config do KPI
+    const tipo = String((kpi&&kpi.acumulado)||'média').toLowerCase();
+    const usaSoma = tipo.includes('soma');
+    const out = []; let soma=0, n=0;
+    for(let i=0;i<arr.length;i++){
+      if(arr[i]!==null){ soma+=arr[i]; n++; }
+      out.push(n? (usaSoma ? soma : soma/n) : null);
+    }
+    return out;
+  }
+
+  function base100(arr){
+    // normaliza para base 100 no primeiro ponto não-nulo
+    let base=null;
+    for(let i=0;i<arr.length;i++){ if(arr[i]!==null && arr[i]!==0){ base=arr[i]; break; } }
+    if(base===null) return arr.slice();
+    return arr.map(function(v){ return v===null?null:(v/base*100); });
+  }
+
+  function desenhar(){
+    const cv = document.getElementById('cmp-canvas');
+    if(!cv || typeof Chart==='undefined') return;
+    const ano = Number(document.getElementById('cmp-ano-sel')?.value) || window.currentAno || new Date().getFullYear();
+    const sel = window.dmxCmpState.sel;
+    const vazio = document.getElementById('cmp-vazio');
+
+    if(_cmpChart){ _cmpChart.destroy(); _cmpChart = null; }
+
+    if(!sel.length){ if(vazio) vazio.style.display='block'; cv.style.display='none'; return; }
+    if(vazio) vazio.style.display='none'; cv.style.display='block';
+
+    const escala = window.dmxCmpState.escala;
+    // decide automaticamente dois eixos se unidades diferentes e modo 'auto'
+    const unidades = sel.map(function(id){ const k=getKPI(id); return (k&&k.unidade)||''; });
+    const unidUnicas = Array.from(new Set(unidades));
+    let modo = escala;
+    if(escala==='auto') modo = (unidUnicas.length>1) ? 'dois' : 'um';
+
+    const datasets = sel.map(function(id, idx){
+      const k = getKPI(id) || {id:id, indicador:id, unidade:''};
+      let arr = valoresKpi(id, ano);
+      if(window.dmxCmpState.acumulado) arr = acumular(arr, k);
+      if(modo==='base100') arr = base100(arr);
+      const cor = CORES[idx % CORES.length];
+      // em 'dois', primeiro grupo de unidade no eixo y, segundo no y1
+      let yAxis = 'y';
+      if(modo==='dois'){
+        const u = (k.unidade||'');
+        yAxis = (u === unidUnicas[0]) ? 'y' : 'y1';
+      }
+      return {
+        label: (k.indicador||id) + (k.unidade?(' ('+k.unidade+')'):''),
+        data: arr,
+        borderColor: cor,
+        backgroundColor: cor,
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        spanGaps: true,
+        yAxisID: yAxis
+      };
+    });
+
+    const scales = {
+      x: { grid:{display:false}, ticks:{font:{size:11}} },
+      y: { position:'left', grid:{color:'#F1F5F9'}, ticks:{font:{size:11}, callback:function(v){ return (typeof dmxAbrevia==='function')?dmxAbrevia(v,''):v; }} }
+    };
+    if(modo==='dois'){
+      scales.y.title = {display:true, text: unidUnicas[0]||'', font:{size:10}};
+      scales.y1 = { position:'right', grid:{drawOnChartArea:false}, ticks:{font:{size:11}, callback:function(v){ return (typeof dmxAbrevia==='function')?dmxAbrevia(v,''):v; }}, title:{display:true, text: unidUnicas.filter(function(u){return u!==unidUnicas[0];})[0]||'', font:{size:10}} };
+    }
+    if(modo==='base100'){
+      scales.y.title = {display:true, text:'Base 100 (1º mês = 100)', font:{size:10}};
+    }
+
+    _cmpChart = new Chart(cv.getContext('2d'), {
+      type:'line',
+      data:{ labels: MES_CMP.slice(1), datasets: datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{ position:'top', labels:{ font:{size:11}, usePointStyle:true, boxWidth:8 } },
+          tooltip:{ callbacks:{ label:function(ctx){
+            const raw = ctx.raw;
+            if(raw===null||raw===undefined) return ctx.dataset.label+': —';
+            const k = getKPI(sel[ctx.datasetIndex]);
+            let val = raw;
+            if(modo==='base100') return ctx.dataset.label+': '+(Math.round(raw*10)/10);
+            val = (typeof fmtVal==='function' && k) ? fmtVal(raw, k.unidade) : raw;
+            return ctx.dataset.label+': '+val;
+          } } }
+        },
+        scales: scales
+      }
+    });
+  }
+
+  window.renderComparativo = function(){
+    fillAnoSel();
+    const cont = document.getElementById('cmp-content');
+    if(!cont) return;
+    const porArea = kpisOrdenados();
+    const areas = Object.keys(porArea).sort();
+
+    let listaHtml = '';
+    areas.forEach(function(area){
+      listaHtml += '<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 4px">'+area+'</div>';
+      porArea[area].forEach(function(k){
+        const on = window.dmxCmpState.sel.indexOf(k.id)>=0;
+        listaHtml += '<div class="cmp-kpi-chk" data-id="'+k.id+'" onclick="dmxCmpToggle(\''+k.id+'\')" '+
+          'style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid '+(on?'#2563EB':'#E2E8F0')+';border-radius:8px;margin-bottom:4px;cursor:pointer;background:'+(on?'#EFF6FF':'#fff')+';font-size:12px">'+
+          '<span class="cmp-box" style="font-size:14px">'+(on?'☑':'☐')+'</span>'+
+          '<span style="flex:1;min-width:0">'+(k.indicador||k.id)+'</span>'+
+          '<span style="font-size:10px;color:#94A3B8">'+(k.unidade||'')+'</span>'+
+          '</div>';
+      });
+      listaHtml += '</div>';
+    });
+
+    cont.innerHTML =
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">'+
+        // painel de seleção
+        '<div style="flex:0 0 300px;max-width:320px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px;max-height:560px;overflow-y:auto">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<div style="font-weight:700;font-size:13px">KPIs <span style="color:#2563EB">('+window.dmxCmpState.sel.length+' selecionados)</span></div>'+
+            '<button onclick="dmxCmpLimpar()" style="font-size:11px;border:1px solid #E2E8F0;background:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;color:#475569">Limpar</button>'+
+          '</div>'+
+          listaHtml +
+        '</div>'+
+        // painel do gráfico
+        '<div style="flex:1;min-width:380px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px">'+
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">'+
+            '<span style="font-size:11px;color:#64748B;margin-right:4px">Escala:</span>'+
+            '<button id="cmp-esc-auto" onclick="dmxCmpSetEscala(\'auto\')" style="font-size:11px;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;cursor:pointer">Automática</button>'+
+            '<button id="cmp-esc-dois" onclick="dmxCmpSetEscala(\'dois\')" style="font-size:11px;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;cursor:pointer">Dois eixos</button>'+
+            '<button id="cmp-esc-base100" onclick="dmxCmpSetEscala(\'base100\')" style="font-size:11px;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;cursor:pointer">Base 100</button>'+
+            '<span style="width:1px;height:20px;background:#E2E8F0;margin:0 4px"></span>'+
+            '<button id="cmp-acum-btn" onclick="dmxCmpToggleAcum()" style="font-size:11px;border:1px solid #E2E8F0;border-radius:6px;padding:4px 10px;cursor:pointer;background:'+(window.dmxCmpState.acumulado?'#2563EB':'#fff')+';color:'+(window.dmxCmpState.acumulado?'#fff':'#475569')+'">Acumulado</button>'+
+          '</div>'+
+          '<div style="position:relative;height:480px">'+
+            '<canvas id="cmp-canvas" style="display:none"></canvas>'+
+            '<div id="cmp-vazio" style="display:flex;align-items:center;justify-content:center;height:100%;color:#94A3B8;font-size:14px;text-align:center;padding:20px">Selecione 2 ou mais KPIs à esquerda para comparar as curvas.</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+
+    pintarBotoesEscala();
+    setTimeout(desenhar, 30);
+  };
+})();
+</script>
+
 </body>
 </html>
