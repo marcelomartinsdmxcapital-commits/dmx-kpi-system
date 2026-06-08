@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v93.0 — 08/06/2026 — Nova aba Analise Comparativa: sobrepoe realizados de varios KPIs (qualquer area) no mesmo grafico, com escala automatica/dois eixos/base 100 e modo acumulado -->
+<!-- DMX KPI System — v93.2 — 08/06/2026 — Performance: debounce no render da Analise Comparativa + cooldown na carga de Operacoes (evita rajada de chamadas e tela em branco) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v93.0",data:"08/06/2026",build:"nova-aba-analise-comparativa-multiplos-kpis-no-mesmo-grafico"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v93.2",data:"08/06/2026",build:"performance-debounce-render-comparativa-e-cooldown-carga-operacoes"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -2949,10 +2949,16 @@ function renderOperacoes(){
   const cont = document.getElementById('ops-content');
   if (!cont) return;
   // se ainda não carregou os dados das operações, dispara a carga e mostra aviso
-  if ((!operacoes || !operacoes.length) && !window.__opsCarregando) {
+  if ((!operacoes || !operacoes.length) && !window.__opsCarregando && (Date.now() - (window.__opsLastTry||0) > 12000)) {
+    window.__opsLastTry = Date.now();
     window.__opsCarregando = true;
     cont.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Carregando indicadores de operações…</div>';
     dmxCarregarOperacoes().finally(()=>{ window.__opsCarregando = false; if (currentPage==='operacoes') renderOperacoes(); });
+    return;
+  }
+  if ((!operacoes || !operacoes.length)) {
+    // carga em andamento ou recente (cooldown) — não dispara outra, evita rajada de chamadas
+    cont.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Carregando indicadores de operações…</div>';
     return;
   }
   const list = opsList();
@@ -20586,6 +20592,29 @@ window.dmxIrParaMesLancamento = function(novoMes){
     pintarBotoesEscala();
     setTimeout(desenhar, 30);
   };
+
+  // Garante o render quando a página fica ativa, qualquer que seja o wrapper de nav usado
+  function instalarObserver(){
+    const pg = document.getElementById('page-comparativo');
+    if(!pg || pg.__cmpObs) return;
+    pg.__cmpObs = true;
+    const obs = new MutationObserver(function(){
+      const ativo = pg.classList.contains('active');
+      if(ativo && !pg.__cmpRendered){
+        pg.__cmpRendered = true;
+        // corrige título caso um wrapper de nav não tenha mapeado
+        const tb = document.getElementById('topbar-title');
+        if(tb && tb.textContent === 'comparativo') tb.textContent = 'Análise Comparativa';
+        clearTimeout(pg.__cmpTimer);
+        pg.__cmpTimer = setTimeout(function(){ if(typeof window.renderComparativo === 'function') window.renderComparativo(); }, 50);
+      } else if(!ativo){
+        pg.__cmpRendered = false;
+      }
+    });
+    obs.observe(pg, { attributes:true, attributeFilter:['class'] });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', instalarObserver);
+  else instalarObserver();
 })();
 </script>
 
