@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v93.5 — 08/06/2026 — Modo Diretoria: KPIs sem meta contam como Sem Avaliacao (nao Critico); atingimento e saude calculados so sobre KPIs com meta -->
+<!-- DMX KPI System — v93.6 — 08/06/2026 — Justificativas: salvas no Sheets (aba justificativas) e lidas de la, ficando visiveis a todos os usuarios na apresentacao do KPI (antes ficavam so no localStorage de quem digitou) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v93.5",data:"08/06/2026",build:"modo-diretoria-kpi-sem-meta-e-sem-avaliacao-nao-critico"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v93.6",data:"08/06/2026",build:"justificativas-compartilhadas-via-sheets-entre-usuarios"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -2791,6 +2791,12 @@ function obsKey(kpiId, mes, ano) {
 }
 
 function getObs(kpiId, mes, ano) {
+  // Prioriza a justificativa vinda do Sheets (compartilhada entre todos os usuários);
+  // o localStorage é apenas fallback local para quem acabou de digitar e ainda não sincronizou.
+  try {
+    const l = (typeof getLaunch === 'function') ? getLaunch(kpiId, mes, ano) : null;
+    if (l && l.comentario != null && String(l.comentario).trim() !== '') return l.comentario;
+  } catch(e) {}
   try { return localStorage.getItem(obsKey(kpiId, mes, ano)) || ''; } catch(e) { return ''; }
 }
 
@@ -3490,6 +3496,13 @@ function saveLancamento() {
       realizado: real, comentario: obs, status: newSt, impacto: newImp });
   }
   persist();
+  // Envia a justificativa para a aba específica de justificativas no Sheets (compartilhada entre usuários).
+  // Sem isto, a justificativa ficava só no localStorage de quem digitou.
+  try {
+    if (typeof dmxApiPost === 'function') {
+      dmxApiPost('salvarJustificativa', { id_kpi, mes, mes_num: mes, ano, justificativa: obs, comentario: obs });
+    }
+  } catch(e) {}
   closeModal('lanc-modal');
   if (currentPage === 'dashboard')    renderDashboard();
   if (currentPage === 'atualizar')    renderAtualizar();
@@ -7744,7 +7757,16 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       const mes = n(r.mes || r.mes_num, null);
       const ano = n(r.ano, null);
       const texto = r.justificativa || r.comentario || r.obs || '';
-      if(id && mes && ano){ try { localStorage.setItem(obsKey(id, mes, ano), texto); c++; } catch(e) {} }
+      if(id && mes && ano){
+        try { localStorage.setItem(obsKey(id, mes, ano), texto); c++; } catch(e) {}
+        // também aplica no lançamento em memória, para a apresentação refletir na hora
+        try {
+          if(texto && typeof getLaunch==='function'){
+            const l = getLaunch(id, mes, ano);
+            if(l) l.comentario = texto;
+          }
+        } catch(e) {}
+      }
     });
     return c;
   }
