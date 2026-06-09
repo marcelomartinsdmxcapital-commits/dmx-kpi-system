@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v93.4 — 08/06/2026 — Protecao multiusuario: refresh automatico (timer/foco/pos-save) e adiado enquanto ha edicao em andamento (modal aberto, campo em foco ou alteracoes inline nao salvas), evitando perda de dados digitados -->
+<!-- DMX KPI System — v93.5 — 08/06/2026 — Modo Diretoria: KPIs sem meta contam como Sem Avaliacao (nao Critico); atingimento e saude calculados so sobre KPIs com meta -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v93.4",data:"08/06/2026",build:"protecao-multiusuario-refresh-nao-apaga-dados-em-edicao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v93.5",data:"08/06/2026",build:"modo-diretoria-kpi-sem-meta-e-sem-avaliacao-nao-critico"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -4630,6 +4630,8 @@ function renderDiretoria(){
   const amarelos  = kpisComDado.filter(k => { const l=getLaunch(k.id,mes,ano); return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='AMARELO'; }).length;
   const vermelhos = kpisComDado.filter(k => { const l=getLaunch(k.id,mes,ano); return calcStatus(k.sentido,l.realizado,resolveRef(k,mes,ano).meta)==='VERMELHO'; }).length;
   const atingMedio = total ? Math.round(verdes/total*100) : 0;
+  const avaliadosTotal = verdes + amarelos + vermelhos;
+  const semMeta = total - avaliadosTotal;
 
   // Planos
   const todosPlanos = typeof allPlanos==='function' ? allPlanos() : (Array.isArray(window.planos)?window.planos:(typeof planos!=='undefined'?planos:[]));
@@ -4679,18 +4681,20 @@ function renderDiretoria(){
     const l=getLaunch(k.id,mes,ano), ref=resolveRef(k,mes,ano);
     const st=calcStatus(k.sentido,l.realizado,ref.meta);
     const at=calcAting(k.sentido,l.realizado,ref.meta);
-    if(!areasData[k.area]) areasData[k.area]={area:k.area,total:0,verde:0,amarelo:0,vermelho:0,atings:[]};
+    if(!areasData[k.area]) areasData[k.area]={area:k.area,total:0,avaliados:0,verde:0,amarelo:0,vermelho:0,atings:[]};
     areasData[k.area].total++;
-    if(st==='VERDE') areasData[k.area].verde++;
-    else if(st==='AMARELO') areasData[k.area].amarelo++;
-    else if(st==='VERMELHO') areasData[k.area].vermelho++;
+    if(st==='VERDE'){ areasData[k.area].verde++; areasData[k.area].avaliados++; }
+    else if(st==='AMARELO'){ areasData[k.area].amarelo++; areasData[k.area].avaliados++; }
+    else if(st==='VERMELHO'){ areasData[k.area].vermelho++; areasData[k.area].avaliados++; }
     if(at!=null) areasData[k.area].atings.push(at);
   });
   const areasRank = Object.values(areasData).map(a=>{
     a.atingMedio = a.atings.length ? Math.round(a.atings.reduce((s,v)=>s+v,0)/a.atings.length*100) : null;
-    a.saude = a.total ? Math.round(a.verde/a.total*100) : 0;
+    // saúde só faz sentido sobre KPIs avaliados (com meta). Sem avaliados => null (sem avaliação)
+    a.saude = a.avaliados ? Math.round(a.verde/a.avaliados*100) : null;
+    a.semAvaliacao = a.avaliados === 0;
     return a;
-  }).sort((a,b)=>a.saude-b.saude);
+  }).sort((a,b)=>{ if(a.saude===null && b.saude===null) return 0; if(a.saude===null) return 1; if(b.saude===null) return -1; return a.saude-b.saude; });
 
   // KPIs que precisam de decisão da diretoria
   const decisaoDir = kpisMeta.filter(k=>{
@@ -4727,6 +4731,7 @@ function renderDiretoria(){
 
   // ── Semáforo de saúde por área ─────────────────────────────
   const semaforoArea = a => {
+    if(a.semAvaliacao || a.saude===null) return {cor:'#64748B',label:'Sem avaliação',bg:'#F1F5F9'};
     if(a.saude>=80) return {cor:'#16A34A',label:'Saudável',bg:'#F0FDF4'};
     if(a.saude>=50) return {cor:'#D97706',label:'Atenção',bg:'#FFF7ED'};
     return {cor:'#DC2626',label:'Crítico',bg:'#FEF2F2'};
@@ -4747,9 +4752,9 @@ function renderDiretoria(){
 
     <!-- Cards de scorecard -->
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px">
-      ${scoreCard('🎯 Atingimento','Meta','Meta','Meta',atingMedio+'%',total+' KPIs avaliados',atingMedio>=80?'#16A34A':atingMedio>=60?'#D97706':'#DC2626',atingMedio>=80?'#F0FDF4':atingMedio>=60?'#FFF7ED':'#FEF2F2')}
-      ${scoreCard('🟢 No Verde','','','',verdes,total?Math.round(verdes/total*100)+'% dos KPIs Meta':'—','#16A34A','#F0FDF4')}
-      ${scoreCard('🔴 Críticos','','','',vermelhos,total?Math.round(vermelhos/total*100)+'% dos KPIs Meta':'—',vermelhos>0?'#DC2626':'#16A34A',vermelhos>0?'#FEF2F2':'#F0FDF4')}
+      ${scoreCard('🎯 Atingimento','Meta','Meta','Meta', avaliadosTotal? (Math.round(verdes/avaliadosTotal*100)+'%') : '—', avaliadosTotal? (avaliadosTotal+' KPIs com meta'+(semMeta?(' · '+semMeta+' sem meta'):'')) : (total+' KPIs sem meta definida'), avaliadosTotal? (verdes/avaliadosTotal>=0.8?'#16A34A':verdes/avaliadosTotal>=0.6?'#D97706':'#DC2626') : '#64748B', avaliadosTotal? (verdes/avaliadosTotal>=0.8?'#F0FDF4':verdes/avaliadosTotal>=0.6?'#FFF7ED':'#FEF2F2') : '#F1F5F9')}
+      ${scoreCard('🟢 No Verde','','','',verdes,avaliadosTotal?Math.round(verdes/avaliadosTotal*100)+'% dos avaliados':'—','#16A34A','#F0FDF4')}
+      ${scoreCard('🔴 Críticos','','','',vermelhos,avaliadosTotal?Math.round(vermelhos/avaliadosTotal*100)+'% dos avaliados':'—',vermelhos>0?'#DC2626':'#16A34A',vermelhos>0?'#FEF2F2':'#F0FDF4')}
       ${scoreCard('⚠️ Sem Plano','','','',semPlanoCount,'ocorrências no ano',semPlanoCount>0?'#D97706':'#16A34A',semPlanoCount>0?'#FFF7ED':'#F0FDF4')}
       ${scoreCard('📋 Planos Abertos','','','',planosAbertos.length,planosAtrasados.length>0?planosAtrasados.length+' atrasado(s)':'Em dia',planosAtrasados.length>0?'#DC2626':'#16A34A',planosAtrasados.length>0?'#FEF2F2':'#F0FDF4')}
     </div>
