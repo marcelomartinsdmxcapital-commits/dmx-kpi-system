@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v93.3 — 08/06/2026 — Atualizar Dados: nova opcao Painel Financeiro/CEO no filtro de area permite lancar realizado desses KPIs (antes so via Sheets) -->
+<!-- DMX KPI System — v93.4 — 08/06/2026 — Protecao multiusuario: refresh automatico (timer/foco/pos-save) e adiado enquanto ha edicao em andamento (modal aberto, campo em foco ou alteracoes inline nao salvas), evitando perda de dados digitados -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v93.3",data:"08/06/2026",build:"atualizar-dados-acesso-aos-kpis-painel-financeiro-ceo"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v93.4",data:"08/06/2026",build:"protecao-multiusuario-refresh-nao-apaga-dados-em-edicao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1094,6 +1094,8 @@ let currentAno = (() => {
 let editingLancId = null;
 let editingPlanoId = null;
 let pendingUpdates = {};
+// getter para outros módulos checarem se há edições inline não salvas (proteção multiusuário)
+window.dmxTemEdicoesPendentes = function(){ try { return pendingUpdates && Object.keys(pendingUpdates).length > 0; } catch(e){ return false; } };
 let _importRows = null;
 let launches = [];
 let operacoes = [];      // catálogo de indicadores de Análise de Operações (aba separada)
@@ -9986,9 +9988,36 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
 
   // 2) Refresh automático do Painel Executivo e recarregamento do Sheets sem F5.
   let refreshBusy=false, lastRefresh=0;
+  // Detecta se o usuário está no meio de uma edição (modal aberto ou campo alterado não salvo)
+  window.dmxEdicaoEmAndamento = function(){
+    try {
+      // 0) Alterações inline na aba Atualizar Dados ainda não salvas
+      if(typeof window.dmxTemEdicoesPendentes==='function' && window.dmxTemEdicoesPendentes()) return true;
+      // 1) Qualquer modal de edição/lançamento aberto
+      const modais = document.querySelectorAll('.modal-backdrop.open, .modal-backdrop[style*="flex"]');
+      for(const m of modais){ if(m.id && (m.id.includes('lanc') || m.id.includes('kpi') || m.id.includes('weekly') || m.id.includes('edit'))) return true; }
+      // 2) Foco atual num campo de input/textarea editável (digitando agora)
+      const ae = document.activeElement;
+      if(ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.tagName==='SELECT')){
+        const t = (ae.type||'').toLowerCase();
+        if(t!=='checkbox' && t!=='radio' && !ae.readOnly && !ae.disabled) return true;
+      }
+    } catch(e){}
+    return false;
+  };
+
   async function refreshFromSheets(reason){
     if(refreshBusy) return;
     if(Date.now()-lastRefresh<5000 && reason!=='manual') return;
+    // PROTEÇÃO MULTIUSUÁRIO: nunca recarrega/re-renderiza enquanto o usuário está editando.
+    // Isso evita que um refresh automático (timer/foco/save de outro fluxo) apague dados
+    // que estão sendo digitados e ainda não foram salvos.
+    if(reason!=='manual' && typeof window.dmxEdicaoEmAndamento==='function' && window.dmxEdicaoEmAndamento()){
+      // reagenda para depois, sem descartar — tenta de novo quando a edição terminar
+      clearTimeout(window.__dmxRefreshPend);
+      window.__dmxRefreshPend = setTimeout(()=>refreshFromSheets(reason), 8000);
+      return;
+    }
     refreshBusy=true; lastRefresh=Date.now();
     try{
       if(typeof dmxCarregarCatalogoDaAPI==='function') await dmxCarregarCatalogoDaAPI(false);
