@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.0 — 08/06/2026 — Metas: (1) nao replicam mais para meses sem meta lancada; (2) meta de KPI calculado deriva das metas-fonte e so existe nos meses com meta-fonte, compartilhada como o realizado -->
+<!-- DMX KPI System — v94.1 — 08/06/2026 — Fix: dmxGetMeta movida para o IIFE que executa (a copia anterior era bloqueada por guard de execucao unica). Metas calculadas agora funcionam de fato. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.0",data:"08/06/2026",build:"metas-nao-replicam-em-meses-sem-meta-e-meta-calculada-via-metas-fonte"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.1",data:"08/06/2026",build:"fix-dmxGetMeta-inserida-no-iife-ativo-meta-calculada-agora-funciona"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -18394,6 +18394,36 @@ setTimeout(()=>{
     // KPI manual: usa o lançamento normal
     var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
     return l ? l.realizado : null;
+  };
+
+  // Avalia a fórmula usando as METAS dos KPIs-fonte (espelho de avaliarFormula, com meta).
+  // Se algum KPI-fonte não tiver meta no mês, retorna null — meta calculada só existe onde há metas-fonte.
+  function avaliarFormulaMeta(expr, mes, ano){
+    if(!expr || !expr.trim()) return null;
+    var formula = expr.replace(/KPI\d+/g, function(kpiId){
+      var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+      if(!l || l.meta==null || l.meta==='' || isNaN(Number(l.meta)) || Number(l.meta)===0) return 'null';
+      return String(Number(l.meta));
+    });
+    if(formula.includes('null')) return null;
+    if(!/^[\d\s+\-*/().]+$/.test(formula)) return null;
+    try{
+      var resultado = Function('"use strict"; return (' + formula + ')')();
+      if(!isFinite(resultado) || isNaN(resultado)) return null;
+      return Math.round(resultado * 10000) / 10000;
+    }catch(e){ return null; }
+  }
+  window.dmxAvaliarFormulaMeta = avaliarFormulaMeta;
+
+  // Retorna a meta de um KPI — calculada (a partir das metas-fonte) ou manual
+  window.dmxGetMeta = function(kpiId, mes, ano){
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
+    if(!kpi) return null;
+    if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
+      return avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
+    }
+    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    return l && l.meta!=null && l.meta!=='' && !isNaN(Number(l.meta)) ? Number(l.meta) : null;
   };
 
   // Recalcula todos os KPIs calculados para um mês/ano
