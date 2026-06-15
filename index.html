@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.1 — 08/06/2026 — Fix: dmxGetMeta movida para o IIFE que executa (a copia anterior era bloqueada por guard de execucao unica). Metas calculadas agora funcionam de fato. -->
+<!-- DMX KPI System — v94.2 — 08/06/2026 — Fix na resolveRef ATIVA (5615): meta 0/vazia = sem meta no mes (nao replica de outro mes) e KPI calculado usa dmxGetMeta. Confirmado via simulacao. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.1",data:"08/06/2026",build:"fix-dmxGetMeta-inserida-no-iife-ativo-meta-calculada-agora-funciona"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.2",data:"08/06/2026",build:"fix-resolveRef-ativa-meta-zero-nao-replica-e-usa-meta-calculada"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5614,24 +5614,41 @@ window.addEventListener('DOMContentLoaded', init);
   // Hierarquia: 1) mês exato em Dados_Mensais → 2) outro mês do mesmo ano em Dados_Mensais
   window.resolveRef = resolveRef = function(kpi, mes, ano){
     const l=getLaunch(kpi.id,mes,ano);
+    // KPI calculado: meta vem da fórmula aplicada às metas-fonte (só existe onde há metas-fonte)
+    let metaCalc = null;
+    const ehCalc = kpi.tipo_lancamento==='calculado' && kpi.formula_kpi;
+    if(ehCalc && typeof window.dmxGetMeta==='function'){
+      metaCalc = window.dmxGetMeta(kpi.id, mes, ano);
+    }
+    function pickMeta(){
+      if(ehCalc) return metaCalc; // calculado: só a fórmula, nunca replica
+      // Meta do PRÓPRIO mês. 0 ou vazio = sem meta neste mês (NÃO replica de outro mês).
+      const lv = l ? toNum(l.meta) : null;
+      if(lv!==null && lv!==0) return lv;
+      return null;
+    }
     function pick(field){
-      // 1) Mês exato
+      // minimo/maximo: mês exato; se não houver, fallback (não afeta meta)
       const lv=l?toNum(l[field]):null;
       if(lv!==null && lv!==0) return lv;
-      // 2) Outro mês do mesmo ano em Dados_Mensais (findAnyRef)
       const fallback=findAnyRef(kpi,field,ano,mes);
       if(fallback!==null && fallback!==0) return fallback;
-      // 3) Fallback final: Cadastro_KPIs (só para KPIs sem nenhum dado mensal ainda)
       const kv=toNum(kpi[field]);
       if(kv!==null && kv!==0) return kv;
       return null;
     }
-    const ref={meta:pick('meta'),minimo:pick('minimo'),maximo:pick('maximo')};
-    // Tolerância: se minimo/maximo não vieram e há tolerancia_pct + meta, calcula a banda
-    const tol=toNum(kpi.tolerancia_pct);
-    if(tol!==null && tol>0 && ref.meta!==null && ref.meta!==0){
-      if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000;
-      if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000;
+    const ref={meta:pickMeta(),minimo:null,maximo:null};
+    // Limites só existem se há meta no próprio mês (não replica).
+    if(ref.meta!==null && ref.meta!==0){
+      // tenta minimo/maximo do mês exato; senão calcula por tolerância
+      const lmin = l?toNum(l.minimo):null, lmax = l?toNum(l.maximo):null;
+      if(lmin!==null && lmin!==0) ref.minimo=lmin;
+      if(lmax!==null && lmax!==0) ref.maximo=lmax;
+      const tol=toNum(kpi.tolerancia_pct);
+      if(tol!==null && tol>0){
+        if(ref.minimo===null) ref.minimo=Math.round(ref.meta*(1-tol/100)*10000)/10000;
+        if(ref.maximo===null) ref.maximo=Math.round(ref.meta*(1+tol/100)*10000)/10000;
+      }
     }
     return ref;
   };
