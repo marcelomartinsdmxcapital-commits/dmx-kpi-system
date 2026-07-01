@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.5 — 01/07/2026 — Fix PPR: dmxPprCalcSem() dava 'return' antes de limpar a tabela de transparencia quando o semestre selecionado nao tinha dados, deixando o resultado do semestre anterior travado na tela. Agora o resumo e a tabela sao sempre atualizados (inclusive para o estado vazio) em toda troca de semestre. -->
+<!-- DMX KPI System — v94.5 — 01/07/2026 — Fix PPR (1) dmxPprCalcSem() dava 'return' antes de limpar a tabela quando o semestre selecionado nao tinha dados, travando o resultado do semestre anterior na tela. (2) Índice Geral/PPR Acumulado da área (acumulado()/accumValue()) usava kpi.meta do catalogo como fallback quando o mes nao tinha meta lancada, contrariando a regra oficial do resolveRef ("sem meta lancada = sem meta"). Reescrito para parear meta+realizado por mes via resolveRef, so contando meses com os dois lancados. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.5",data:"01/07/2026",build:"fix-dmxPprCalcSem-nao-limpava-tabela-ao-trocar-para-semestre-sem-dados"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.5",data:"01/07/2026",build:"fix-ppr-semestre-travado-e-fix-indice-area-fallback-meta-catalogo"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5922,20 +5922,27 @@ window.addEventListener('DOMContentLoaded', init);
     if(k) return fallbackPeso(k);
     return stored||0;
   };
-  function accumValue(kpi, ano, field){
-    const vals=[];
+  // FIX v94.5: accumValue tinha fallback para kpi.meta (campo estático do catálogo)
+  // quando o lançamento do mês não trazia meta. Isso contraria a regra oficial do
+  // resolveRef ("Sem meta lançada = sem meta, não usa meta_padrao") e inflava o
+  // índice acumulado da área somando meses sem meta lançada (ex.: MRO/Cobrança com
+  // meta lançada só no 2º semestre apareciam com índice também no 1º). Agora meta e
+  // realizado são pareados por mês via resolveRef — só entra no acumulado o mês que
+  // tem os dois lançados.
+  function accumPares485(kpi, ano){
+    const pares=[];
     for(let m=1;m<=12;m++){
       let l=null; try{l=getLaunch(kpi.id,m,ano);}catch(e){}
       if(!l) continue;
-      let v=null;
-      if(field==='meta') v=(l.meta!==null&&l.meta!==undefined&&l.meta!==''&&!isNaN(Number(l.meta)))?l.meta:kpi.meta;
-      else if(field==='realizado') v=l.realizado;
-      else v=l[field];
-      if(v!==null&&v!==undefined&&v!==''&&!isNaN(Number(v))) vals.push(Number(v));
+      let ref=null; try{ref=resolveRef(kpi,m,ano);}catch(e){}
+      const meta=ref?ref.meta:null;
+      const real=l.realizado;
+      const temMeta = meta!==null&&meta!==undefined&&meta!==''&&!isNaN(Number(meta))&&Number(meta)!==0;
+      const temReal = real!==null&&real!==undefined&&real!==''&&!isNaN(Number(real));
+      if(!temMeta||!temReal) continue;
+      pares.push({meta:Number(meta),realizado:Number(real)});
     }
-    if(!vals.length) return null;
-    const tipo=norm(kpi.acumulado||'média');
-    return tipo.includes('soma') ? vals.reduce((a,b)=>a+b,0) : vals.reduce((a,b)=>a+b,0)/vals.length;
+    return pares;
   }
   function mensal(k,mes,ano){
     let l=null, ref=null; try{l=getLaunch(k.id,mes,ano);ref=resolveRef(k,mes,ano);}catch(e){}
@@ -5944,9 +5951,12 @@ window.addEventListener('DOMContentLoaded', init);
     return {real:l?l.realizado:null,meta,atingPct:at==null?null:at*100,status:l?calcStatus(k.sentido,l.realizado,meta):'N/A'};
   }
   function acumulado(k,ano){
-    const real=accumValue(k,ano,'realizado');
-    const meta=accumValue(k,ano,'meta');
-    const at=(real==null||meta==null||Number(meta)===0)?null:calcAting(k.sentido,real,meta);
+    const pares=accumPares485(k,ano);
+    if(!pares.length) return {real:null,meta:null,atingPct:null,status:'N/A'};
+    const isS=norm(k.acumulado||'média').includes('soma');
+    const real=isS?pares.reduce((a,p)=>a+p.realizado,0):pares.reduce((a,p)=>a+p.realizado,0)/pares.length;
+    const meta=isS?pares.reduce((a,p)=>a+p.meta,0):pares.reduce((a,p)=>a+p.meta,0)/pares.length;
+    const at=(meta===0)?null:calcAting(k.sentido,real,meta);
     return {real,meta,atingPct:at==null?null:at*100,status:(at==null?'N/A':calcStatus(k.sentido,real,meta))};
   }
   window.dmxIndiceArea=function(area,mes,ano){
