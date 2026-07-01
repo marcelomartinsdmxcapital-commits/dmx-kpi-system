@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.3 — 08/06/2026 — Fix PPR semestral: indice da area agora calcula so os meses do semestre selecionado (antes usava o acumulado do ano inteiro, vazando dados do 1o semestre para o 2o) -->
+<!-- DMX KPI System — v94.4 — 08/06/2026 — Fix PPR: desativada a implementacao antiga (drawPpr485) que exibia indice acumulado do mes atual (ex: 40% . 7/2026) em vez do semestre. Agora so a implementacao nova por semestre renderiza. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.3",data:"08/06/2026",build:"fix-ppr-semestral-indice-da-area-respeita-o-semestre-selecionado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.4",data:"08/06/2026",build:"desativa-drawPpr485-antigo-que-mostrava-indice-do-mes-em-vez-do-semestre"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -11535,6 +11535,8 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     ['1','2','3'].forEach(i=>{ const el=document.getElementById('ppr-kpi-'+i); if(el) el.value=cfg['kpi'+i]||''; });
     document.querySelectorAll('.dmx-ppr-input').forEach(el=>el.addEventListener('change',()=>window.dmxSalvarPPR485(false)));
     drawPpr485();
+    // Renderiza a tabela correta por semestre (implementação vigente)
+    try { if(typeof window.dmxPprCalcSem==='function') window.dmxPprCalcSem(); } catch(e){}
   };
   window.dmxSalvarPPR485 = function(show=true){
     const cfg={kpi1:document.getElementById('ppr-kpi-1')?.value||'', kpi2:document.getElementById('ppr-kpi-2')?.value||'', kpi3:document.getElementById('ppr-kpi-3')?.value||'', peso1:Number(document.getElementById('ppr-kpi-1-peso')?.value||0), peso2:Number(document.getElementById('ppr-kpi-2-peso')?.value||0), peso3:Number(document.getElementById('ppr-kpi-3-peso')?.value||0), pesoArea:Number(document.getElementById('ppr-peso-area')?.value||0)};
@@ -11546,6 +11548,17 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     let s=0,w=0; vals.forEach(x=>{ if(x.v!=null && isFinite(x.v) && x.p>0){s+=x.v*x.p/100;w+=x.p;} }); return w?s:null;
   }
   function drawPpr485(){
+    // DESATIVADO: esta é a implementação ANTIGA do PPR, que usava o índice acumulado do
+    // mês atual (não do semestre), mostrando valores incorretos (ex.: "40% · 7/2026" num
+    // painel de 1º semestre). A implementação vigente (dmxPprCalcSem/calcPPRDetalhado)
+    // calcula corretamente por semestre. Aqui apenas garantimos que o container antigo
+    // fique oculto para não conflitar com a tela nova.
+    try {
+      const at=document.getElementById('ppr-area-tables'); if(at){ at.innerHTML=''; at.style.display='none'; }
+    } catch(e){}
+    return;
+  }
+  function drawPpr485_ANTIGO_DESATIVADO(){
     const cfg=getPprCfg(), ano=Number(window.currentAno||currentAno||2026), mes=Number(window.currentMes||currentMes||12), areas=areas485();
     const total=Number(cfg.peso1||0)+Number(cfg.peso2||0)+Number(cfg.peso3||0)+Number(cfg.pesoArea||0);
     const v=document.getElementById('ppr-validacao'); if(v) v.innerHTML=Math.abs(total-100)<0.01?'<span style="color:var(--green);font-weight:700">✓ Pesos fechando 100%</span>':'<span style="color:var(--red);font-weight:700">⚠ Pesos somam '+pct485(total)+'. Ajuste para 100%.</span>';
