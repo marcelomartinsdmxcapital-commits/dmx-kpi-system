@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.4 — 08/06/2026 — Fix PPR: desativada a implementacao antiga (drawPpr485) que exibia indice acumulado do mes atual (ex: 40% . 7/2026) em vez do semestre. Agora so a implementacao nova por semestre renderiza. -->
+<!-- DMX KPI System — v94.5 — 01/07/2026 — Fix PPR: dmxPprCalcSem() dava 'return' antes de limpar a tabela de transparencia quando o semestre selecionado nao tinha dados, deixando o resultado do semestre anterior travado na tela. Agora o resumo e a tabela sao sempre atualizados (inclusive para o estado vazio) em toda troca de semestre. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.4",data:"08/06/2026",build:"desativa-drawPpr485-antigo-que-mostrava-indice-do-mes-em-vez-do-semestre"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.5",data:"01/07/2026",build:"fix-dmxPprCalcSem-nao-limpava-tabela-ao-trocar-para-semestre-sem-dados"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -16778,19 +16778,27 @@ setTimeout(()=>{
     var areas=getAreaList();
     var dados=areas.map(function(a){ return calcPPRDetalhado(a,ano,sem.ini,sem.fim,cfg); })
                    .filter(function(d){ return d.total!=null; });
-    if(!dados.length){ out.textContent='Sem dados para esse semestre.'; return; }
-    var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
-    var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
-    out.innerHTML='<strong>'+sem.label+' ('+sem.short+')/'+ano+'</strong> &nbsp;·&nbsp; '+
-      'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
-      'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
-      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
-    // Tabela de transparência dentro do semestral-bloco
     var semBloco=document.getElementById('ppr-semestral-bloco'); if(!semBloco) return;
     var tabId='ppr-sem-tabela-transp';
     var tabDiv=document.getElementById(tabId)||document.createElement('div');
     tabDiv.id=tabId;
-    tabDiv.innerHTML=renderTabela(sorted,cfg,sem.label+' — '+sem.short+'/'+ano);
+    if(!dados.length){
+      // FIX v94.5: antes disto dava 'return' aqui sem limpar a tabela — deixava o
+      // resultado do semestre anterior travado na tela quando o semestre atual não
+      // tinha dados. Agora o resumo e a tabela são sempre atualizados (para o estado
+      // vazio) antes de sair.
+      out.textContent='Sem dados para esse semestre.';
+      tabDiv.innerHTML=renderTabela([],cfg,sem.label+' — '+sem.short+'/'+ano);
+    } else {
+      var media=dados.reduce(function(s,d){ return s+d.total; },0)/dados.length;
+      var sorted=dados.slice().sort(function(a,b){ return b.total-a.total; });
+      out.innerHTML='<strong>'+sem.label+' ('+sem.short+')/'+ano+'</strong> &nbsp;·&nbsp; '+
+        'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
+        'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
+        'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+      tabDiv.innerHTML=renderTabela(sorted,cfg,sem.label+' — '+sem.short+'/'+ano);
+    }
+    // Tabela de transparência dentro do semestral-bloco
     if(!document.getElementById(tabId)){
       var areaTab=document.getElementById('ppr-area-tables');
       // Insere ANTES do ppr-area-tables e oculta o antigo
