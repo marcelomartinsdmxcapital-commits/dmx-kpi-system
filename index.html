@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.5 — 01/07/2026 — Fix PPR (1) dmxPprCalcSem() dava 'return' antes de limpar a tabela quando o semestre selecionado nao tinha dados, travando o resultado do semestre anterior na tela. (2) Índice Geral/PPR Acumulado da área (acumulado()/accumValue()) usava kpi.meta do catalogo como fallback quando o mes nao tinha meta lancada, contrariando a regra oficial do resolveRef ("sem meta lancada = sem meta"). Reescrito para parear meta+realizado por mes via resolveRef, so contando meses com os dois lancados. -->
+<!-- DMX KPI System — v94.6 — 02/07/2026 — Fix Admin/Sheets: dmxAdminNovoKPI() sugeria o próximo ID usando a contagem de KPIs (adminAllKpis().length+1) em vez do maior número já usado. Furos na numeração (KPIs excluidos/substituidos) faziam a sugestao colidir com IDs existentes (ex.: sugeria KPI099 quando o maior real era KPI100). Agora usa max(numero dos IDs existentes)+1. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.5",data:"01/07/2026",build:"fix-ppr-semestre-travado-e-fix-indice-area-fallback-meta-catalogo"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.6",data:"02/07/2026",build:"fix-sugestao-novo-id-kpi-usava-contagem-em-vez-de-max-numero"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -8616,7 +8616,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   window.dmxAdminNovoKPI = function(){
-    const next = 'KPI' + String((adminAllKpis().length || 0) + 1).padStart(3,'0');
+    // FIX v94.6: a sugestão usava adminAllKpis().length+1 (contagem de KPIs), que fica
+    // defasada quando há furos na numeração (KPIs excluídos/substituídos ao longo do
+    // tempo) e pode sugerir um ID que já existe. Agora usa o MAIOR número de ID já
+    // cadastrado + 1, garantindo que a sugestão nunca colida com um KPI existente.
+    const nums = adminAllKpis().map(function(k){
+      const m = String(k.id||'').match(/(\d+)\s*$/);
+      return m ? parseInt(m[1],10) : 0;
+    });
+    const maxNum = nums.length ? Math.max.apply(null, nums) : 0;
+    const next = 'KPI' + String(maxNum + 1).padStart(3,'0');
     dmxAdminEditarKPI('', {id:next, area:allAreas()[0]||'Cadastro', pilar_estrategico:'', indicador:'', unidade:'%', sentido:'Maior Melhor', vertente:'Meta', frequencia:'Mensal', controle:'Mensal', ativo:'SIM'});
   };
 
