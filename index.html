@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.7 — 02/07/2026 — Novo: modulo "Relatorio de Analise" (Admin/Sheets) — botao que gera um .txt estruturado com meta/realizado/atingimento por KPI e mes, Indice Geral da Area (mensal/acumulado) e resultado do Plano PPR por semestre, reaproveitando a mesma logica de calculo ja validada nas telas do sistema. Baixa o arquivo e copia para a area de transferencia. -->
+<!-- DMX KPI System — v94.8 — 02/07/2026 — Fix: window.dmxIndiceArea retornava indiceMes/indiceAcum = 0 (numerico) quando NENHUM KPI de Meta da area tinha meta+realizado lancados no periodo, dando a falsa impressao de "area zerada" no card. Descoberto ao gerar o Relatorio de Analise (v94.7), que mostrou 0% em todas as areas/meses. Agora retorna undefined nesse caso e o card exibe "Sem dados" em vez de 0%. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.7",data:"02/07/2026",build:"novo-modulo-relatorio-de-analise-admin"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.8",data:"02/07/2026",build:"fix-indice-area-0-numerico-vira-sem-dados-quando-sem-meta"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5961,16 +5961,24 @@ window.addEventListener('DOMContentLoaded', init);
   }
   window.dmxIndiceArea=function(area,mes,ano){
     let indiceAcum=0, indiceMes=0, somaPesos=0;
+    let temContribMes=false, temContribAcum=false;
     const itens=getKpisSafe().filter(k=>norm(k.area)===norm(area)&&norm(k.vertente)==='meta').map(k=>{
       const p=window.dmxPesoIndice(k.id);
       const m=mensal(k,mes,ano);
       const a=acumulado(k,ano);
       const contribMes=m.atingPct==null?0:m.atingPct*p/100;
       const contribAcum=a.atingPct==null?0:a.atingPct*p/100;
+      if(m.atingPct!=null && p>0) temContribMes=true;
+      if(a.atingPct!=null && p>0) temContribAcum=true;
       indiceMes+=contribMes; indiceAcum+=contribAcum; somaPesos+=p;
       return {kpi:k,peso:p,mensal:m,acumulado:a,contribMes,contribAcum};
     });
-    return {area,indice:indiceAcum,indiceAcum,indiceMes,somaPesos,itens};
+    // FIX v94.8: sem nenhum KPI de Meta com meta+realizado lançados no período, o índice
+    // vira 'undefined' (sem dados) em vez de 0 — 0% dava a impressão de área totalmente
+    // fora da meta quando na verdade é ausência de lançamento.
+    const idxAcum = temContribAcum ? indiceAcum : undefined;
+    const idxMes  = temContribMes  ? indiceMes  : undefined;
+    return {area,indice:idxAcum,indiceAcum:idxAcum,indiceMes:idxMes,somaPesos,itens};
   };
   function statusIndice(v){return v>=105?{t:'Excelente',cls:'green'}:v>=90?{t:'Dentro',cls:'amber'}:{t:'Abaixo',cls:'red'};}
   window.dmxRenderAreaIndiceCards=function(area){
