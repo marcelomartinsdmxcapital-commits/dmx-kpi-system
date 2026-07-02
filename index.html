@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.6 — 02/07/2026 — Fix Admin/Sheets: dmxAdminNovoKPI() sugeria o próximo ID usando a contagem de KPIs (adminAllKpis().length+1) em vez do maior número já usado. Furos na numeração (KPIs excluidos/substituidos) faziam a sugestao colidir com IDs existentes (ex.: sugeria KPI099 quando o maior real era KPI100). Agora usa max(numero dos IDs existentes)+1. -->
+<!-- DMX KPI System — v94.7 — 02/07/2026 — Novo: modulo "Relatorio de Analise" (Admin/Sheets) — botao que gera um .txt estruturado com meta/realizado/atingimento por KPI e mes, Indice Geral da Area (mensal/acumulado) e resultado do Plano PPR por semestre, reaproveitando a mesma logica de calculo ja validada nas telas do sistema. Baixa o arquivo e copia para a area de transferencia. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.6",data:"02/07/2026",build:"fix-sugestao-novo-id-kpi-usava-contagem-em-vez-de-max-numero"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.7",data:"02/07/2026",build:"novo-modulo-relatorio-de-analise-admin"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -8786,7 +8786,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return `<div class="block-card" style="margin-top:16px">
       <div class="section-header">
         <div><div class="section-title">Painel de Administração de KPIs</div><div class="dmx-admin-compact-note">Painel leve: logs de alterações retirados desta tela.</div><div class="text-muted text-sm mt-1">Centro único para cadastro, nome, meta, mínimo, máximo, peso e regras críticas. Logs de alterações não são carregados no Admin para manter a tela rápida.</div><div class="text-muted text-sm mt-1"><b>KPIs carregados para edição:</b> ${rows.length}</div></div>
-        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" style="background:#0F172A;color:#fff" onclick="window.dmxGerarRelatorioAnalise()" title="Gera um .txt com meta, realizado, atingimento, Índice de Área e PPR de todas as áreas, pronto para análise">📊 Relatório de Análise</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
       </div>
       <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(window.dmxGetApiUrl ? window.dmxGetApiUrl() : '') || 'não configurada'}</span><br>
@@ -9574,7 +9574,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
           <div class="dmx-admin-compact-note">Ordenado por ID para facilitar conferência. O Admin vê 100% dos KPIs, inclusive os ainda sem governança configurada.</div>
           <div class="text-muted text-sm mt-1"><b>KPIs carregados:</b> ${rows.length} ${semGov?` · <b style="color:var(--amber)">${semGov} com governança incompleta</b>`:''}</div>
         </div>
-        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
+        <div class="filter-row" style="margin:0"><button class="btn btn-primary" onclick="dmxAdminNovoKPI()">+ Novo KPI</button><button class="btn btn-ghost" style="background:#0F172A;color:#fff" onclick="window.dmxGerarRelatorioAnalise()" title="Gera um .txt com meta, realizado, atingimento, Índice de Área e PPR de todas as áreas, pronto para análise">📊 Relatório de Análise</button><button class="btn btn-ghost" onclick="configurarApiDMX()">Configurar API</button> <button class="btn btn-sm" onclick="configurarApiKeyDMX()" title="Configurar chave de autenticação" style="font-size:11px;margin-left:4px">🔑 API Key</button></div>
       </div>
       <div style="background:#F8FAFC;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.55">
         <b>URL efetiva da API:</b> <span style="word-break:break-all">${esc(apiUrl()) || 'não configurada'}</span><br>
@@ -20824,6 +20824,222 @@ window.dmxIrParaMesLancamento = function(novoMes){
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', instalarObserver);
   else instalarObserver();
+})();
+</script>
+
+<!-- PATCH v94.7 — Relatório de Análise para Admin: exporta um .txt estruturado com meta/realizado/atingimento
+     por KPI e mês, Índice Geral da Área (mensal e acumulado) e resultado do Plano PPR por semestre — pronto
+     para colar em uma conversa de análise. Reaproveita as mesmas funções de cálculo já validadas
+     (resolveRef/calcAting/window.dmxIndiceArea e a lógica do módulo PPR v4) para garantir que os números
+     batem exatamente com o que já aparece nas telas do sistema. -->
+<script>
+(function(){
+  if(window.__dmxRelatorioAnaliseV1) return;
+  window.__dmxRelatorioAnaliseV1 = true;
+
+  var MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  function fmt2(v){ return v==null||!isFinite(Number(v)) ? '—' : String(Math.round(Number(v)*100)/100); }
+  function fmtPct(v){ return v==null||!isFinite(Number(v)) ? 'N/A' : (Math.round(Number(v)*100)/100)+'%'; }
+
+  // ── Réplica fiel da lógica do PPR v4 (calcAting/calcIndiceAreaSem/calcPPRDetalhado) ──
+  // Isolada aqui para não depender de funções internas de outra IIFE.
+  function pprKpisAll(){ return window.kpis||[]; }
+  function pprKpiById(id){ return pprKpisAll().filter(function(k){ return String(k.id)===String(id); })[0]; }
+  function pprLaunchesAll(){ return (typeof launches!=='undefined' ? launches : (window.LAUNCHES||window.launches||[])); }
+  function pprAreaList(){
+    return (typeof areas485==='function'?areas485():
+      Array.from(new Set(pprKpisAll().map(function(k){ return k.area; }).filter(Boolean))).sort())
+      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
+  }
+  function pprCalcAting(kpiId, ano, ini, fim){
+    try{
+      var k=pprKpiById(kpiId); if(!k||!kpiId) return null;
+      var all=pprLaunchesAll();
+      var list=all.filter(function(l){
+        var m=Number(l.mes_num||l.mes||0);
+        return String(l.id_kpi)===String(kpiId) && Number(l.ano)===Number(ano) &&
+               m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
+      });
+      if(!list.length) return null;
+      var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
+      var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
+      var real=isS?sum('realizado'):sum('realizado')/list.length;
+      var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
+      if(!metaOk.length) return null;
+      var meta=isS?sum('meta'):sum('meta')/list.length;
+      if(!meta) return null;
+      return (real/meta)*100;
+    }catch(e){ return null; }
+  }
+  function pprCalcIndiceAreaSem(area, ano, ini, fim){
+    try{
+      var all=pprLaunchesAll();
+      var ks=(window.kpis||[]).filter(function(k){
+        return String(k.area||'')===String(area) && String(k.vertente||'').toLowerCase().indexOf('met')>=0;
+      });
+      var s=0, w=0;
+      ks.forEach(function(k){
+        var peso=Number(k.peso_indice||0);
+        if(!(peso>0)) return;
+        var list=all.filter(function(l){
+          var m=Number(l.mes_num||l.mes||0);
+          return String(l.id_kpi)===String(k.id) && Number(l.ano)===Number(ano) &&
+                 m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
+        });
+        if(!list.length) return;
+        var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
+        var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
+        var real=isS?sum('realizado'):sum('realizado')/list.length;
+        var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
+        if(!metaOk.length) return;
+        var meta=isS?metaOk.map(function(l){return Number(l.meta);}).reduce(function(a,b){return a+b;},0)
+                    :metaOk.map(function(l){return Number(l.meta);}).reduce(function(a,b){return a+b;},0)/metaOk.length;
+        if(!meta) return;
+        var at=(typeof window.calcAting==='function')
+          ? (function(){ var a=window.calcAting(k.sentido, real, meta); return a==null?null:Number(a)*100; })()
+          : (String(k.sentido||'').toLowerCase().indexOf('menor')>=0 ? (meta/real)*100 : (real/meta)*100);
+        if(at==null) return;
+        if(typeof window.dmxCapAting==='function') at=window.dmxCapAting(at);
+        s += at*peso/100; w += peso;
+      });
+      return w ? s : null;
+    }catch(e){ return null; }
+  }
+  function pprCalcDetalhado(area, ano, ini, fim, cfg){
+    var c1=pprCalcAting(cfg.kpi1,ano,ini,fim), p1=Number(cfg.peso1||0);
+    var c2=pprCalcAting(cfg.kpi2,ano,ini,fim), p2=Number(cfg.peso2||0);
+    var c3=pprCalcAting(cfg.kpi3,ano,ini,fim), p3=Number(cfg.peso3||0);
+    var ci=pprCalcIndiceAreaSem(area,ano,ini,fim), pi=Number(cfg.pesoArea||0);
+    var total=0, peso=0;
+    if(c1!=null&&p1>0){ total+=c1*p1/100; peso+=p1; }
+    if(c2!=null&&p2>0){ total+=c2*p2/100; peso+=p2; }
+    if(c3!=null&&p3>0){ total+=c3*p3/100; peso+=p3; }
+    if(ci!=null&&pi>0){ total+=ci*pi/100; peso+=pi; }
+    return { area:area, c1:c1,p1:p1, c2:c2,p2:p2, c3:c3,p3:p3, ci:ci,pi:pi, total: peso?total:null };
+  }
+  function pprGetCfg(){
+    try{ return JSON.parse(localStorage.getItem('dmx_ppr_config_v1')||'{}'); }catch(e){ return {}; }
+  }
+
+  // ── Geração do relatório ──────────────────────────────────────────────────
+  window.dmxGerarRelatorioAnalise = function(){
+    try{
+      var ano = Number(window.currentAno || new Date().getFullYear());
+      var kpisList = (typeof adminAllKpis==='function' ? adminAllKpis() : (window.kpis||[]));
+      var areas = Array.from(new Set(kpisList.map(function(k){ return k.area||'Sem área'; }))).sort();
+      var L = [];
+      var push = function(s){ L.push(s); };
+
+      push('RELATÓRIO DE INDICADORES — DMX CAPITAL');
+      push('Gerado em: ' + new Date().toLocaleString('pt-BR'));
+      push('Ano de referência: ' + ano);
+      push('Total de áreas: ' + areas.length + ' | Total de KPIs cadastrados: ' + kpisList.length);
+      push('');
+      push('Este relatório foi gerado pelo DMX KPI System para leitura e análise. Contém, por área e por');
+      push('KPI: meta e realizado lançados mês a mês, atingimento calculado, o Índice Geral da Área (mensal');
+      push('e acumulado) e o resultado do Plano PPR por semestre (1º Sem = Jan–Jun, 2º Sem = Jul–Dez).');
+      push('Valores "—" ou "N/A" indicam ausência de lançamento para aquele período — não interprete como zero.');
+      push(new Array(78).join('='));
+
+      areas.forEach(function(area){
+        var kpisArea = kpisList.filter(function(k){ return (k.area||'Sem área')===area; });
+        if(!kpisArea.length) return;
+        push('');
+        push('ÁREA: ' + area + '  (' + kpisArea.length + ' KPIs)');
+        push(new Array(78).join('-'));
+
+        kpisArea.forEach(function(k){
+          push('');
+          push('KPI ' + k.id + ' — ' + (k.indicador||'(sem nome)'));
+          push('  Vertente: ' + (k.vertente||'—') + ' | Sentido: ' + (k.sentido||'—') + ' | Unidade: ' + (k.unidade||'—') + ' | Peso índice: ' + fmtPct(k.peso_indice));
+          if(k.objetivo) push('  Objetivo: ' + k.objetivo);
+          var algumDado = false;
+          for(var m=1;m<=12;m++){
+            var l=null, ref=null;
+            try{ l = getLaunch(k.id, m, ano); }catch(e){}
+            try{ ref = resolveRef(k, m, ano); }catch(e){}
+            var meta = ref ? ref.meta : null;
+            var real = l ? l.realizado : null;
+            if(meta==null && real==null) continue;
+            algumDado = true;
+            var at = (real!=null && meta!=null && Number(meta)!==0 && typeof calcAting==='function') ? calcAting(k.sentido, real, meta) : null;
+            var atTxt = at==null ? 'N/A' : fmtPct(at*100);
+            push('  ' + MESES[m-1] + '/' + ano + ': realizado=' + fmt2(real) + ' | meta=' + fmt2(meta) + ' | atingimento=' + atTxt);
+          }
+          if(!algumDado) push('  (sem meta ou realizado lançado em ' + ano + ')');
+        });
+
+        push('');
+        push('  --- Índice Geral da Área: ' + area + ' ---');
+        var teveIndice = false;
+        for(var m2=1;m2<=12;m2++){
+          try{
+            var r = (typeof window.dmxIndiceArea==='function') ? window.dmxIndiceArea(area, m2, ano) : null;
+            if(r && r.itens && r.itens.length){
+              teveIndice = true;
+              push('  ' + MESES[m2-1] + '/' + ano + ': índice mensal=' + fmtPct(r.indiceMes) + ' | índice acumulado até este mês=' + fmtPct(r.indiceAcum));
+            }
+          }catch(e){}
+        }
+        if(!teveIndice) push('  (área sem KPIs de vertente Meta configurados)');
+      });
+
+      // ── Plano PPR ──
+      push('');
+      push(new Array(78).join('='));
+      push('PLANO PPR — RESULTADO POR ÁREA E SEMESTRE (' + ano + ')');
+      push(new Array(78).join('='));
+      var cfg = pprGetCfg();
+      var k1=pprKpiById(cfg.kpi1), k2=pprKpiById(cfg.kpi2), k3=pprKpiById(cfg.kpi3);
+      push('Composição: KPI Global 1=' + (k1?k1.indicador:'—') + ' (peso ' + fmtPct(cfg.peso1) + ') | ' +
+           'KPI Global 2=' + (k2?k2.indicador:'—') + ' (peso ' + fmtPct(cfg.peso2) + ') | ' +
+           'KPI Global 3=' + (k3?k3.indicador:'—') + ' (peso ' + fmtPct(cfg.peso3) + ') | ' +
+           'Índice da Área (peso ' + fmtPct(cfg.pesoArea) + ')');
+
+      var SEMS = [{label:'1º Semestre (Jan–Jun)', ini:1, fim:6}, {label:'2º Semestre (Jul–Dez)', ini:7, fim:12}];
+      SEMS.forEach(function(sem){
+        push('');
+        push('-- ' + sem.label + ' --');
+        var linhas = pprAreaList().map(function(a){ return pprCalcDetalhado(a, ano, sem.ini, sem.fim, cfg); });
+        var comDados = linhas.filter(function(d){ return d.total!=null; });
+        if(!comDados.length){ push('  Sem dados lançados neste período.'); return; }
+        comDados.sort(function(a,b){ return b.total-a.total; }).forEach(function(d){
+          push('  ' + d.area + ': PPR=' + fmtPct(d.total) +
+               ' [KPI1=' + fmtPct(d.c1) + ' x' + fmtPct(d.p1) +
+               ', KPI2=' + fmtPct(d.c2) + ' x' + fmtPct(d.p2) +
+               ', KPI3=' + fmtPct(d.c3) + ' x' + fmtPct(d.p3) +
+               ', Índice Área=' + fmtPct(d.ci) + ' x' + fmtPct(d.pi) + ']');
+        });
+        var semDados = linhas.filter(function(d){ return d.total==null; }).map(function(d){ return d.area; });
+        if(semDados.length) push('  Sem dados neste período: ' + semDados.join(', '));
+      });
+
+      var texto = L.join('\n');
+
+      // Download do arquivo .txt
+      try{
+        var blob = new Blob([texto], {type:'text/plain;charset=utf-8'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'DMX_Relatorio_Analise_' + ano + '_' + new Date().toISOString().slice(0,10) + '.txt';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      }catch(e){}
+
+      // Copia para a área de transferência como conveniência adicional
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(texto);
+      }catch(e){}
+
+      if(typeof showToast==='function') showToast('✓ Relatório gerado — baixado e copiado para a área de transferência');
+      else alert('Relatório gerado e baixado.');
+    }catch(err){
+      console.error('dmxGerarRelatorioAnalise erro:', err);
+      alert('Não foi possível gerar o relatório: ' + (err && err.message ? err.message : err));
+    }
+  };
 })();
 </script>
 
