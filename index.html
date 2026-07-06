@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.8 — 02/07/2026 — Fix: window.dmxIndiceArea retornava indiceMes/indiceAcum = 0 (numerico) quando NENHUM KPI de Meta da area tinha meta+realizado lancados no periodo, dando a falsa impressao de "area zerada" no card. Descoberto ao gerar o Relatorio de Analise (v94.7), que mostrou 0% em todas as areas/meses. Agora retorna undefined nesse caso e o card exibe "Sem dados" em vez de 0%. -->
+<!-- DMX KPI System — v94.10 — 02/07/2026 — Fix Atualizar Dados: o autosave ao trocar de mes ou de KPI dentro do modal (dmxIrParaMesLancamento / dmxNavLancamento) so disparava se o campo Valor Realizado NAO estivesse vazio. Apagar o valor e navegar (mes ou KPI) pulava o salvamento silenciosamente, entao a exclusao nunca era persistida — so funcionava clicando manualmente em Salvar. Agora o autosave roda sempre que ha um lancamento em edicao, inclusive quando o campo foi limpo de proposito. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.8",data:"02/07/2026",build:"fix-indice-area-0-numerico-vira-sem-dados-quando-sem-meta"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.10",data:"02/07/2026",build:"fix-autosave-pulava-quando-campo-realizado-vazio"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1545,6 +1545,9 @@ async function dmxCarregarCatalogoDaAPI(manual=false) {
     }
     dmxReconcileLaunchesWithCatalog();
     const qtdMensal = dmxApplyMensalRows(dataMensal);
+    // FIX v94.9: reforça qualquer edição de realizado feita nos últimos 20s, caso o Sheets
+    // ainda não tivesse propagado a mudança quando esta leitura ocorreu (ver dmxReaplicarUltimaEdicao).
+    try { if(typeof window.dmxReaplicarUltimaEdicao === 'function') window.dmxReaplicarUltimaEdicao(); } catch(e){}
     // ── Análise de Operações: carrega em segundo plano, sem travar o boot ──
     dmxCarregarOperacoes(url);
     const qtdSemanal = (typeof dmxApplySemanalRows === 'function') ? dmxApplySemanalRows(dataSemanal) : 0;
@@ -7844,8 +7847,18 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       let newId = document.getElementById('lf-kpi')?.value;
       let newMes = parseInt(document.getElementById('lf-mes')?.value || currentMes);
       let newAno = parseInt(document.getElementById('lf-ano')?.value || currentAno);
+      // FIX v94.9: captura o realizado que está sendo salvo (inclusive null, se o usuário
+      // apagou o campo) ANTES do modal fechar. Guardamos em window.__dmxLastEdit para poder
+      // reforçar esse valor depois do refresh automático do Sheets (900ms após o post) — ver
+      // dmxReaplicarUltimaEdicao mais abaixo. Sem isso, se o Sheets ainda não tiver propagado
+      // a exclusão quando o refresh relê a planilha, o valor antigo volta a sobrescrever o local.
+      const realFieldRaw = (document.getElementById('lf-real')?.value ?? '').trim();
+      const realSaved = realFieldRaw === '' ? null : (typeof dmxNumBR === 'function' ? dmxNumBR(realFieldRaw) : Number(realFieldRaw));
       const ret = prevSaveLanc.apply(this, arguments);
       const ctx = before || {id_kpi:newId, mes:newMes, ano:newAno};
+      if(ctx && ctx.id_kpi){
+        window.__dmxLastEdit = { id_kpi: ctx.id_kpi, mes: Number(ctx.mes||ctx.mes_num), ano: Number(ctx.ano), realizado: realSaved, at: Date.now() };
+      }
       setTimeout(async()=>{
         if(ctx && ctx.id_kpi){
           const payload = dmxBuildMensalPayload(ctx.id_kpi, Number(ctx.mes||ctx.mes_num), Number(ctx.ano));
@@ -7856,6 +7869,26 @@ window.downloadCatalogTemplate = function(){ if (typeof showToast === 'function'
       return ret;
     };
   }
+
+  // FIX v94.9: reforça a última edição local logo após qualquer recarga de dados do Sheets.
+  // O refresh automático (900ms após salvar) relê a planilha antes de ter certeza que a escrita
+  // já propagou — se o Sheets ainda devolver o valor antigo, ele sobrescrevia silenciosamente o
+  // realizado que o usuário acabou de apagar/editar. Esta função reaplica o valor local por até
+  // 20s após o salvamento, tempo suficiente para o Sheets convergir sem bloquear edições de
+  // outros usuários depois disso.
+  window.dmxReaplicarUltimaEdicao = function(){
+    try{
+      const e = window.__dmxLastEdit;
+      if(!e || !e.id_kpi) return;
+      if(Date.now() - e.at > 20000){ window.__dmxLastEdit = null; return; }
+      const l = (typeof getLaunch === 'function') ? getLaunch(e.id_kpi, e.mes, e.ano) : null;
+      if(l && l.realizado !== e.realizado){
+        l.realizado = e.realizado;
+        if(typeof calcStatus === 'function') l.status = calcStatus(l.sentido, l.realizado, l.meta);
+        try{ localStorage.setItem('dmx_launches', JSON.stringify(launches)); }catch(err){}
+      }
+    }catch(err){}
+  };
 
   const prevSaveObsFor = window.saveObsFor;
   if(typeof prevSaveObsFor === 'function'){
@@ -18646,10 +18679,10 @@ window.dmxNavLancamento = function(direcao){
   if(idx < 0 || idx >= lista.length) return;
   var kpi = lista[idx];
   if(!kpi) return;
-  // Salva o lançamento atual antes de navegar se houver mudança
-  var real = document.getElementById('lf-real');
-  if(real && real.value !== '' && typeof editingLancId !== 'undefined' && editingLancId) {
-    // Salva silenciosamente sem fechar o modal
+  // Salva o lançamento atual antes de navegar
+  // FIX v94.10: só salvava se o campo tivesse valor — apagar e navegar para outro KPI
+  // não persistia a exclusão. Agora salva sempre que há um lançamento em edição.
+  if(typeof editingLancId !== 'undefined' && editingLancId) {
     try{ saveLancamento(true); }catch(e){}
   }
   openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
@@ -20509,10 +20542,10 @@ window.dmxNavLancamento = function(direcao){
   if(idx < 0 || idx >= lista.length) return;
   var kpi = lista[idx];
   if(!kpi) return;
-  // Salva o lançamento atual antes de navegar se houver mudança
-  var real = document.getElementById('lf-real');
-  if(real && real.value !== '' && typeof editingLancId !== 'undefined' && editingLancId) {
-    // Salva silenciosamente sem fechar o modal
+  // Salva o lançamento atual antes de navegar
+  // FIX v94.10: só salvava se o campo tivesse valor — apagar e navegar para outro KPI
+  // não persistia a exclusão. Agora salva sempre que há um lançamento em edição.
+  if(typeof editingLancId !== 'undefined' && editingLancId) {
     try{ saveLancamento(true); }catch(e){}
   }
   openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
@@ -20530,8 +20563,10 @@ window.dmxIrParaMesLancamento = function(novoMes){
   if(novoMes < 1 || novoMes > 12) return;
   var idk = editingLancId.id_kpi, ano = editingLancId.ano || window.currentAno || 2026;
   // salva o lançamento atual silenciosamente antes de trocar de mês
-  var real = document.getElementById('lf-real');
-  if(real && real.value !== '') { try{ saveLancamento(true); }catch(e){} }
+  // FIX v94.10: antes só salvava se o campo tivesse valor (real.value !== '') — apagar
+  // o campo e trocar de mês não persistia a exclusão, porque a condição pulava o save.
+  // Agora salva sempre, inclusive quando o usuário limpou o campo de propósito.
+  try{ saveLancamento(true); }catch(e){}
   openEditLancamento(idk, novoMes, ano);
 };
 </script>
