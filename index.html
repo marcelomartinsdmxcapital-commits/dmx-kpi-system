@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.10 — 02/07/2026 — Fix Atualizar Dados: o autosave ao trocar de mes ou de KPI dentro do modal (dmxIrParaMesLancamento / dmxNavLancamento) so disparava se o campo Valor Realizado NAO estivesse vazio. Apagar o valor e navegar (mes ou KPI) pulava o salvamento silenciosamente, entao a exclusao nunca era persistida — so funcionava clicando manualmente em Salvar. Agora o autosave roda sempre que ha um lancamento em edicao, inclusive quando o campo foi limpo de proposito. -->
+<!-- DMX KPI System — v94.11 — 02/07/2026 — Novo: rótulo de dados na linha da Meta no gráfico do modo de apresentação de KPI (slide individual), igual já existia no Realizado. Rótulo da Meta posicionado abaixo do ponto (labelBelow) para não colidir com o rótulo do Realizado, que fica acima. Mínimo/Máximo não ganharam rótulo, por pedido explícito. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.10",data:"02/07/2026",build:"fix-autosave-pulava-quando-campo-realizado-vazio"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.11",data:"02/07/2026",build:"add-rotulo-dados-linha-meta-slide-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1059,8 +1059,14 @@ const DMXDataLabelsPlugin = {
           ? dmxAbrevia(numVal, unit)
           : ((typeof fmtVal === 'function') ? fmtVal(numVal, unit) : String(val));
         const pos = el.tooltipPosition ? el.tooltipPosition() : {x: el.x, y: el.y};
-        const yOffset = dataset.type === 'bar' ? 6 : 8;
-        ctx.fillText(label, pos.x, pos.y - yOffset);
+        const baseOffset = dataset.type === 'bar' ? 6 : 8;
+        if (dataset.labelBelow) {
+          ctx.textBaseline = 'top';
+          ctx.fillText(label, pos.x, pos.y + baseOffset);
+          ctx.textBaseline = 'bottom';
+        } else {
+          ctx.fillText(label, pos.x, pos.y - baseOffset);
+        }
       });
     });
     ctx.restore();
@@ -2732,7 +2738,7 @@ function renderKPISlide() {
       { label: 'Realizado', type: 'line', yAxisID: 'y', data: realized.concat([null]), borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 2.5, tension: 0.4, fill: false, pointRadius: 3, spanGaps: true, showValueLabels: true, unit: kpi.unidade, labelColor: '#0E9E82', labelFont: '700 10px Arial', order: 1 },
       { label: accumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([acumuladoFinal]), backgroundColor: 'rgba(245,158,11,0.85)', borderColor: 'rgba(245,158,11,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#D97706', labelFont: '700 10px Arial', order: 3 },
       { label: metaAccumLabel, type: 'bar', yAxisID: 'y1', data: Array(12).fill(null).concat([metaAcumuladaFinal]), backgroundColor: 'rgba(37,99,235,0.55)', borderColor: 'rgba(37,99,235,1)', borderWidth: 1, showValueLabels: true, unit: kpi.unidade, labelColor: '#1D4ED8', labelFont: '700 10px Arial', order: 4 },
-      { label: 'Meta Mensal', type: 'line', yAxisID: 'y', data: slideRefs.map(r => r.meta).concat([null]),   borderColor: '#1D4ED8', borderWidth: 2, borderDash: [6, 4], tension: 0, pointRadius: 0, order: 0 },
+      { label: 'Meta Mensal', type: 'line', yAxisID: 'y', data: slideRefs.map(r => r.meta).concat([null]),   borderColor: '#1D4ED8', borderWidth: 2, borderDash: [6, 4], tension: 0, pointRadius: 0, order: 0, showValueLabels: true, unit: kpi.unidade, labelColor: '#1D4ED8', labelFont: '700 10px Arial', labelBelow: true },
       ...buildDirectionalRefDatasets(kpi, slideRefs, 'Mínimo', 'Máximo')
     ];
     if (slideAlertPts.length) ds.push({ label: 'Sem Plano', type: 'scatter', yAxisID: 'y', data: slideAlertPts.map(p => ({ x: p.x, y: p.y })), borderColor: '#DC2626', backgroundColor: '#DC2626', pointRadius: 8, pointStyle: 'triangle', showLine: false, pointHoverRadius: 11 });
