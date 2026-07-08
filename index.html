@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.11 — 02/07/2026 — Novo: rótulo de dados na linha da Meta no gráfico do modo de apresentação de KPI (slide individual), igual já existia no Realizado. Rótulo da Meta posicionado abaixo do ponto (labelBelow) para não colidir com o rótulo do Realizado, que fica acima. Mínimo/Máximo não ganharam rótulo, por pedido explícito. -->
+<!-- DMX KPI System — v94.13 — 02/07/2026 — Novo: para KPIs calculados (tipo_lancamento='calculado'), a tela de apresentação (slide) agora mostra, logo abaixo do gráfico principal, um mini-gráfico (Realizado + Meta) para cada KPI componente da fórmula (ex.: formula_kpi='KPI004/KPI046*100' mostra KPI004 e KPI046). Aparece só na apresentação, mesmo que o componente esteja marcado como oculto do Dashboard (v94.12) — essa preferência não se aplica aqui, propositalmente. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.11",data:"02/07/2026",build:"add-rotulo-dados-linha-meta-slide-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.13",data:"02/07/2026",build:"add-minigraficos-componentes-formula-na-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -842,7 +842,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       </div>
       <div class="table-wrap">
         <table class="data-table" id="kpi-catalog-table">
-          <thead><tr><th>ID</th><th>Pilar Estr.</th><th>Impacto</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Meta</th><th>Realizado</th><th>Atingimento</th><th>Status</th><th>Responsável</th></tr></thead>
+          <thead><tr><th>ID</th><th>Pilar Estr.</th><th>Impacto</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th>Meta</th><th>Realizado</th><th>Atingimento</th><th>Status</th><th>Responsável</th><th>Visível no Dashboard</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -2546,6 +2546,30 @@ function renderKPISlide() {
     '</div>'
   ).join('');
 
+  // FIX v94.13: KPIs componentes da fórmula, para mostrar os mini-gráficos deles logo
+  // abaixo do gráfico principal — só nesta tela de apresentação.
+  const escC = s => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let componentKpiIds = [];
+  if (kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi) {
+    const seenComp = {};
+    (kpi.formula_kpi.match(/KPI\d+/g) || []).forEach(cid => { if (!seenComp[cid]) { seenComp[cid] = true; componentKpiIds.push(cid); } });
+  }
+  const componentsHtml = componentKpiIds.length ?
+    '<div class="slide-chart-wrap" style="margin-top:12px">' +
+      '<div class="slide-chart-title">\uD83E\uDDEE Componentes da f\u00F3rmula \u2014 <span class="font-mono" style="font-size:11px;font-weight:400">' + escC(kpi.formula_kpi) + '</span></div>' +
+      '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+        componentKpiIds.map((cid, ci) => {
+          const ck = kpis.find(k => k.id === cid);
+          const nome = ck ? ck.indicador : cid;
+          return '<div style="flex:1 1 220px;min-width:200px">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + escC(cid + ' — ' + nome) + '">' + escC(cid) + ' \u2014 ' + escC(nome) + '</div>' +
+            '<div style="height:100px"><canvas id="slide-comp-chart-' + ci + '"></canvas></div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>'
+    : '';
+
   // Plans html
   const plansHtml = plans.length > 0
     ? plans.map(p =>
@@ -2561,6 +2585,8 @@ function renderKPISlide() {
     : '<div style="font-size:11px;color:var(--muted);padding:6px 0">Nenhum plano de a\u00E7\u00E3o cadastrado.</div>';
 
   if (slideChartInst) { slideChartInst.destroy(); slideChartInst = null; }
+  if (window.__slideComponentCharts) { window.__slideComponentCharts.forEach(function(c){ try{ c.destroy(); }catch(e){} }); }
+  window.__slideComponentCharts = [];
 
   // fmtVal com 2 casas decimais para os cards da apresentação mensal
   const fmtVal2 = (v, u) => {
@@ -2652,6 +2678,11 @@ function renderKPISlide() {
           '<div class="slide-chart-title">Evolu\u00E7\u00E3o 12 Meses + Acumulado at\u00E9 ' + MES[currentMes] + ' \u00B7 ' + currentAno + '</div>' +
           '<div style="height:220px"><canvas id="slide-chart"></canvas></div>' +
         '</div>' +
+        // FIX v94.13: componentes da fórmula (KPIs de apoio ao cálculo) — só na apresentação,
+        // logo abaixo do gráfico principal, para não precisar caçar os números em outra tela
+        // na hora de justificar o resultado. Aparece mesmo que o componente esteja marcado como
+        // oculto no Dashboard (essa preferência é só para o Dashboard/Modo Diretoria).
+        componentsHtml +
         // history
         '<div class="slide-history">' +
           '<div class="slide-history-title">Hist\u00F3rico Recente · at\u00E9 ' + MES[currentMes] + '</div>' +
@@ -2777,6 +2808,42 @@ function renderKPISlide() {
         },
         animation: { duration: 350 }
       }
+    });
+
+    // FIX v94.13: mini-gráficos dos KPIs componentes da fórmula, só nesta tela de apresentação.
+    componentKpiIds.forEach((cid, ci) => {
+      const ck = kpis.find(k => k.id === cid);
+      if (!ck) return;
+      const canvasC = document.getElementById('slide-comp-chart-' + ci);
+      if (!canvasC) return;
+      const realC = months.map(m => (typeof dmxGetRealizado === 'function') ? dmxGetRealizado(cid, m, currentAno) : ((getLaunch(cid, m, currentAno) || {}).realizado ?? null));
+      const refsC = months.map(m => resolveRef(ck, m, currentAno));
+      const chC = new Chart(canvasC.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: MES.slice(1),
+          datasets: [
+            { label: 'Realizado', data: realC, borderColor: '#0E9E82', backgroundColor: 'rgba(14,158,130,0.08)', borderWidth: 1.5, tension: 0.35, pointRadius: 2, spanGaps: true, fill: false },
+            { label: 'Meta', data: refsC.map(r => r.meta), borderColor: '#1D4ED8', borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, tension: 0 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => {
+              if (ctx.raw === null || ctx.raw === undefined) return ctx.dataset.label + ': \u2014';
+              return ctx.dataset.label + ': ' + (typeof fmtVal === 'function' ? fmtVal(ctx.raw, ck.unidade) : ctx.raw);
+            }}}
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#94A3B8', font: { size: 8 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, border: { display: false } },
+            y: { grid: { color: '#F4F6FA' }, ticks: { color: '#94A3B8', font: { size: 8 } }, border: { display: false } }
+          },
+          animation: { duration: 250 }
+        }
+      });
+      window.__slideComponentCharts.push(chC);
     });
   }, 60);
 }
@@ -3109,6 +3176,12 @@ function renderKPICatalog() {
       '<td>'+(at!==null?'<div style="display:flex;align-items:center;gap:6px"><div class="progress-bar" style="width:56px"><div class="progress-fill" style="width:'+Math.min(100,Math.round(at*100))+'%;background:'+barCol+'"></div></div><span style="font-size:11px">'+Math.round(at*100)+'%</span></div>':'\u2014')+'</td>'+
       '<td>'+pill(st)+'</td>'+
       '<td class="text-muted text-sm">'+k.responsavel+'</td>'+
+      '<td onclick="event.stopPropagation()">'+
+        '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--muted)" title="Quando desmarcado, este KPI some dos cards do Dashboard/Área e do Modo Diretoria — mas continua em Atualizar Dados e neste Catálogo. Essa preferência é só sua, salva neste navegador.">'+
+          '<input type="checkbox" '+((typeof window.dmxKpiOcultoVisual==='function' && window.dmxKpiOcultoVisual(k.id))?'':'checked')+' onchange="window.dmxToggleKpiOcultoVisual(\''+k.id+'\'); renderKPICatalog();">'+
+          ((typeof window.dmxKpiOcultoVisual==='function' && window.dmxKpiOcultoVisual(k.id)) ? 'Oculto' : 'Visível') +
+        '</label>'+
+      '</td>'+
       '</tr>';
   }).join('');
 }
@@ -4632,7 +4705,7 @@ function renderDiretoria(){
   const fmt = (v,u) => { if(v==null||isNaN(v)) return '—'; const n=Number(v); return (u==='%'?n.toFixed(1)+'%':u==='R$'?'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:0}):n.toLocaleString('pt-BR')); };
 
   // ── Dados base ─────────────────────────────────────────────
-  const kpisMeta = (window.kpis||[]).filter(k => String(k.vertente||'').toLowerCase()==='meta' && String(k.ativo||'SIM').toUpperCase()!=='NAO');
+  const kpisMeta = (window.kpis||[]).filter(k => String(k.vertente||'').toLowerCase()==='meta' && String(k.ativo||'SIM').toUpperCase()!=='NAO' && !(typeof window.dmxKpiOcultoVisual==='function' && window.dmxKpiOcultoVisual(k.id)));
   const data = byPeriod(mes, ano);
 
   // KPIs Meta com dados no mês
@@ -5861,7 +5934,7 @@ window.addEventListener('DOMContentLoaded', init);
   window.renderAreaDetail = renderAreaDetail = function(area){
     const allKRaw = (window.kpis||KPI_CATALOG||[]);
     const allK = allKRaw;
-    const areaKPIs = allK.filter(k => String(k.area||'').trim() === String(area||'').trim() && dmxKpiAtivo(k));
+    const areaKPIs = allK.filter(k => String(k.area||'').trim() === String(area||'').trim() && dmxKpiAtivo(k) && !(typeof window.dmxKpiOcultoVisual==='function' && window.dmxKpiOcultoVisual(k.id)));
     const data = byPeriod(currentMes, currentAno).filter(l => String(l.area||'').trim() === String(area||'').trim());
     const v = data.filter(l => l.status === 'VERDE').length;
     const a = data.filter(l => l.status === 'AMARELO').length;
@@ -20876,6 +20949,40 @@ window.dmxIrParaMesLancamento = function(novoMes){
 })();
 </script>
 
+<!-- PATCH v94.12 — Visibilidade personalizada de KPIs de apoio ao cálculo. Preferência salva no
+     localStorage de cada usuário/navegador (não é uma config do catálogo, não afeta outros usuários
+     nem o cálculo do Índice de Eficiência ou a elegibilidade do KPI no PPR — só onde ele aparece
+     visualmente pra quem marcou). Toggle disponível no Catálogo de KPIs; esconde o KPI dos cards do
+     Dashboard/Área e das estatísticas do Modo Diretoria; continua visível em Atualizar Dados e no
+     próprio Catálogo (senão ninguém acha o toggle pra reverter). -->
+<script>
+(function(){
+  var KEY = 'dmx_kpis_ocultos_visual_v1';
+  function getSet(){
+    try{ var arr = JSON.parse(localStorage.getItem(KEY)||'[]'); return Array.isArray(arr) ? arr : []; }
+    catch(e){ return []; }
+  }
+  function saveSet(arr){
+    try{ localStorage.setItem(KEY, JSON.stringify(arr)); }catch(e){}
+  }
+  window.dmxKpiOcultoVisual = function(id){
+    return getSet().indexOf(String(id)) >= 0;
+  };
+  window.dmxToggleKpiOcultoVisual = function(id){
+    var arr = getSet();
+    var sid = String(id);
+    var i = arr.indexOf(sid);
+    if(i >= 0) arr.splice(i, 1); else arr.push(sid);
+    saveSet(arr);
+    if(typeof showToast === 'function') showToast(i >= 0 ? '✓ KPI voltou a aparecer no Dashboard/Modo Diretoria' : '✓ KPI ocultado do Dashboard/Modo Diretoria (só pra você)');
+    // Re-renderiza a tela atual se for uma das telas afetadas, para refletir a mudança na hora.
+    try{
+      if(window.currentPage==='area-detail' && window.currentArea && typeof renderAreaDetail==='function') renderAreaDetail(window.currentArea);
+      else if(window.currentPage==='diretoria' && typeof renderDiretoria==='function') renderDiretoria();
+    }catch(e){}
+  };
+})();
+</script>
 <!-- PATCH v94.7 — Relatório de Análise para Admin: exporta um .txt estruturado com meta/realizado/atingimento
      por KPI e mês, Índice Geral da Área (mensal e acumulado) e resultado do Plano PPR por semestre — pronto
      para colar em uma conversa de análise. Reaproveita as mesmas funções de cálculo já validadas
