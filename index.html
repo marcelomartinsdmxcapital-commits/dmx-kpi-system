@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.13 — 02/07/2026 — Novo: para KPIs calculados (tipo_lancamento='calculado'), a tela de apresentação (slide) agora mostra, logo abaixo do gráfico principal, um mini-gráfico (Realizado + Meta) para cada KPI componente da fórmula (ex.: formula_kpi='KPI004/KPI046*100' mostra KPI004 e KPI046). Aparece só na apresentação, mesmo que o componente esteja marcado como oculto do Dashboard (v94.12) — essa preferência não se aplica aqui, propositalmente. -->
+<!-- DMX KPI System — v94.14 — 02/07/2026 — Novo: Modo TV (★ apresentação automática em tela cheia para KPIs semanais Meta). Botão "Modo TV" na aba Semanal abre configurador (tempo/slide, área, loop). KPIs passam area por area, mesmo layout do slide semanal. Barra de progresso visual, pausa/retoma (espaço), navegação manual (◄►/setas), saída (Esc). -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.13",data:"02/07/2026",build:"add-minigraficos-componentes-formula-na-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.14",data:"02/07/2026",build:"add-modo-tv-apresentacao-automatica-semanal"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -957,6 +957,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
           <select class="filter-input" id="weekly-year-filter" onchange="renderWeeklyOperational()"><option value="2026">2026</option></select>
           <button class="btn btn-ghost btn-sm" onclick="openWeeklyExtraKpis()" title="Adicionar KPIs de Controle para acompanhamento neste mês">+ KPI extra</button>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('weekly-entry-panel')?.scrollIntoView({behavior:'smooth',block:'start'})">Lançar Realizados</button>
+          <button class="btn btn-sm" onclick="dmxTvModeStart()" style="background:#0F172A;color:#fff;border:1px solid #334155;font-weight:700;letter-spacing:0.3px" title="Modo TV: apresentação automática área por área em tela cheia">📺 Modo TV</button>
         </div>
       </div>
       <div class="cards-row" id="weekly-summary-cards" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -18767,6 +18768,238 @@ window.dmxNavLancamento = function(direcao){
   openEditLancamento(kpi.id, window.currentMes||5, window.currentAno||2026);
 };
 </script>
+
+<!-- PATCH v94.14 — Modo TV: apresentação automática área por área dos KPIs semanais Meta em tela cheia,
+     com avanço automático por tempo configurável, pausa por espaço/botão, navegação manual, barra de
+     progresso. Reutiliza renderWeeklySlide() sem modificações — só controla a navegação externamente. -->
+
+<!-- Modal de configuração do Modo TV -->
+<div id="dmx-tv-config-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:32px 36px;max-width:420px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,0.35)">
+    <div style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px">📺 Configurar Modo TV</div>
+    <div style="font-size:12.5px;color:#64748B;margin-bottom:22px">Os KPIs Meta de cada área passam automaticamente em tela cheia.</div>
+    <div style="display:grid;gap:14px">
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:#374151">
+        ⏱ Tempo por slide (segundos)
+        <input id="dmx-tv-tempo" type="number" min="3" max="120" value="10"
+          style="padding:8px 12px;border:1.5px solid #CBD5E1;border-radius:8px;font-size:14px;font-weight:700;width:100%">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:#374151">
+        🗂 Área de início
+        <select id="dmx-tv-area" style="padding:8px 12px;border:1.5px solid #CBD5E1;border-radius:8px;font-size:13px;width:100%">
+          <option value="__ALL__">Todas as áreas (em sequência)</option>
+        </select>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:#374151;cursor:pointer">
+        <input id="dmx-tv-loop" type="checkbox" checked style="width:15px;height:15px">
+        Reiniciar automaticamente ao terminar
+      </label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:24px">
+      <button onclick="document.getElementById('dmx-tv-config-modal').style.display='none'"
+        style="flex:1;padding:10px;border:1.5px solid #CBD5E1;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer">Cancelar</button>
+      <button onclick="dmxTvModeEnter()"
+        style="flex:2;padding:10px;border:none;border-radius:8px;background:#0F172A;color:#fff;font-size:13px;font-weight:700;cursor:pointer">▶ Iniciar Apresentação</button>
+    </div>
+  </div>
+</div>
+
+<!-- Container fullscreen do Modo TV -->
+<div id="dmx-tv-overlay" style="display:none;position:fixed;inset:0;z-index:8000;background:#fff;flex-direction:column">
+  <!-- Barra de controle TV (sobreposta ao slide, topo) -->
+  <div id="dmx-tv-bar" style="position:absolute;top:0;left:0;right:0;z-index:8100;background:rgba(15,23,42,0.92);backdrop-filter:blur(6px);display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;color:#fff;transition:opacity 0.3s">
+    <span id="dmx-tv-counter" style="font-weight:700;min-width:64px"></span>
+    <span id="dmx-tv-kpi-name" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0.8"></span>
+    <button id="dmx-tv-btn-prev" onclick="dmxTvNav(-1)" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:14px">‹</button>
+    <button id="dmx-tv-btn-pause" onclick="dmxTvTogglePause()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;min-width:60px">⏸ Pausar</button>
+    <button id="dmx-tv-btn-next" onclick="dmxTvNav(1)" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:14px">›</button>
+    <button onclick="dmxTvModeExit()" style="background:rgba(220,38,38,0.7);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;font-weight:700">✕ Sair</button>
+  </div>
+  <!-- Conteúdo do slide (reutiliza o mesmo DOM do slide semanal) -->
+  <div id="dmx-tv-slide-wrap" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+  <!-- Barra de progresso (rodapé) -->
+  <div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.15);z-index:8100">
+    <div id="dmx-tv-progress-bar" style="height:100%;background:var(--teal,#0E9E82);width:0%;transition:width linear"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var _tvList    = [];   // [{area, kpi}]
+  var _tvIdx     = 0;
+  var _tvTimer   = null;
+  var _tvProg    = null;
+  var _tvPaused  = false;
+  var _tvTempo   = 10;   // segundos
+  var _tvLoop    = true;
+  var _tvBarHide = null;
+
+  // ── Abre o modal de configuração ──────────────────────────
+  window.dmxTvModeStart = function(){
+    var sel = document.getElementById('dmx-tv-area');
+    if(sel && sel.options.length <= 1){
+      var allKpis = window.kpis || [];
+      var areas = Array.from(new Set(allKpis.map(function(k){ return k.area; }).filter(Boolean))).sort();
+      areas.forEach(function(a){
+        var o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o);
+      });
+    }
+    document.getElementById('dmx-tv-config-modal').style.display = 'flex';
+  };
+
+  // ── Monta a lista de slides (area por area, só Meta semanal) ──
+  function buildTvList(startArea){
+    var allKpis = window.kpis || [];
+    var selectedForArea = window.selectedForArea;
+    var weeklyGetKpi    = window.weeklyGetKpi;
+    if(typeof selectedForArea !== 'function' || typeof weeklyGetKpi !== 'function') return [];
+    var areas;
+    if(startArea === '__ALL__'){
+      areas = Array.from(new Set(allKpis.map(function(k){ return k.area||''; }).filter(Boolean))).sort();
+    } else {
+      areas = [startArea];
+    }
+    var list = [];
+    areas.forEach(function(a){
+      var ids = selectedForArea(a);
+      ids.forEach(function(id){
+        var k = weeklyGetKpi(id);
+        if(k && String(k.vertente||'').trim().toLowerCase() === 'meta') list.push({area:a, kpi:k});
+      });
+    });
+    return list;
+  }
+
+  // ── Inicia a apresentação ─────────────────────────────────
+  window.dmxTvModeEnter = function(){
+    document.getElementById('dmx-tv-config-modal').style.display = 'none';
+    _tvTempo  = Math.max(3, parseInt(document.getElementById('dmx-tv-tempo').value) || 10);
+    _tvLoop   = document.getElementById('dmx-tv-loop').checked;
+    var area  = document.getElementById('dmx-tv-area').value;
+    _tvList   = buildTvList(area);
+    if(!_tvList.length){ if(typeof showToast==='function') showToast('Nenhum KPI Meta selecionado para apresentação.'); return; }
+    _tvIdx    = 0;
+    _tvPaused = false;
+    // Monta o overlay
+    var overlay = document.getElementById('dmx-tv-overlay');
+    overlay.style.display = 'flex';
+    // Hijack do container do slide semanal para o TV overlay
+    var wrap = document.getElementById('dmx-tv-slide-wrap');
+    wrap.innerHTML = '';
+    var slideContent = document.getElementById('weekly-slide-content');
+    if(slideContent) wrap.appendChild(slideContent);
+    // Tela cheia
+    try{ overlay.requestFullscreen && overlay.requestFullscreen(); }catch(e){}
+    // Teclado
+    document.addEventListener('keydown', _tvKeyHandler);
+    _tvGo(_tvIdx);
+  };
+
+  // ── Renderiza o slide atual ───────────────────────────────
+  function _tvGo(idx){
+    if(!_tvList.length) return;
+    _tvIdx = ((idx % _tvList.length) + _tvList.length) % _tvList.length;
+    var item = _tvList[_tvIdx];
+    // Aponta weeklySlideList e weeklySlideIdx para o item
+    if(window.weeklySlideList !== undefined) window.weeklySlideList = _tvList.map(function(d){ return d.kpi; });
+    if(window.weeklySlideIdx  !== undefined) window.weeklySlideIdx  = _tvIdx;
+    // Garante que weekly-slide-content está no wrap
+    var wrap = document.getElementById('dmx-tv-slide-wrap');
+    var slideContent = document.getElementById('weekly-slide-content');
+    if(slideContent && slideContent.parentNode !== wrap) wrap.appendChild(slideContent);
+    // Renderiza
+    if(typeof renderWeeklySlide === 'function') renderWeeklySlide();
+    // Atualiza barra de controle
+    var counter = document.getElementById('dmx-tv-counter');
+    var name    = document.getElementById('dmx-tv-kpi-name');
+    if(counter) counter.textContent = (_tvIdx+1) + ' / ' + _tvList.length + ' · ' + item.area;
+    if(name)    name.textContent    = item.kpi.indicador;
+    // Botões prev/next
+    var btnP = document.getElementById('dmx-tv-btn-prev');
+    var btnN = document.getElementById('dmx-tv-btn-next');
+    if(btnP) btnP.style.opacity = (_tvIdx > 0 || _tvLoop) ? '1' : '0.35';
+    if(btnN) btnN.style.opacity = (_tvIdx < _tvList.length-1 || _tvLoop) ? '1' : '0.35';
+    // Oculta a barra após 3s de inatividade
+    var bar = document.getElementById('dmx-tv-bar');
+    if(bar){ bar.style.opacity = '1'; clearTimeout(_tvBarHide); _tvBarHide = setTimeout(function(){ bar.style.opacity='0'; }, 3000); }
+    // Reinicia o timer
+    _tvResetTimer();
+  }
+
+  // ── Timer e barra de progresso ────────────────────────────
+  function _tvResetTimer(){
+    clearTimeout(_tvTimer); clearInterval(_tvProg);
+    if(_tvPaused) return;
+    var pb = document.getElementById('dmx-tv-progress-bar');
+    if(pb){ pb.style.transition = 'none'; pb.style.width = '0%'; }
+    // Força reflow para garantir que o reset visível ocorre antes de iniciar a transição
+    if(pb) pb.getBoundingClientRect();
+    var dur = _tvTempo * 1000;
+    if(pb){ pb.style.transition = 'width ' + _tvTempo + 's linear'; pb.style.width = '100%'; }
+    _tvTimer = setTimeout(function(){
+      if(_tvPaused) return;
+      var next = _tvIdx + 1;
+      if(next >= _tvList.length){
+        if(_tvLoop){ _tvGo(0); } else { dmxTvTogglePause(); }
+      } else {
+        _tvGo(next);
+      }
+    }, dur);
+  }
+
+  // ── Pausa / Retoma ────────────────────────────────────────
+  window.dmxTvTogglePause = function(){
+    _tvPaused = !_tvPaused;
+    var btn = document.getElementById('dmx-tv-btn-pause');
+    if(btn) btn.textContent = _tvPaused ? '▶ Retomar' : '⏸ Pausar';
+    var pb = document.getElementById('dmx-tv-progress-bar');
+    if(_tvPaused){
+      clearTimeout(_tvTimer); clearInterval(_tvProg);
+      if(pb){ pb.style.transition = 'none'; }
+    } else {
+      _tvResetTimer();
+    }
+  };
+
+  // ── Navegação manual ─────────────────────────────────────
+  window.dmxTvNav = function(dir){
+    clearTimeout(_tvTimer); clearInterval(_tvProg);
+    var next = _tvIdx + dir;
+    if(next < 0){ if(_tvLoop) next = _tvList.length - 1; else return; }
+    if(next >= _tvList.length){ if(_tvLoop) next = 0; else return; }
+    _tvGo(next);
+  };
+
+  // ── Sai do Modo TV ────────────────────────────────────────
+  window.dmxTvModeExit = function(){
+    clearTimeout(_tvTimer); clearInterval(_tvProg); clearTimeout(_tvBarHide);
+    document.removeEventListener('keydown', _tvKeyHandler);
+    // Devolve weekly-slide-content para seu container original
+    var slideContent = document.getElementById('weekly-slide-content');
+    var originalWrap = document.getElementById('page-weekly-slide');
+    if(slideContent && originalWrap && slideContent.parentNode !== originalWrap) originalWrap.appendChild(slideContent);
+    // Fecha fullscreen
+    try{ (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen).call(document); }catch(e){}
+    document.getElementById('dmx-tv-overlay').style.display = 'none';
+    // Volta para a aba semanal
+    var navEl = document.querySelector('[data-page="semanal-operacional"]');
+    if(navEl && typeof nav === 'function') nav(navEl);
+  };
+
+  // ── Teclado ───────────────────────────────────────────────
+  function _tvKeyHandler(e){
+    if(e.code === 'Space' || e.key === ' '){ e.preventDefault(); window.dmxTvTogglePause(); }
+    else if(e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); window.dmxTvNav(1); }
+    else if(e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  { e.preventDefault(); window.dmxTvNav(-1); }
+    else if(e.key === 'Escape'){ window.dmxTvModeExit(); }
+    // Mostra a barra de controle ao mover
+    var bar = document.getElementById('dmx-tv-bar');
+    if(bar){ bar.style.opacity = '1'; clearTimeout(_tvBarHide); _tvBarHide = setTimeout(function(){ bar.style.opacity='0'; }, 3000); }
+  }
+})();
+</script>
+
 </body>
 </html>
 
