@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.15 — 29/07/2026 — Fix Modo TV: (1) o slide nao trocava de KPI porque weeklySlideList/weeklySlideIdx sao bindings let de escopo de script (window nao surte efeito) e porque openWeeklyKpiDetail() reconstroi a lista a partir do filtro weekly-area-filter; agora o filtro e apontado para a area do item antes de navegar. (2) Menu lateral, cabecalho e barra do slide ocultados via classe body.dmx-tv-mode, deixando so a apresentacao em tela cheia. -->
+<!-- DMX KPI System — v94.16 — 29/07/2026 — Fix (bug antigo) aba Meta/Controle da pagina de area voltando sozinha: a definicao ativa de switchAreaGroup() (que sobrepoe a original) nao chamava dmxSaveUiState, entao o localStorage guardava a aba ANTERIOR; como renderCurrentPage() executa restoreState(), que le areaActiveGroup do localStorage, qualquer re-render (sync do Sheets, visibilitychange/foco, timer de 30s, refresh pos-gravacao) restaurava a aba antiga. Correcoes: (1) switchAreaGroup passa a persistir a aba; (2) restoreState so aplica o valor persistido quando nao ha valor em memoria (boot), pois em re-render a memoria e sempre mais atual. -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.15",data:"29/07/2026",build:"fix-modo-tv-troca-de-kpi-e-tela-limpa"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.16",data:"29/07/2026",build:"fix-aba-meta-controle-voltando-sozinha"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5963,7 +5963,18 @@ window.addEventListener('DOMContentLoaded', init);
     renderGroupCharts(groupKPIs);
   };
 
-  window.switchAreaGroup = function(group){ window._areaActiveGroup = group; const area = document.getElementById('topbar-title').textContent; renderAreaDetail(area); };
+  // FIX v94.16: esta definicao (que sobrepoe a original) nao persistia a aba escolhida no
+  // estado de navegacao. Como renderCurrentPage() -> restoreState() le areaActiveGroup do
+  // localStorage, qualquer re-render (sync do Sheets, foco na aba, timer) restaurava a aba
+  // ANTERIOR — dando a impressao de "volta sozinho". Agora persiste, igual a definicao original.
+  window.switchAreaGroup = function(group){
+    window._areaActiveGroup = group;
+    var area = (document.getElementById('topbar-title') || {}).textContent || '';
+    try{
+      if(typeof window.dmxSaveUiState === 'function') window.dmxSaveUiState('area-detail', window.currentArea || area);
+    }catch(e){}
+    renderAreaDetail(area);
+  };
 })();
 </script>
 
@@ -13298,8 +13309,11 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     let page = normPage(s.currentPage || DEFAULT_PAGE);
     let area = page === 'area-detail' ? (s.currentArea || '') : '';
     if(!hasAccess(page, area)){ page = DEFAULT_PAGE; area = ''; }
-    // Restaura sub-aba de área antes de navegar
-    if(s.areaActiveGroup && page === 'area-detail'){
+    // Restaura sub-aba de área antes de navegar.
+    // FIX v94.16: so aplica o valor persistido quando NAO ha valor em memoria (ou seja, no
+    // boot / primeira restauracao). Em re-renders (sync, foco, timer) a memoria e sempre mais
+    // atual que o localStorage — sobrescrever aqui fazia a aba voltar para a anterior.
+    if(s.areaActiveGroup && page === 'area-detail' && !window._areaActiveGroup){
       window._areaActiveGroup = s.areaActiveGroup;
     }
     callOfficialNavigation(page, area);
