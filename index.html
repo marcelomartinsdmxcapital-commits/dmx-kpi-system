@@ -1,8 +1,8 @@
-<!-- DMX KPI System — v94.17 — 31/07/2026 — Fix KPIs calculados sem meta (ex.: KPI045 = KPI107/KPI049): (1) CADEIA — avaliarFormula/avaliarFormulaMeta liam realizado/meta sempre de getLaunch(), ou seja, so enxergavam valor lancado manualmente. Se um KPI-fonte fosse ele proprio tipo_lancamento=calculado (valor derivado, sem linha na planilha), a substituicao virava null e o KPI-filho ficava sem meta mesmo com toda a base preenchida. Agora a resolucao e recursiva, com guarda contra referencia circular. (2) META ZERO — a condicao antiga incluia Number(l.meta)===0, tratando meta legitimamente zero como "sem meta" e anulando a formula inteira; zero e valor valido (divisao por zero segue protegida por isFinite). (3) Valores substituidos agora entram entre parenteses, evitando erro de sintaxe com numeros negativos. -->
+<!-- DMX KPI System — v94.18 — 11/08/2026 — Novo: META POR FORMULA MES A MES. A celula de Meta na tabela "Metas Mensais" (modal do KPI no Admin) passa a aceitar numero OU formula (ex.: KPI107*0,05), gravada por mes na nova coluna formula_meta de Dados_Mensais. Isso permite rampa (Jul 5%, Ago 6%, Set 7%) sem repetir fatores no cadastro. Botao "aplicar daqui" replica o conteudo do mes para os seguintes. Vale para qualquer KPI, calculado ou manual, pois a meta independe de como o realizado e lancado. Precedencia da meta: (1) formula do proprio mes, (2) formula_kpi do catalogo se tipo=calculado, (3) meta numerica lancada. A coluna meta continua sempre NUMERICA (muitas telas leem l.meta direto) e resolveRef reavalia a formula ao vivo, entao o valor nao fica defasado se a fonte mudar. Requer Code.gs v89 (coluna formula_meta + auto-criacao de cabecalhos). -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.17",data:"31/07/2026",build:"fix-meta-calculada-em-cadeia-e-meta-zero"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.18",data:"11/08/2026",build:"meta-por-formula-mes-a-mes-com-rampa"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -1779,6 +1779,18 @@ function resolveRef(kpi, mes, ano) {
   const pick = (field) => {
     // Meta: usa SOMENTE o lançamento mensal — catálogo não tem meta própria
     if (field === 'meta') {
+      // v94.18: fórmula de meta POR MÊS (Dados_Mensais.formula_meta) tem precedência sobre tudo.
+      // Permite rampa mês a mês (Jul = KPI107*0.05, Ago = KPI107*0.06) sem repetir fatores.
+      // Vale para qualquer KPI, calculado ou manual — a meta é independente de como o
+      // realizado é lançado.
+      if (typeof window.dmxFormulaMetaDoMes === 'function' && typeof window.dmxAvaliarFormulaMeta === 'function') {
+        const fMes = window.dmxFormulaMetaDoMes(kpi.id, mes, ano);
+        if (fMes) {
+          const vf = window.dmxAvaliarFormulaMeta(fMes, mes, ano);
+          if (vf !== null && vf !== undefined && !isNaN(Number(vf))) return Number(vf);
+          return null; // fórmula definida mas insolúvel neste mês = sem meta
+        }
+      }
       // KPI calculado: meta vem da fórmula aplicada às metas-fonte (só existe onde há metas-fonte)
       if (kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi && typeof window.dmxGetMeta === 'function') {
         return window.dmxGetMeta(kpi.id, mes, ano);
@@ -17425,70 +17437,149 @@ setTimeout(()=>{
   function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
   // ── Carrega dados do mês do Dados_Mensais ───────────────────────────────
+  // v94.18: a célula de Meta agora aceita NÚMERO ou FÓRMULA (ex.: KPI107*0,05).
+  // A fórmula é gravada por mês (coluna formula_meta em Dados_Mensais), permitindo rampa
+  // (Jul 5%, Ago 6%...). O botão "aplicar deste mês para frente" replica para os seguintes.
+  window.dmxEhFormulaMeta = function(txt){
+    var s = String(txt==null?'':txt).trim();
+    if(!s) return false;
+    if(s.charAt(0)==='=') return true;
+    return /KPI\s*\d+/i.test(s);
+  };
+  window.dmxNormalizaFormulaMeta = function(txt){
+    var s = String(txt==null?'':txt).trim();
+    if(s.charAt(0)==='=') s = s.slice(1).trim();   // nunca gravar com '=' (o Sheets interpretaria como fórmula da planilha)
+    return s.replace(/kpi\s*(\d+)/gi, function(_m, n){ return 'KPI' + n; });
+  };
+
   window.dmxAdminCarregarMetasMensais = function(kpiId){
     var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
     var tbody = document.getElementById('adm-kpi-meta-tbody');
     if(!tbody) return;
     var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; }) || {};
-    var sentido = String(kpi.sentido||'Maior Melhor');
-    var isMaior = sentido.toLowerCase().indexOf('maior')>=0;
-
-    // KPI calculado? meta vem da fórmula, não é editável
-    var isCalc = kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi;
     var tol = kpi.tolerancia_pct != null && kpi.tolerancia_pct !== '' ? Number(kpi.tolerancia_pct) : null;
+    var isCalc = kpi.tipo_lancamento === 'calculado' && kpi.formula_kpi;
 
     var rows = '';
     for(var m=1; m<=12; m++){
       var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
-      var metaVal = l && l.meta && Number(l.meta)!==0 ? l.meta : '';
-      // Se KPI calculado, mostrar meta calculada via fórmula
-      if(isCalc && typeof avaliarFormula==='function'){
-        var metaCalc = avaliarFormula(kpi.formula_kpi.replace(/KPI(\d+)/g, function(match, num){
-          var k2 = (window.kpis||[]).find(function(x){ return x.id===match; });
-          if(!k2) return 'null';
-          var l2 = getLaunch(match, m, ano);
-          return l2 && l2.meta!=null && l2.meta!==0 ? String(l2.meta) : (k2.meta||'null');
-        }), m, ano);
-        if(metaCalc!==null) metaVal = metaCalc;
-      }
-      // Mín/Máx calculados via tolerância
-      var minShow = tol && metaVal!=='' ? Math.round(Number(metaVal)*(1-tol/100)*100)/100 : '';
-      var maxShow = tol && metaVal!=='' ? Math.round(Number(metaVal)*(1+tol/100)*100)/100 : '';
-      var temReal = l && l.realizado!==null && l.realizado!=='';
+      var fMes = (typeof window.dmxFormulaMetaDoMes==='function') ? window.dmxFormulaMetaDoMes(kpiId, m, ano) : '';
+
+      // Valor a exibir no campo: a fórmula (se houver) ou o número lançado
+      var campoVal = '';
+      if(fMes) campoVal = fMes;
+      else if(l && l.meta!=null && l.meta!=='' && Number(l.meta)!==0) campoVal = l.meta;
+
+      // Valor efetivo da meta neste mês (para mín/máx e prévia)
+      var metaEfetiva = null;
+      try{
+        var rr = (typeof resolveRef==='function' && kpi && kpi.id) ? resolveRef(kpi, m, ano) : null;
+        if(rr && rr.meta!=null && !isNaN(Number(rr.meta))) metaEfetiva = Number(rr.meta);
+      }catch(e){}
+
+      var minShow = (tol && metaEfetiva!=null) ? Math.round(metaEfetiva*(1-tol/100)*100)/100 : '';
+      var maxShow = (tol && metaEfetiva!=null) ? Math.round(metaEfetiva*(1+tol/100)*100)/100 : '';
+      var temReal = l && l.realizado!==null && l.realizado!=='' && l.realizado!==undefined;
       var bg = m%2===0 ? 'background:#F8FAFC' : '';
+
       var statusCell = temReal
-        ? '<span style="font-size:10px;color:var(--green)">✓ tem dados</span>'
-        : '<span style="font-size:10px;color:var(--muted)">sem lançamento</span>';
+        ? '<span style="font-size:10px;color:var(--green)">\u2713 tem dados</span>'
+        : '<span style="font-size:10px;color:var(--muted)">sem lan\u00e7amento</span>';
+
+      // Prévia do resultado quando o campo tem fórmula
+      var previa = '';
+      if(fMes){
+        previa = (metaEfetiva!=null)
+          ? '<div id="admm-prev-'+m+'" style="font-size:10px;color:var(--teal);margin-top:2px">= '+metaEfetiva+'</div>'
+          : '<div id="admm-prev-'+m+'" style="font-size:10px;color:#DC2626;margin-top:2px">sem valor-fonte</div>';
+      } else {
+        previa = '<div id="admm-prev-'+m+'" style="font-size:10px;color:var(--muted);margin-top:2px"></div>';
+      }
 
       rows += '<tr style="'+bg+';border-bottom:1px solid var(--border)">' +
         '<td style="padding:7px 12px;font-weight:600;color:var(--text)">' + MESES_SHORT[m] + '</td>' +
         '<td style="padding:5px 8px;text-align:center">' +
-          (isCalc
-            ? '<div style="width:90px;text-align:center;padding:4px 6px;font-size:12px;color:var(--teal);background:var(--bg3);border-radius:5px;display:inline-block">' + (metaVal!==''?metaVal:'—') + '</div>'
-            : '<input type="number" step="0.01" inputmode="decimal" id="admm-meta-'+m+'" value="'+esc(metaVal)+'" style="width:90px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg)" placeholder="Meta">'
-          ) +
+          '<input type="text" inputmode="decimal" id="admm-meta-'+m+'" value="'+esc(campoVal)+'" ' +
+            'oninput="dmxAdminPreviewMeta(\'' + esc(kpiId) + '\',' + m + ')" ' +
+            'title="Digite um n\u00famero (ex.: 1500) ou uma f\u00f3rmula (ex.: KPI107*0,05)" ' +
+            'style="width:150px;text-align:center;padding:4px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg);'+(fMes?'color:#2563EB;font-weight:600':'')+'" placeholder="n\u00famero ou f\u00f3rmula">' +
+          previa +
         '</td>' +
         '<td style="padding:5px 12px;text-align:center;font-size:12px;color:var(--muted)">' +
-          (tol ? '<span style="color:#D97706">±'+tol+'%</span>' : '—') +
+          (tol ? '<span style="color:#D97706">\u00b1'+tol+'%</span>' : '\u2014') +
         '</td>' +
-        '<td style="padding:5px 12px;text-align:center;font-size:12px">' +
-          (minShow!==''&&maxShow!=='' ? '<span style="color:var(--muted)">'+minShow+' – '+maxShow+'</span>' : '—') +
+        '<td style="padding:5px 12px;text-align:center;font-size:12px" id="admm-mm-'+m+'">' +
+          (minShow!==''&&maxShow!=='' ? '<span style="color:var(--muted)">'+minShow+' \u2013 '+maxShow+'</span>' : '\u2014') +
         '</td>' +
-        '<td style="padding:5px 12px;text-align:center">' + statusCell + '</td>' +
+        '<td style="padding:5px 12px;text-align:center;white-space:nowrap">' + statusCell +
+          '<button type="button" onclick="dmxAdminAplicarDaqui('+m+')" title="Copiar o conte\u00fado deste m\u00eas para todos os meses seguintes" ' +
+            'style="margin-left:8px;font-size:10px;padding:2px 7px;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:5px;cursor:pointer">\u2193 aplicar daqui</button>' +
+        '</td>' +
       '</tr>';
     }
 
-    // Linha de ação rápida: copiar meta de Jan para todos (só para KPIs manuais)
-    if(!isCalc){
-      rows += '<tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">' +
-        '<td colspan="5" style="padding:8px 12px">' +
-          '<span style="font-size:11px;color:#1E40AF">Copiar Jan para todos os meses: </span>' +
-          '<button onclick="dmxAdminCopiarJanParaTodos()" style="font-size:11px;padding:3px 10px;background:#2563EB;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-left:6px">📋 Meta</button>' +
-        '</td>' +
-      '</tr>';
-    }
+    rows += '<tr style="background:#F8FAFC;border-top:2px solid #E2E8F0">' +
+      '<td colspan="5" style="padding:9px 12px;font-size:11px;color:#475569;line-height:1.6">' +
+        '<strong>Meta por f\u00f3rmula:</strong> digite <code style="background:#fff;padding:1px 5px;border:1px solid #E2E8F0;border-radius:4px">KPI107*0,05</code> no lugar do n\u00famero. ' +
+        'Use <strong>\u2193 aplicar daqui</strong> para repetir o mesmo conte\u00fado nos meses seguintes e depois ajustar s\u00f3 os que mudam (rampa).' +
+        (isCalc ? '<br><span style="color:#D97706">Este KPI tem f\u00f3rmula de c\u00e1lculo no cadastro; a f\u00f3rmula digitada aqui vale s\u00f3 para a META e tem preced\u00eancia no m\u00eas em que for preenchida.</span>' : '') +
+      '</td>' +
+    '</tr>';
 
     tbody.innerHTML = rows;
+  };
+
+  // Prévia ao vivo do resultado da fórmula digitada
+  window.dmxAdminPreviewMeta = function(kpiId, m){
+    var ano = Number(document.getElementById('adm-kpi-meta-ano')?.value || window.currentAno || 2026);
+    var inp = document.getElementById('admm-meta-'+m);
+    var prev = document.getElementById('admm-prev-'+m);
+    var mm = document.getElementById('admm-mm-'+m);
+    if(!inp || !prev) return;
+    var txt = inp.value;
+    var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; }) || {};
+    var tol = kpi.tolerancia_pct!=null && kpi.tolerancia_pct!=='' ? Number(kpi.tolerancia_pct) : null;
+    var val = null;
+    if(window.dmxEhFormulaMeta(txt)){
+      inp.style.color='#2563EB'; inp.style.fontWeight='600';
+      var f = window.dmxNormalizaFormulaMeta(txt);
+      val = (typeof window.dmxAvaliarFormulaMeta==='function') ? window.dmxAvaliarFormulaMeta(f, m, ano) : null;
+      prev.innerHTML = (val!=null && !isNaN(Number(val)))
+        ? '<span style="color:var(--teal)">= '+val+'</span>'
+        : '<span style="color:#DC2626">sem valor-fonte neste m\u00eas</span>';
+    } else {
+      inp.style.color=''; inp.style.fontWeight='';
+      val = toN(txt);
+      prev.innerHTML = '';
+    }
+    if(mm){
+      mm.innerHTML = (tol && val!=null && !isNaN(Number(val)))
+        ? '<span style="color:var(--muted)">'+(Math.round(Number(val)*(1-tol/100)*100)/100)+' \u2013 '+(Math.round(Number(val)*(1+tol/100)*100)/100)+'</span>'
+        : '\u2014';
+    }
+  };
+
+  // Aplica o conteúdo do mês m para todos os meses seguintes
+  window.dmxAdminAplicarDaqui = function(m){
+    var src = document.getElementById('admm-meta-'+m);
+    if(!src){ return; }
+    var val = src.value;
+    if(String(val).trim()===''){
+      if(typeof showToast==='function') showToast('Preencha o m\u00eas antes de aplicar para frente.');
+      return;
+    }
+    var kpiId='';
+    try{
+      var b=document.querySelector('[onclick*="dmxAdminSalvarMetasMensais"]');
+      var mm=b && b.getAttribute('onclick').match(/dmxAdminSalvarMetasMensais\('([^']*)'\)/);
+      kpiId = mm?mm[1]:'';
+    }catch(e){}
+    var n=0;
+    for(var k=m+1; k<=12; k++){
+      var el=document.getElementById('admm-meta-'+k);
+      if(el && !el.disabled){ el.value=val; n++; try{ window.dmxAdminPreviewMeta(kpiId,k); }catch(e){} }
+    }
+    if(typeof showToast==='function') showToast('\u2713 Aplicado a '+n+' m\u00eas(es) seguinte(s). Clique em Salvar Metas para gravar.');
   };
 
   // ── Copia Janeiro para todos os meses (ação rápida) ─────────────────────
@@ -17522,10 +17613,29 @@ setTimeout(()=>{
 
     for(var m=1; m<=12; m++){
       var metaEl = document.getElementById('admm-meta-'+m);
-      var meta   = metaEl ? toN(metaEl.value) : null;
+      var bruto  = metaEl ? String(metaEl.value||'').trim() : '';
 
-      // Só salva meses onde a meta foi preenchida
-      if(meta === null) continue;
+      // v94.18: a célula aceita NÚMERO ou FÓRMULA.
+      //  - fórmula → grava em formula_meta E grava o valor resolvido em meta (mantém a coluna
+      //    meta sempre numérica, pois muitas telas leem l.meta direto; o valor é reavaliado ao
+      //    vivo por resolveRef, então não fica defasado se a fonte mudar).
+      //  - vazio   → limpa os dois (permite remover a fórmula/meta do mês).
+      var ehFormula = window.dmxEhFormulaMeta ? window.dmxEhFormulaMeta(bruto) : false;
+      var formulaMeta = '', meta = null;
+
+      if(bruto === ''){
+        var lPrev = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
+        var tinhaAlgo = lPrev && ((lPrev.meta!=null && lPrev.meta!=='') || (lPrev.formula_meta!=null && String(lPrev.formula_meta).trim()!==''));
+        if(!tinhaAlgo) continue;      // nada antes, nada agora → não gera tráfego
+        formulaMeta = ''; meta = null; // havia algo → grava limpeza explícita
+      } else if(ehFormula){
+        formulaMeta = window.dmxNormalizaFormulaMeta(bruto);
+        var vf = (typeof window.dmxAvaliarFormulaMeta==='function') ? window.dmxAvaliarFormulaMeta(formulaMeta, m, ano) : null;
+        meta = (vf!=null && !isNaN(Number(vf))) ? Number(vf) : null;
+      } else {
+        meta = toN(bruto);
+        if(meta === null) continue;   // texto inválido que não é fórmula → ignora o mês
+      }
 
       // Calcula min/max via tolerância
       var minimo = (tolPct && meta) ? Math.round(meta*(1-tolPct/100)*100)/100 : null;
@@ -17536,6 +17646,7 @@ setTimeout(()=>{
         ano: ano,
         mes_num: m,
         meta: meta,
+        formula_meta: formulaMeta,
         atualizado_em: new Date().toISOString(),
         atualizado_por: 'Admin'
       };
@@ -17543,7 +17654,8 @@ setTimeout(()=>{
       // Atualiza localmente também
       var l = typeof getLaunch==='function' ? getLaunch(kpiId, m, ano) : null;
       if(l){
-        l.meta = meta; if(minimo!==null) l.minimo=minimo; if(maximo!==null) l.maximo=maximo;
+        l.meta = meta; l.formula_meta = formulaMeta;
+        if(minimo!==null) l.minimo=minimo; if(maximo!==null) l.maximo=maximo;
       } else {
         // Cria entrada local se não existir
         if(Array.isArray(window.launches)){
@@ -18657,9 +18769,33 @@ setTimeout(()=>{
   //     zero como "sem meta" e anulando a fórmula inteira. Zero é um valor válido de meta; o que
   //     invalida é ausência/não-numérico. (Divisão por zero segue protegida pelo isFinite abaixo.)
   var _metaStack = [];
+  // FIX v94.18: formula de meta POR MES (coluna formula_meta em Dados_Mensais).
+  // Precedencia: (1) formula do proprio mes  (2) formula_kpi do catalogo, se calculado
+  //              (3) meta numerica lancada.
+  // Isso permite rampa (ex.: Jul = KPI107*0.05, Ago = KPI107*0.06) sem repetir fatores.
+  window.dmxFormulaMetaDoMes = function(kpiId, mes, ano){
+    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    if(!l) return '';
+    var f = l.formula_meta;
+    if(f==null) return '';
+    f = String(f).trim();
+    if(f.charAt(0)==='=') f = f.slice(1).trim();
+    return f;
+  };
   function metaDeKpiParaFormula(kpiId, mes, ano){
-    // Fonte calculada → resolve recursivamente pela fórmula dela
     var kpi = (window.kpis||[]).find(function(k){ return String(k.id)===String(kpiId); });
+    // (1) Formula de meta especifica deste mes
+    var fMes = window.dmxFormulaMetaDoMes(kpiId, mes, ano);
+    if(fMes){
+      if(_metaStack.indexOf(String(kpiId)) >= 0){
+        console.warn('[DMX] Referência circular em meta calculada:', _metaStack.concat(kpiId).join(' -> '));
+        return null;
+      }
+      _metaStack.push(String(kpiId));
+      try { return avaliarFormulaMeta(fMes, mes, ano); }
+      finally { _metaStack.pop(); }
+    }
+    // (2) Fonte calculada → resolve recursivamente pela fórmula do catálogo
     if(kpi && kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
       if(_metaStack.indexOf(String(kpiId)) >= 0){
         console.warn('[DMX] Referência circular em meta calculada:', _metaStack.concat(kpiId).join(' -> '));
@@ -18669,13 +18805,15 @@ setTimeout(()=>{
       try { return avaliarFormulaMeta(kpi.formula_kpi, mes, ano); }
       finally { _metaStack.pop(); }
     }
-    // Fonte manual → meta lançada
+    // (3) Fonte manual → meta lançada
     var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
     if(!l || l.meta==null || l.meta==='' || isNaN(Number(l.meta))) return null;
     return Number(l.meta);
   }
   function avaliarFormulaMeta(expr, mes, ano){
     if(!expr || !expr.trim()) return null;
+    // v94.18: aceita virgula decimal digitada pelo usuario (0,05 -> 0.05)
+    expr = String(expr).replace(/(\d),(\d)/g, '$1.$2');
     var formula = expr.replace(/KPI\d+/g, function(kpiId){
       var mv = metaDeKpiParaFormula(kpiId, mes, ano);
       if(mv===null || mv===undefined || isNaN(Number(mv))) return 'null';
@@ -18695,6 +18833,9 @@ setTimeout(()=>{
   window.dmxGetMeta = function(kpiId, mes, ano){
     var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
     if(!kpi) return null;
+    // v94.18: fórmula do mês tem precedência (vale para calculado E manual)
+    var _fm = window.dmxFormulaMetaDoMes ? window.dmxFormulaMetaDoMes(kpiId, mes, ano) : '';
+    if(_fm) return avaliarFormulaMeta(_fm, mes, ano);
     if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
       return avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
     }
@@ -20804,9 +20945,33 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
   //     zero como "sem meta" e anulando a fórmula inteira. Zero é um valor válido de meta; o que
   //     invalida é ausência/não-numérico. (Divisão por zero segue protegida pelo isFinite abaixo.)
   var _metaStack = [];
+  // FIX v94.18: formula de meta POR MES (coluna formula_meta em Dados_Mensais).
+  // Precedencia: (1) formula do proprio mes  (2) formula_kpi do catalogo, se calculado
+  //              (3) meta numerica lancada.
+  // Isso permite rampa (ex.: Jul = KPI107*0.05, Ago = KPI107*0.06) sem repetir fatores.
+  window.dmxFormulaMetaDoMes = function(kpiId, mes, ano){
+    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    if(!l) return '';
+    var f = l.formula_meta;
+    if(f==null) return '';
+    f = String(f).trim();
+    if(f.charAt(0)==='=') f = f.slice(1).trim();
+    return f;
+  };
   function metaDeKpiParaFormula(kpiId, mes, ano){
-    // Fonte calculada → resolve recursivamente pela fórmula dela
     var kpi = (window.kpis||[]).find(function(k){ return String(k.id)===String(kpiId); });
+    // (1) Formula de meta especifica deste mes
+    var fMes = window.dmxFormulaMetaDoMes(kpiId, mes, ano);
+    if(fMes){
+      if(_metaStack.indexOf(String(kpiId)) >= 0){
+        console.warn('[DMX] Referência circular em meta calculada:', _metaStack.concat(kpiId).join(' -> '));
+        return null;
+      }
+      _metaStack.push(String(kpiId));
+      try { return avaliarFormulaMeta(fMes, mes, ano); }
+      finally { _metaStack.pop(); }
+    }
+    // (2) Fonte calculada → resolve recursivamente pela fórmula do catálogo
     if(kpi && kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
       if(_metaStack.indexOf(String(kpiId)) >= 0){
         console.warn('[DMX] Referência circular em meta calculada:', _metaStack.concat(kpiId).join(' -> '));
@@ -20816,13 +20981,15 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
       try { return avaliarFormulaMeta(kpi.formula_kpi, mes, ano); }
       finally { _metaStack.pop(); }
     }
-    // Fonte manual → meta lançada
+    // (3) Fonte manual → meta lançada
     var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
     if(!l || l.meta==null || l.meta==='' || isNaN(Number(l.meta))) return null;
     return Number(l.meta);
   }
   function avaliarFormulaMeta(expr, mes, ano){
     if(!expr || !expr.trim()) return null;
+    // v94.18: aceita virgula decimal digitada pelo usuario (0,05 -> 0.05)
+    expr = String(expr).replace(/(\d),(\d)/g, '$1.$2');
     var formula = expr.replace(/KPI\d+/g, function(kpiId){
       var mv = metaDeKpiParaFormula(kpiId, mes, ano);
       if(mv===null || mv===undefined || isNaN(Number(mv))) return 'null';
@@ -20842,6 +21009,9 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
   window.dmxGetMeta = function(kpiId, mes, ano){
     var kpi = (window.kpis||[]).find(function(k){ return k.id===kpiId; });
     if(!kpi) return null;
+    // v94.18: fórmula do mês tem precedência (vale para calculado E manual)
+    var _fm = window.dmxFormulaMetaDoMes ? window.dmxFormulaMetaDoMes(kpiId, mes, ano) : '';
+    if(_fm) return avaliarFormulaMeta(_fm, mes, ano);
     if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
       return avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
     }
