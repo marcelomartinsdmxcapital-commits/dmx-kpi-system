@@ -1,8 +1,9 @@
+<!-- DMX KPI System — v94.19 — 24/09/2026 — Painel Executivo passa a ler SEMPRE a aba Config_PainelExecutivo (antes a leitura nunca rodava: window.apiGet não existia) e deixa de guardar a configuração no navegador. Só o administrador altera, sempre sobre a versão atual da aba, com confirmação de gravação. -->
 <!-- DMX KPI System — v94.18 — 11/08/2026 — Novo: META POR FORMULA MES A MES. A celula de Meta na tabela "Metas Mensais" (modal do KPI no Admin) passa a aceitar numero OU formula (ex.: KPI107*0,05), gravada por mes na nova coluna formula_meta de Dados_Mensais. Isso permite rampa (Jul 5%, Ago 6%, Set 7%) sem repetir fatores no cadastro. Botao "aplicar daqui" replica o conteudo do mes para os seguintes. Vale para qualquer KPI, calculado ou manual, pois a meta independe de como o realizado e lancado. Precedencia da meta: (1) formula do proprio mes, (2) formula_kpi do catalogo se tipo=calculado, (3) meta numerica lancada. A coluna meta continua sempre NUMERICA (muitas telas leem l.meta direto) e resolveRef reavalia a formula ao vivo, entao o valor nao fica defasado se a fonte mudar. Requer Code.gs v89 (coluna formula_meta + auto-criacao de cabecalhos). -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.18",data:"11/08/2026",build:"meta-por-formula-mes-a-mes-com-rampa"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.19",data:"24/09/2026",build:"painel-executivo-fixo-pela-aba"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -19603,12 +19604,47 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
       return p==='admin'||p==='administrador';
     }catch(e){ return false; }
   }
-  function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); }catch(e){ return {}; } }
+  // v94.19 — a configuração do painel vem SEMPRE da aba Config_PainelExecutivo (definida pelo administrador).
+  // Nada de cópia no navegador: só memória da sessão, recarregada a cada abertura do painel.
+  var CFG_MEM = {}, CFG_STATE = 'idle', CFG_ERRO = '';
+  try{ localStorage.removeItem(CFG_KEY); }catch(e){}            // limpa o legado da v82
+  function loadCfg(){ return CFG_MEM; }
+  function finApiGet(tipo){
+    return new Promise(function(resolve,reject){
+      var url=(typeof window.dmxGetApiUrl==='function'?window.dmxGetApiUrl():(window.DMX_API_URL||'')).trim();
+      if(!url){ reject(new Error('URL da API não configurada')); return; }
+      var cb='dmxFin94_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+      var full=url.replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'')+(url.indexOf('?')>=0?'&':'?')+
+               'tipo='+encodeURIComponent(tipo)+'&callback='+cb+'&t='+Date.now();
+      var sc=document.createElement('script');
+      var timer=setTimeout(function(){ delete window[cb]; reject(new Error('Tempo esgotado')); },15000);
+      window[cb]=function(data){ clearTimeout(timer); delete window[cb]; try{ sc.remove(); }catch(e){} resolve(data); };
+      sc.onerror=function(){ clearTimeout(timer); delete window[cb]; reject(new Error('Falha de conexão')); };
+      sc.src=full; document.head.appendChild(sc);
+    });
+  }
+  function fetchCfg(){
+    CFG_STATE='loading';
+    return finApiGet('config_painel_executivo').then(function(r){
+      if(!r||r.ok===false) throw new Error((r&&r.error)||'Resposta inválida da API');
+      var rows=r.rows||r.data||[], cfg={};
+      ABAS.forEach(function(v){ cfg[v]=[]; });
+      rows.filter(function(x){ return x.ativo!==false&&String(x.ativo).toLowerCase()!=='false'; })
+          .sort(function(a,b){ return Number(a.ordem||0)-Number(b.ordem||0); })
+          .forEach(function(x){ var v=String(x.vertente||'').trim(); if(cfg[v]&&x.kpi_id) cfg[v].push(String(x.kpi_id).trim()); });
+      CFG_MEM=cfg; CFG_STATE='ok'; CFG_ERRO='';
+      return cfg;
+    }).catch(function(e){ CFG_STATE='erro'; CFG_ERRO=String(e&&e.message||e); throw e; });
+  }
   function saveCfg(cfg){
-    localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
-    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null; if(!api) return;
-    var rows=[]; ABAS.forEach(function(v){ (cfg[v]||[]).forEach(function(id,i){ rows.push({id:id+'_'+v,vertente:v,kpi_id:id,ordem:i,ativo:true,criado_em:new Date().toISOString()}); }); });
-    api('salvarConfigPainelExecutivo',{rows:rows}).catch(function(){});
+    var api=typeof window.dmxApiPost==='function'?window.dmxApiPost:null;
+    if(!api) return Promise.reject(new Error('API de gravação indisponível'));
+    var rows=[], agora=new Date().toISOString();
+    ABAS.forEach(function(v){ (cfg[v]||[]).forEach(function(id,i){ rows.push({id:id+'_'+v,vertente:v,kpi_id:id,ordem:i,ativo:true,criado_em:agora}); }); });
+    return api('salvarConfigPainelExecutivo',{rows:rows}).then(function(r){
+      if(!r||r.ok===false) throw new Error((r&&r.error)||'Gravação não confirmada');
+      return fetchCfg();                                          // relê da aba: a tela mostra o que ficou gravado
+    });
   }
   function getLanc(kpiId){
     try{
@@ -19672,6 +19708,8 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     try{ window.currentPage='financeiro'; }catch(e){}
     var t=document.getElementById('topbar-title'); if(t) t.textContent='Painel Executivo';
     renderFin();
+    fetchCfg().then(function(){ if(window.currentPage==='financeiro') renderFin(); })
+              .catch(function(){ if(window.currentPage==='financeiro') renderFin(); });
   }
 
   // ── Render principal ───────────────────────────────────────────────────────
@@ -19712,6 +19750,17 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     var cfg=loadCfg(), ids=cfg[v]||[], allKpis=window.kpis||[];
     var ks=ids.map(function(id){ return allKpis.filter(function(k){ return k.id===id; })[0]; }).filter(Boolean);
     var vc=VERT_CFG[v];
+    if(CFG_STATE==='loading'||CFG_STATE==='idle'){
+      host.innerHTML='<div style="padding:48px;text-align:center;color:var(--muted);font-size:13px">Carregando a configuração do painel…</div>';
+      return;
+    }
+    if(CFG_STATE==='erro'){
+      host.innerHTML='<div style="padding:32px;text-align:center;background:var(--bg2);border-radius:12px;border:2px dashed var(--border)">'+
+        '<div style="font-size:14px;font-weight:700;margin-bottom:6px">Não foi possível carregar a configuração do painel</div>'+
+        '<div style="font-size:12px;color:var(--muted)">'+esc(CFG_ERRO)+'</div>'+
+        '<br><button class="btn btn-primary" onclick="window.dmxRenderPainelFinanceiro(true)">Tentar de novo</button></div>';
+      return;
+    }
 
     if(!ks.length){
       var cfgLink=isAdmin()?'<br><br><button class="btn btn-primary" onclick="window.dmxFin82Cfg(\''+v+'\')">✏️ Configurar '+esc(v)+'</button>':'';
@@ -19785,6 +19834,11 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
   // ── Modal config ───────────────────────────────────────────────────────────
   window.dmxFin82Cfg=function(v){
     if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
+    if(typeof window.showToast==='function') window.showToast('Carregando a configuração atual…');
+    fetchCfg().then(function(){ abrirModalCfg(v); })
+              .catch(function(e){ alert('Não foi possível carregar a configuração atual da aba. Nada foi alterado.\n'+(e&&e.message||e)); });
+  };
+  function abrirModalCfg(v){
     var allKpis=window.kpis||[], cfg=loadCfg(), sel=cfg[v]||[];
     var areas={};
     allKpis.forEach(function(k){ if(!areas[k.area]) areas[k.area]=[]; areas[k.area].push(k); });
@@ -19814,45 +19868,45 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
       '</div></div>';
     modal.style.display='flex';
     modal.onclick=function(e){ if(e.target===modal) modal.style.display='none'; };
-  };
+  }
 
   window.dmxFin82Save=function(v){
-    var cfg=loadCfg();
-    cfg[v]=Array.from(document.querySelectorAll('#fin82-modal input[type=checkbox]:checked')).map(function(c){ return c.value; });
-    saveCfg(cfg);
+    if(!isAdmin()){ alert('Acesso restrito ao Administrador.'); return; }
+    var cfg=JSON.parse(JSON.stringify(loadCfg()));
+    ABAS.forEach(function(a){ if(!cfg[a]) cfg[a]=[]; });
+    // mantém a ordem já existente e acrescenta os novos no fim
+    var marcados=Array.from(document.querySelectorAll('#fin82-modal input[type=checkbox]:checked')).map(function(c){ return c.value; });
+    cfg[v]=(cfg[v]||[]).filter(function(id){ return marcados.indexOf(id)>=0; })
+             .concat(marcados.filter(function(id){ return (cfg[v]||[]).indexOf(id)<0; }));
     document.getElementById('fin82-modal').style.display='none';
     abaAtiva=v; localStorage.setItem(MODO_KEY,v);
-    renderFin();
-    if(typeof window.showToast==='function') window.showToast('✓ Configuração salva');
+    saveCfg(cfg).then(function(){
+      renderFin();
+      if(typeof window.showToast==='function') window.showToast('✓ Configuração gravada na aba Config_PainelExecutivo');
+    }).catch(function(e){
+      alert('A configuração NÃO foi gravada no Sheets.\n'+(e&&e.message||e));
+      fetchCfg().then(renderFin,renderFin);
+    });
   };
 
   // ── Compatibilidade com patches antigos ───────────────────────────────────
   window.dmxOpenFinanceiro=function(el){ openFin(el); };
-  window.dmxRenderPainelFinanceiro=function(){ renderFin(); };
+  window.dmxRenderPainelFinanceiro=function(recarregar){
+    if(recarregar||CFG_STATE!=='ok'){ fetchCfg().then(renderFin,renderFin); }
+    renderFin();
+  };
 
-  // ── Carrega config do Sheets ──────────────────────────────────────────────
+  // ── Carrega config do Sheets (v94.19: leitura real; antes usava window.apiGet, que não existia) ──
   setTimeout(function(){
-    try{
-      var ag=typeof window.apiGet==='function'?window.apiGet:null; if(!ag) return;
-      ag('config_painel_executivo').then(function(r){
-        if(!r||!r.ok) return; var rows=r.rows||r.data||[]; if(!rows.length) return;
-        var cfg={}; ABAS.forEach(function(v){ cfg[v]=[]; });
-        rows.filter(function(x){ return x.ativo!==false&&x.ativo!=='false'; })
-          .sort(function(a,b){ return Number(a.ordem||0)-Number(b.ordem||0); })
-          .forEach(function(x){ if(x.vertente&&cfg[x.vertente]) cfg[x.vertente].push(x.kpi_id); });
-        if(Object.values(cfg).some(function(v){ return v.length>0; })){
-          localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
-          if(window.currentPage==='financeiro') renderFin();
-        }
-      }).catch(function(){});
-    }catch(e){}
-  },3000);
+    fetchCfg().then(function(){ if(window.currentPage==='financeiro') renderFin(); })
+              .catch(function(e){ console.warn('[DMX] Painel Executivo: falha ao ler Config_PainelExecutivo', e); });
+  },1500);
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   function boot(){ ensurePage(); ensureNav(); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
   setTimeout(boot,500); setTimeout(boot,1500);
-  console.log('[DMX] Painel Executivo v82b instalado');
+  console.log('[DMX] Painel Executivo v94.19 — configuração fixa pela aba Config_PainelExecutivo');
 })();
 
 </script>
