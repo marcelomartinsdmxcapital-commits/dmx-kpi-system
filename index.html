@@ -1,9 +1,10 @@
+<!-- DMX KPI System — v94.20 — 25/09/2026 — (1) Acumulado do índice pelo semestre do mês de referência, com meses pareados (realizado só onde há meta). (2) PPR: metas globais passam a respeitar o sentido (PDD é Menor Melhor), usam meses pareados e o limitador de 120%/50%. (3) Painel Executivo no formato de apresentação das áreas, com os slides navegando pelos KPIs do painel. -->
 <!-- DMX KPI System — v94.19 — 24/09/2026 — Painel Executivo passa a ler SEMPRE a aba Config_PainelExecutivo (antes a leitura nunca rodava: window.apiGet não existia) e deixa de guardar a configuração no navegador. Só o administrador altera, sempre sobre a versão atual da aba, com confirmação de gravação. -->
 <!-- DMX KPI System — v94.18 — 11/08/2026 — Novo: META POR FORMULA MES A MES. A celula de Meta na tabela "Metas Mensais" (modal do KPI no Admin) passa a aceitar numero OU formula (ex.: KPI107*0,05), gravada por mes na nova coluna formula_meta de Dados_Mensais. Isso permite rampa (Jul 5%, Ago 6%, Set 7%) sem repetir fatores no cadastro. Botao "aplicar daqui" replica o conteudo do mes para os seguintes. Vale para qualquer KPI, calculado ou manual, pois a meta independe de como o realizado e lancado. Precedencia da meta: (1) formula do proprio mes, (2) formula_kpi do catalogo se tipo=calculado, (3) meta numerica lancada. A coluna meta continua sempre NUMERICA (muitas telas leem l.meta direto) e resolveRef reavalia a formula ao vivo, entao o valor nao fica defasado se a fonte mudar. Requer Code.gs v89 (coluna formula_meta + auto-criacao de cabecalhos). -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.19",data:"24/09/2026",build:"painel-executivo-fixo-pela-aba"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.20",data:"25/09/2026",build:"ppr-semestral-pareado-e-painel-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -5771,27 +5772,31 @@ window.addEventListener('DOMContentLoaded', init);
   function pct(v){ return v===null||v===undefined?'—':(v*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%'; }
 
   // Acumulado oficial: todos os meses lançados/importados no ano, não mês selecionado.
-  window.calcAccumValue = calcAccumValue = function(kpi, mesIgnorado, ano, field){
-    const vals=[];
+  // v94.20 — acumulado do SEMESTRE do mês de referência (PPR é semestral: jan–jun e jul–dez),
+  // até o mês de referência, e com meses PAREADOS: o realizado só entra nos meses que têm meta.
+  // Sem nenhum mês com meta (ex.: controles), o realizado acumula normalmente.
+  window.calcAccumValue = calcAccumValue = function(kpi, mesRef, ano, field){
     const _ehCalc = kpi.tipo_lancamento==='calculado' && kpi.formula_kpi;
     const realDe = (m)=> _ehCalc && typeof dmxGetRealizado==='function' ? dmxGetRealizado(kpi.id,m,ano) : toNum((getLaunch(kpi.id,m,ano)||{}).realizado);
-    for(let m=1;m<=12;m++){
-      const l=getLaunch(kpi.id,m,ano);
-      if(field==='realizado'){
-        const rv=toNum(realDe(m));
-        if(rv!==null) vals.push(rv);
-      } else {
-        // Para meta/mín/máx, só considera meses onde há realizado (lançado OU calculado)
-        if(toNum(realDe(m))===null) continue;
-        const ref=resolveRef(kpi,m,ano);
-        const v=toNum(ref[field]);
-        if(v!==null) vals.push(v);
-      }
+    let ref = Number(mesRef);
+    if(!(ref>=1 && ref<=12)) ref = Number(window.currentMes || (typeof currentMes!=='undefined'?currentMes:12)) || 12;
+    const ini = ref<=6 ? 1 : 7;
+    const pares=[], soReal=[];
+    for(let m=ini;m<=ref;m++){
+      const rv=toNum(realDe(m)); if(rv===null) continue;
+      soReal.push({m,rv});
+      const mv=toNum((resolveRef(kpi,m,ano)||{}).meta);
+      if(mv!==null && mv!==0) pares.push({m,rv,mv});
     }
+    let vals;
+    if(field==='realizado') vals = pares.length ? pares.map(x=>x.rv) : soReal.map(x=>x.rv);
+    else if(field==='meta') vals = pares.map(x=>x.mv);
+    else vals = (pares.length?pares:soReal).map(x=>toNum((resolveRef(kpi,x.m,ano)||{})[field])).filter(v=>v!==null);
     if(!vals.length) return null;
     const tipo=norm(kpi.acumulado||'média');
     return tipo.includes('soma') ? vals.reduce((a,b)=>a+b,0) : vals.reduce((a,b)=>a+b,0)/vals.length;
   };
+
 
   // Card do KPI corrigido: meta e atingimento usam referência robusta e status recalculado, não status antigo do lançamento.
   window.kpiChartCard = kpiChartCard = function(kpi, area){
@@ -16646,27 +16651,39 @@ setTimeout(()=>{
       .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
   }
 
-  // ── Atingimento de um KPI num intervalo ───────────────────────────────────
+  // ── Atingimento de um KPI num intervalo (v94.20) ─────────────────────────
+  // Meses pareados (realizado e meta no mesmo mês), sentido do KPI (Menor Melhor = meta/realizado)
+  // e limitador de 120%/50% (dmxCapAting), igual ao índice das áreas.
+  function realMes(k, m, ano){
+    if(k.tipo_lancamento==='calculado' && k.formula_kpi && typeof window.dmxGetRealizado==='function'){
+      var r=window.dmxGetRealizado(k.id,m,ano); return (r===null||r===undefined||r===''||isNaN(Number(r)))?null:Number(r);
+    }
+    var l=(typeof window.getLaunch==='function')?window.getLaunch(k.id,m,ano):null;
+    var v=l?l.realizado:null; return (v===null||v===undefined||v===''||isNaN(Number(v)))?null:Number(v);
+  }
+  function metaMes(k, m, ano){
+    var v=null;
+    try{ v=(typeof window.resolveRef==='function')?(window.resolveRef(k,m,ano)||{}).meta:null; }catch(e){}
+    if(v===null||v===undefined||v===''||isNaN(Number(v))){ var l=(typeof window.getLaunch==='function')?window.getLaunch(k.id,m,ano):null; v=l?l.meta:null; }
+    return (v===null||v===undefined||v===''||isNaN(Number(v))||Number(v)===0)?null:Number(v);
+  }
+  function atingSem(k, ano, ini, fim, aplicarCap){
+    var rs=[], ms=[];
+    for(var m=ini;m<=fim;m++){ var r=realMes(k,m,ano), t=metaMes(k,m,ano); if(r!==null&&t!==null){ rs.push(r); ms.push(t); } }
+    if(!rs.length) return null;
+    var soma=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
+    var agg=function(a){ var t=a.reduce(function(x,y){return x+y;},0); return soma?t:t/a.length; };
+    var real=agg(rs), meta=agg(ms); if(!meta) return null;
+    var at=(typeof window.calcAting==='function')?window.calcAting(k.sentido, real, meta):null;
+    if(at===null||at===undefined){
+      at=String(k.sentido||'').toLowerCase().indexOf('menor')>=0 ? meta/(real||0.000001) : real/meta;
+    }
+    at=Number(at)*100;
+    if(aplicarCap && typeof window.dmxCapAting==='function') at=window.dmxCapAting(at);
+    return at;
+  }
   function calcAting(kpiId, ano, ini, fim){
-    try{
-      var k=kpiById(kpiId); if(!k||!kpiId) return null;
-      // launches é global, não window.launches
-      var all = (typeof launches!=='undefined' ? launches : (window.LAUNCHES||window.launches||[]));
-      var list=all.filter(function(l){
-        var m=Number(l.mes_num||l.mes||0);
-        return String(l.id_kpi)===String(kpiId) && Number(l.ano)===Number(ano) &&
-               m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
-      });
-      if(!list.length) return null;
-      var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
-      var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
-      var real=isS?sum('realizado'):sum('realizado')/list.length;
-      var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
-      if(!metaOk.length) return null;
-      var meta=isS?sum('meta'):sum('meta')/list.length;
-      if(!meta) return null;
-      return (real/meta)*100;
-    }catch(e){ return null; }
+    try{ var k=kpiById(kpiId); if(!k||!kpiId) return null; return atingSem(k,ano,ini,fim,true); }catch(e){ return null; }
   }
 
   // ── Índice da área ────────────────────────────────────────────────────────
@@ -16683,34 +16700,15 @@ setTimeout(()=>{
   // vazar dados de outro semestre. Espelha a lógica de calcAting (range de meses).
   function calcIndiceAreaSem(area, ano, ini, fim){
     try{
-      var all = (typeof launches!=='undefined' ? launches : (window.LAUNCHES||window.launches||[]));
-      var ks = (window.kpis||[]).filter(function(k){
+      var ks=(window.kpis||[]).filter(function(k){
         return String(k.area||'')===String(area) && String(k.vertente||'').toLowerCase().indexOf('met')>=0;
       });
       var s=0, w=0;
       ks.forEach(function(k){
-        var peso=Number(k.peso_indice||0);
+        var peso=(typeof window.dmxPesoIndice==='function')?Number(window.dmxPesoIndice(k.id)||0):Number(k.peso_indice||0);
         if(!(peso>0)) return;
-        var list=all.filter(function(l){
-          var m=Number(l.mes_num||l.mes||0);
-          return String(l.id_kpi)===String(k.id) && Number(l.ano)===Number(ano) &&
-                 m>=ini && m<=fim && l.realizado!=null && l.realizado!=='';
-        });
-        if(!list.length) return;
-        var isS=String(k.acumulado||'').toLowerCase().indexOf('soma')>=0;
-        var sum=function(f){ return list.map(function(l){ return Number(l[f])||0; }).reduce(function(a,b){ return a+b; },0); };
-        var real=isS?sum('realizado'):sum('realizado')/list.length;
-        var metaOk=list.filter(function(l){ return l.meta!=null&&l.meta!==''&&Number(l.meta)!==0; });
-        if(!metaOk.length) return;
-        var meta=isS?metaOk.map(function(l){return Number(l.meta);}).reduce(function(a,b){return a+b;},0)
-                    :metaOk.map(function(l){return Number(l.meta);}).reduce(function(a,b){return a+b;},0)/metaOk.length;
-        if(!meta) return;
-        var at = (typeof window.calcAting==='function')
-          ? (function(){ var a=window.calcAting(k.sentido, real, meta); return a==null?null:Number(a)*100; })()
-          : (String(k.sentido||'').toLowerCase().indexOf('menor')>=0 ? (meta/real)*100 : (real/meta)*100);
-        if(at==null) return;
-        if(typeof window.dmxCapAting==='function') at=window.dmxCapAting(at);
-        s += at*peso/100; w += peso;
+        var at=atingSem(k,ano,ini,fim,true); if(at===null||!isFinite(at)) return;
+        s+=at*peso/100; w+=peso;
       });
       return w ? s : null;
     }catch(e){ return null; }
@@ -19712,37 +19710,47 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
               .catch(function(){ if(window.currentPage==='financeiro') renderFin(); });
   }
 
-  // ── Render principal ───────────────────────────────────────────────────────
+  // ── Render principal (v94.20: mesmo formato de apresentação das áreas) ──────
+  function kpisDaAba(v){
+    var cfg=loadCfg(), all=window.kpis||[];
+    return (cfg[v]||[]).map(function(id){ return all.filter(function(k){ return k.id===id; })[0]; }).filter(Boolean);
+  }
   function renderFin(){
     injectCSS();
     var root=document.getElementById('fin82-root'); if(!root) return;
-    var cfg=loadCfg(), mes=window.currentMes||5, ano=window.currentAno||2026;
-    var meses=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    var cfg=loadCfg(), mes=window.currentMes||(typeof currentMes!=='undefined'?currentMes:1), ano=window.currentAno||2026;
+    var MESN=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     var admin=isAdmin();
-
-    // Header
-    var cfgBtn=admin?'<button class="btn btn-ghost btn-sm" id="fin82-cfg-btn" onclick="window.dmxFin82Cfg(\''+abaAtiva+'\')">✏️ Configurar vertente</button>':'';
-    var headerHtml='<div class="fin-header">'+
-      '<div><span style="font-family:Arial,sans-serif;font-size:16px;font-weight:800">◆ Painel Executivo</span>'+
-      '<span style="font-size:12px;color:var(--muted);margin-left:10px">'+meses[mes]+' '+ano+'</span></div>'+
-      cfgBtn+'</div>';
-
-    // Tabs com visual card
-    var tabsHtml='<div class="fin-tabs">'+ABAS.map(function(v){
-      var c=VERT_CFG[v]; var n=(cfg[v]||[]).length;
-      var active=v===abaAtiva?' active':'';
-      return '<div class="fin-tab'+active+'" onclick="window.dmxFin82Tab(\''+v+'\')" data-aba="'+v+'">'+
-        '<div class="fin-tab-ico">'+c.ico+'</div>'+
-        '<div class="fin-tab-info">'+
-          '<span class="fin-tab-label">'+v+'</span>'+
-          '<span class="fin-tab-count">'+n+' indicador'+(n!==1?'es':'')+'</span>'+
-        '</div>'+
-      '</div>';
+    var ks=kpisDaAba(abaAtiva);
+    var st={VERDE:0,AMARELO:0,VERMELHO:0};
+    ks.forEach(function(k){ var r=null; try{ var l=getLanc(k.id); var ref=(typeof resolveRef==='function')?resolveRef(k,mes,ano):{}; r=(typeof calcStatus==='function'&&l)?calcStatus(k.sentido,l.realizado,ref.meta):null; }catch(e){} if(st[r]!==undefined) st[r]++; });
+    var cfgBtn=admin?'<button class="btn btn-sm" id="fin82-cfg-btn" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2)" onclick="window.dmxFin82Cfg(\''+abaAtiva+'\')">✏️ Configurar vertente</button>':'';
+    var mesSel='<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);border-radius:7px;padding:4px 10px">'+
+      '<span style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:0.5px">MÊS</span>'+
+      '<select style="background:transparent;border:none;color:#fff;font-size:12.5px;cursor:pointer;outline:none;font-family:inherit" onchange="window.dmxFin94Mes(this.value)">'+
+      MESN.slice(1).map(function(m,i){ return '<option value="'+(i+1)+'"'+((i+1)==mes?' selected':'')+' style="color:#000">'+m+'</option>'; }).join('')+
+      '</select><span style="font-size:10px;color:rgba(255,255,255,0.45);margin-left:2px">'+ano+'</span></div>';
+    var bar='<div class="pres-bar"><div><div class="pres-bar-title">◆ Painel Executivo</div><div class="pres-bar-pills">'+
+      (st.VERDE?'<span class="status-pill VERDE">'+st.VERDE+' Verde</span>':'')+
+      (st.AMARELO?'<span class="status-pill AMARELO">'+st.AMARELO+' Alerta</span>':'')+
+      (st.VERMELHO?'<span class="status-pill VERMELHO">'+st.VERMELHO+' Crítico</span>':'')+
+      '<span style="font-size:10px;color:rgba(255,255,255,0.35);margin-left:4px">'+(MESN[mes]||'')+'/'+ano+'</span></div></div>'+
+      '<div class="pres-bar-right">'+cfgBtn+mesSel+
+      '<button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2)" onclick="window.print()">🖨 Imprimir</button>'+
+      '</div></div>';
+    var tabs='<div class="group-tabs">'+ABAS.map(function(v){
+      var n=(cfg[v]||[]).length;
+      return '<div class="group-tab'+(v===abaAtiva?' active':'')+'" onclick="window.dmxFin82Tab(\''+v+'\')">'+VERT_CFG[v].ico+' '+v+' ('+n+')</div>';
     }).join('')+'</div>';
-
-    root.innerHTML=headerHtml+tabsHtml+'<div class="fin-content" id="fin82-content"></div>';
+    root.style.cssText='display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;';
+    root.innerHTML=bar+tabs+'<div class="pres-content" id="fin82-content"></div>';
     renderAba(abaAtiva);
   }
+  window.dmxFin94Mes=function(m){
+    try{ currentMes=Number(m); }catch(e){} window.currentMes=Number(m);
+    var g=document.getElementById('mes-sel'); if(g) g.value=m;
+    renderFin();
+  };
 
   // ── Render aba ─────────────────────────────────────────────────────────────
   function renderAba(v){
@@ -19772,24 +19780,15 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
       return;
     }
 
-    host.innerHTML='<div class="kpi-grid cols-2">'+ks.map(function(k){ return renderCard(k,vc); }).join('')+'</div>';
-    setTimeout(function(){
-      ks.forEach(function(k){
-        var canvas=document.getElementById('fin82-c-'+k.id); if(!canvas) return;
-        try{
-          if(typeof window.buildKPIChart==='function'){ window.buildKPIChart(k,canvas,110); return; }
-          var list=(window.LAUNCHES||window.launches||[])
-            .filter(function(l){ return String(l.id_kpi)===String(k.id)&&Number(l.ano)===(window.currentAno||2026); })
-            .sort(function(a,b){ return Number(a.mes_num||a.mes)-Number(b.mes_num||b.mes); });
-          if(!list.length||typeof Chart==='undefined') return;
-          var mn=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-          new Chart(canvas,{type:'line',data:{labels:list.map(function(l){ return mn[Number(l.mes_num||l.mes)]||''; }),datasets:[
-            {label:'Realizado',data:list.map(function(l){ return Number(l.realizado)||null; }),borderColor:'#0E9E82',backgroundColor:'rgba(14,158,130,.1)',pointRadius:3,tension:.3,fill:true},
-            {label:'Meta',data:list.map(function(l){ return Number(l.meta||k.meta_padrao||k.meta)||null; }),borderColor:'rgba(37,99,235,.5)',borderDash:[4,3],pointRadius:0,tension:0}
-          ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}});
-        }catch(e){}
-      });
-    },150);
+    try{ currentAreaKPIs = ks; }catch(e){}                       // slides navegam pelos KPIs do painel
+    try{ if(typeof areaCharts!=='undefined') Object.keys(areaCharts).forEach(function(id){ if(areaCharts[id]){ areaCharts[id].destroy(); delete areaCharts[id]; } }); }catch(e){}
+    if(typeof window.kpiChartCard==='function' || typeof kpiChartCard==='function'){
+      var card=(typeof window.kpiChartCard==='function')?window.kpiChartCard:kpiChartCard;
+      host.innerHTML='<div class="kpi-grid '+(ks.length<=1?'cols-1':'cols-2')+'" id="kpi-grid-inner">'+ks.map(function(k){ return card(k,k.area); }).join('')+'</div>';
+      try{ if(typeof renderGroupCharts==='function') renderGroupCharts(ks); }catch(e){}
+    } else {
+      host.innerHTML='<div class="kpi-grid cols-2">'+ks.map(function(k){ return renderCard(k,vc); }).join('')+'</div>';
+    }
   }
 
   // ── Card ───────────────────────────────────────────────────────────────────
@@ -19814,15 +19813,21 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
         '<div class="kpi-num-cell"><div class="kpi-num-label">Atingimento</div><div class="kpi-num-value" style="color:'+stC+'">'+(at!==null?at+'%':'—')+'</div></div>'+
       '</div>'+
       '<div class="kpi-card-chart"><div style="height:110px"><canvas id="fin82-c-'+esc(k.id)+'" width="400" height="110"></canvas></div></div>'+
-      '<div class="kpi-card-footer" onclick="if(typeof openKPISlide===\'function\') openKPISlide(\''+esc(k.id)+'\',0)">'+
+      '<div class="kpi-card-footer" onclick="window.dmxFin94Slide(\''+esc(k.id)+'\')">'+
         '<span style="font-size:13px">🔎</span> Ver análise completa <span style="margin-left:auto">›</span>'+
       '</div>'+
     '</div>';
   }
 
+  window.dmxFin94Slide=function(id){
+    try{ currentAreaKPIs = kpisDaAba(abaAtiva); }catch(e){}
+    if(typeof openKPISlide==='function') openKPISlide(id,0);
+  };
+
   // ── Troca aba ──────────────────────────────────────────────────────────────
   window.dmxFin82Tab=function(v){
     abaAtiva=v; localStorage.setItem(MODO_KEY,v);
+    renderFin(); return;
     document.querySelectorAll('#fin82-root .fin-tab').forEach(function(el){
       el.classList.toggle('active',el.dataset.aba===v);
     });
