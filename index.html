@@ -21819,5 +21819,186 @@ window.dmxIrParaMesLancamento = function(novoMes){
 })();
 </script>
 
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PATCH v95 — ESTABILIDADE DO REFRESH AUTOMÁTICO
+     Problemas atacados:
+       1. refresh automático re-navegava a tela (renderCurrentPage → restoreState
+          → callOfficialNavigation), jogando o usuário para a página gravada no
+          localStorage em vez de deixá-lo onde estava;
+       2. refresh disparava a cada troca de janela (visibilitychange) e a cada 30 s
+          no painel, recarregando a API quatro vezes por vez;
+       3. o guarda de edição só via o campo com foco — quem digitava e clicava fora
+          perdia o que tinha digitado no re-render seguinte.
+     Nada é removido: o patch envolve as funções existentes. Para desligar,
+     basta apagar este bloco.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script id="dmx-v95-estabilidade">
+(function(){
+  if(window.__dmxV95) return; window.__dmxV95 = true;
+
+  /* Ajustável em runtime pelo console: window.DMX_ESTABILIDADE.minIntervaloAutoSync = 60000 */
+  var CFG = window.DMX_ESTABILIDADE = Object.assign({
+    minIntervaloAutoSync : 120000,  // intervalo mínimo entre recargas automáticas da API
+    carenciaDigitacao    : 20000,   // tempo após a última digitação em que nada re-renderiza
+    avisarAoSair         : true,    // avisa se fechar a aba com edição inline pendente
+    logs                 : false    // true = mostra no console cada decisão do patch
+  }, window.DMX_ESTABILIDADE || {});
+
+  var UI_KEY = 'dmx_ui_state_v57';
+  function log(){ if(!CFG.logs) return; var a=[].slice.call(arguments);
+    console.log.apply(console, ['%c[v95]','background:#00796B;color:#fff;padding:1px 4px;border-radius:2px'].concat(a)); }
+
+  /* ────────── 1. Detecção de edição em andamento ──────────
+     O guarda original (dmxEdicaoEmAndamento) só reconhecia: edições inline
+     pendentes, modal aberto e campo COM FOCO. Faltava a janela logo após a
+     digitação, que é justamente quando o refresh apagava o que foi digitado.
+     Aqui a detecção é por tempo, então se cura sozinha — nunca trava o refresh
+     para sempre por um estado que ficou preso.                                   */
+  var ultimaDigitacao = 0;
+  var IDS_FILTRO = /^(mes-sel|ano-sel|area-mes-sel|slide-mes-sel|.*-filter|.*-search|weekly-.*-sel)$/;
+
+  function campoDeDados(el){
+    if(!el || !el.tagName) return false;
+    if(['INPUT','TEXTAREA','SELECT'].indexOf(el.tagName) < 0) return false;
+    if(el.readOnly || el.disabled) return false;
+    var t = String(el.type||'').toLowerCase();
+    if(t==='checkbox'||t==='radio'||t==='button'||t==='submit') return false;
+    try{ if(el.closest && el.closest('#dmx-login-overlay')) return false; }catch(e){}
+    if(el.id && IDS_FILTRO.test(el.id)) return false;   // filtro de período/área não é dado
+    return true;
+  }
+  function marcar(ev){
+    if(campoDeDados(ev && ev.target)){
+      ultimaDigitacao = Date.now();
+      log('digitando em', (ev.target.id||ev.target.name||ev.target.className||'campo'));
+    }
+  }
+  document.addEventListener('input',  marcar, true);
+  document.addEventListener('change', marcar, true);
+  document.addEventListener('keydown',marcar, true);
+
+  function modalAberto(){
+    try{
+      var ms = document.querySelectorAll('.modal-backdrop.open, .modal-backdrop[style*="flex"], .modal.open, [role="dialog"][open]');
+      for(var i=0;i<ms.length;i++){
+        var m = ms[i];
+        if(m.offsetParent !== null || (m.style && m.style.display === 'flex')) return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  function editando(){
+    try{
+      if(typeof window.dmxTemEdicoesPendentes === 'function' && window.dmxTemEdicoesPendentes()) return true;
+      if(ultimaDigitacao && (Date.now() - ultimaDigitacao) < CFG.carenciaDigitacao) return true;
+      if(modalAberto()) return true;
+    }catch(e){}
+    return false;
+  }
+  window.dmxEstaEditando = editando;
+  window.dmxLimparCarencia = function(){ ultimaDigitacao = 0; log('carência zerada'); };
+
+  /* Soma ao guarda original em vez de substituí-lo: o refresh já sabe reagendar
+     sozinho (8 s) quando este retorna true.                                      */
+  var guardaOriginal = window.dmxEdicaoEmAndamento;
+  window.dmxEdicaoEmAndamento = function(){
+    try{ if(typeof guardaOriginal === 'function' && guardaOriginal()) return true; }catch(e){}
+    return editando();
+  };
+
+  /* ────────── 2. Refresh automático não muda mais de tela ──────────
+     renderCurrentPage() = applySavedFilters() + restoreState(), e restoreState
+     navega para a página gravada no localStorage. Quem abriu uma tela por código
+     (slide de KPI, slide semanal, Painel Financeiro) não teve esse estado gravado,
+     então o refresh seguinte devolvia o usuário para a tela anterior.
+     Correção: antes de restaurar, o estado persistido é alinhado com a tela que
+     está de fato na frente do usuário. No boot isso NÃO acontece — lá a restauração
+     é justamente o que se quer.                                                   */
+  function paginaPersistida(){
+    try{ return String((JSON.parse(localStorage.getItem(UI_KEY) || '{}')).currentPage || ''); }
+    catch(e){ return ''; }
+  }
+  var bootConcluido = false;
+  setTimeout(function(){ bootConcluido = true; log('boot concluído — a tela atual passa a mandar'); }, 6000);
+  document.addEventListener('click', function(ev){
+    try{ if(ev.target && ev.target.closest && ev.target.closest('.nav-item[data-page]')) bootConcluido = true; }catch(e){}
+  }, true);
+
+  var renderOriginal = window.renderCurrentPage;
+  if(typeof renderOriginal === 'function' && !renderOriginal.__dmxV95){
+    var renderNovo = function(){
+      if(editando()){ log('re-render adiado: edição em andamento'); return; }
+      if(bootConcluido){
+        var atual = String(window.currentPage || '');
+        if(atual && atual !== paginaPersistida()){
+          try{ if(typeof window.dmxSaveUiState === 'function'){ window.dmxSaveUiState(); log('estado alinhado com a tela atual:', atual); } }catch(e){}
+        }
+      }
+      return renderOriginal.apply(this, arguments);
+    };
+    renderNovo.__dmxV95 = true;
+    window.renderCurrentPage = renderNovo;
+  }
+
+  /* ────────── 3. Throttle da recarga automática da API ──────────
+     Cada refresh automático dispara 4 requisições ao Apps Script (kpis, mensal,
+     semanal, debug). Antes isso acontecia a cada 30 s no painel E a cada troca de
+     janela. Agora a recarga automática respeita um intervalo mínimo; o botão
+     "Sincronizar agora" (manual=true) continua imediato.                          */
+  var ultimaCargaAuto = 0;
+  var cargaOriginal = window.dmxCarregarCatalogoDaAPI;
+  if(typeof cargaOriginal === 'function' && !cargaOriginal.__dmxV95){
+    var cargaNova = async function(manual){
+      if(manual === true){ ultimaCargaAuto = Date.now(); return cargaOriginal.apply(this, arguments); }
+      if(editando()){ log('sync automático ignorado: edição em andamento'); return false; }
+      var desde = Date.now() - ultimaCargaAuto;
+      if(ultimaCargaAuto && desde < CFG.minIntervaloAutoSync){
+        log('sync automático ignorado:', Math.round(desde/1000)+'s do último (mínimo '+Math.round(CFG.minIntervaloAutoSync/1000)+'s)');
+        return false;
+      }
+      ultimaCargaAuto = Date.now();
+      log('sync automático executado');
+      return cargaOriginal.apply(this, arguments);
+    };
+    cargaNova.__dmxV95 = true;
+    window.dmxCarregarCatalogoDaAPI = cargaNova;
+    try{ dmxCarregarCatalogoDaAPI = cargaNova; }catch(e){}
+  }
+
+  /* ────────── 4. Tabela de pesos do Índice ──────────
+     Um setInterval de 800 ms reescreve o innerHTML dessa tabela quando ela parece
+     vazia. Se isso cair no meio de uma digitação, o valor some.                    */
+  var pesosOriginal = window.dmxPreencheConfigPesos;
+  if(typeof pesosOriginal === 'function' && !pesosOriginal.__dmxV95){
+    var pesosNovo = function(){
+      if(editando()){ log('config de pesos adiada: edição em andamento'); return; }
+      return pesosOriginal.apply(this, arguments);
+    };
+    pesosNovo.__dmxV95 = true;
+    window.dmxPreencheConfigPesos = pesosNovo;
+  }
+
+  /* ────────── 5. Aviso ao fechar com edição inline pendente ──────────
+     Usa a noção do próprio sistema (pendingUpdates), que é limpa no salvamento —
+     não dispara falso positivo.                                                    */
+  if(CFG.avisarAoSair){
+    window.addEventListener('beforeunload', function(ev){
+      try{
+        if(typeof window.dmxTemEdicoesPendentes === 'function' && window.dmxTemEdicoesPendentes()){
+          ev.preventDefault(); ev.returnValue = ''; return '';
+        }
+      }catch(e){}
+    });
+  }
+
+  console.log('%c DMX v95 — estabilidade ativa ','background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px',
+    '| sync automático no mínimo a cada', Math.round(CFG.minIntervaloAutoSync/1000)+'s',
+    '| carência após digitar', Math.round(CFG.carenciaDigitacao/1000)+'s',
+    '| diagnóstico: DMX_ESTABILIDADE.logs = true');
+})();
+</script>
+
 </body>
 </html>
