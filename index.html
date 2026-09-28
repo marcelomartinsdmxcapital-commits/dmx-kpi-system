@@ -1,10 +1,11 @@
+<!-- DMX KPI System — v94.21 — 28/09/2026 — Painel Executivo: gráficos desenhados no próprio painel (antes colidiam com a tela de área escondida e os KPIs Meta ficavam em branco); slide aberto pelo painel volta ao painel; KPI global sem peso redistribuído de área oculta. -->
 <!-- DMX KPI System — v94.20 — 25/09/2026 — (1) Acumulado do índice pelo semestre do mês de referência, com meses pareados (realizado só onde há meta). (2) PPR: metas globais passam a respeitar o sentido (PDD é Menor Melhor), usam meses pareados e o limitador de 120%/50%. (3) Painel Executivo no formato de apresentação das áreas, com os slides navegando pelos KPIs do painel. -->
 <!-- DMX KPI System — v94.19 — 24/09/2026 — Painel Executivo passa a ler SEMPRE a aba Config_PainelExecutivo (antes a leitura nunca rodava: window.apiGet não existia) e deixa de guardar a configuração no navegador. Só o administrador altera, sempre sobre a versão atual da aba, com confirmação de gravação. -->
 <!-- DMX KPI System — v94.18 — 11/08/2026 — Novo: META POR FORMULA MES A MES. A celula de Meta na tabela "Metas Mensais" (modal do KPI no Admin) passa a aceitar numero OU formula (ex.: KPI107*0,05), gravada por mes na nova coluna formula_meta de Dados_Mensais. Isso permite rampa (Jul 5%, Ago 6%, Set 7%) sem repetir fatores no cadastro. Botao "aplicar daqui" replica o conteudo do mes para os seguintes. Vale para qualquer KPI, calculado ou manual, pois a meta independe de como o realizado e lancado. Precedencia da meta: (1) formula do proprio mes, (2) formula_kpi do catalogo se tipo=calculado, (3) meta numerica lancada. A coluna meta continua sempre NUMERICA (muitas telas leem l.meta direto) e resolveRef reavalia a formula ao vivo, entao o valor nao fica defasado se a fonte mudar. Requer Code.gs v89 (coluna formula_meta + auto-criacao de cabecalhos). -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.20",data:"25/09/2026",build:"ppr-semestral-pareado-e-painel-apresentacao"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v94.21",data:"28/09/2026",build:"painel-graficos-e-voltar-do-slide"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -6030,6 +6031,8 @@ window.addEventListener('DOMContentLoaded', init);
     // Sheets sem peso definido → usa edição local pendente (cache), se houver.
     const stored=getStoredPeso(id);
     if(stored!==null && stored>0) return stored;
+    // v94.21 — áreas ocultas (CEO, painel) não têm índice de área: KPI global não recebe peso redistribuído.
+    if(k && ['ceo','painel financeiro','painel executivo'].includes(norm(k.area))) return 0;
     // Nada definido → redistribui igualmente entre os KPIs Meta da área.
     if(k) return fallbackPeso(k);
     return stored||0;
@@ -19784,8 +19787,14 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     try{ if(typeof areaCharts!=='undefined') Object.keys(areaCharts).forEach(function(id){ if(areaCharts[id]){ areaCharts[id].destroy(); delete areaCharts[id]; } }); }catch(e){}
     if(typeof window.kpiChartCard==='function' || typeof kpiChartCard==='function'){
       var card=(typeof window.kpiChartCard==='function')?window.kpiChartCard:kpiChartCard;
-      host.innerHTML='<div class="kpi-grid '+(ks.length<=1?'cols-1':'cols-2')+'" id="kpi-grid-inner">'+ks.map(function(k){ return card(k,k.area); }).join('')+'</div>';
-      try{ if(typeof renderGroupCharts==='function') renderGroupCharts(ks); }catch(e){}
+      try{ var al=document.getElementById('area-kpis-list'); if(al) al.innerHTML=''; }catch(e){}   // evita ids de canvas duplicados
+      host.innerHTML='<div class="kpi-grid '+(ks.length<=1?'cols-1':'cols-2')+'" id="fin94-grid">'+ks.map(function(k){ return card(k,k.area); }).join('')+'</div>';
+      setTimeout(function(){
+        ks.forEach(function(k){
+          var c=host.querySelector('[id="chart-'+k.id+'"]');
+          if(c && typeof buildKPIChart==='function'){ try{ buildKPIChart(k,c,100); }catch(e){ console.warn('[DMX] gráfico do painel',k.id,e); } }
+        });
+      },40);
     } else {
       host.innerHTML='<div class="kpi-grid cols-2">'+ks.map(function(k){ return renderCard(k,vc); }).join('')+'</div>';
     }
@@ -19818,6 +19827,42 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
       '</div>'+
     '</div>';
   }
+
+  // v94.21 — origem do slide: se abriu a partir do painel, o "voltar" retorna ao painel
+  function rotularVoltar(){
+    if(window._dmxSlideOrigem!=='painel') return;
+    setTimeout(function(){ var b=document.querySelector('.slide-nav-back'); if(b) b.innerHTML='<span style="font-size:16px">←</span> Painel Executivo'; },0);
+  }
+  function instalarRetornoSlide(){
+    if(window.__dmxFin94Slide) return; window.__dmxFin94Slide=true;
+    if(typeof window.openKPISlide==='function'){
+      var baseOpen=window.openKPISlide;
+      window.openKPISlide=openKPISlide=function(){
+        window._dmxSlideOrigem=(window.currentPage==='financeiro')?'painel':(window.currentPage==='kpi-slide'?window._dmxSlideOrigem:'area');
+        var r=baseOpen.apply(this,arguments); rotularVoltar(); return r;
+      };
+    }
+    if(typeof window.slideNav==='function'){
+      var baseNav=window.slideNav;
+      window.slideNav=slideNav=function(){ var r=baseNav.apply(this,arguments); rotularVoltar(); return r; };
+    }
+    if(typeof window.slideChangeMes==='function'){
+      var baseMes=window.slideChangeMes;
+      window.slideChangeMes=slideChangeMes=function(){ var r=baseMes.apply(this,arguments); rotularVoltar(); return r; };
+    }
+    if(typeof window.goBackFromSlide==='function'){
+      var baseBack=window.goBackFromSlide;
+      window.goBackFromSlide=goBackFromSlide=function(){
+        if(window._dmxSlideOrigem==='painel'){
+          window._dmxSlideOrigem='';
+          document.querySelectorAll('.page').forEach(function(p){ p.style.display=''; });
+          openFin(document.querySelector('[data-page="financeiro"]')); return;
+        }
+        return baseBack.apply(this,arguments);
+      };
+    }
+  }
+  setTimeout(instalarRetornoSlide,2500);
 
   window.dmxFin94Slide=function(id){
     try{ currentAreaKPIs = kpisDaAba(abaAtiva); }catch(e){}
