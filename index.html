@@ -1353,7 +1353,11 @@ function dmxApiToLaunch(row) {
     return Number.isFinite(n) ? n : def;
   };
   const ano = num(row.ano, currentAno);
-  const mes = num(row.mes ?? row.mes_num, currentMes);
+  /* v96: mes_num tem prioridade. Na aba de Operacoes o campo 'mes' vem como texto
+     ("Jan"); o ?? nao cai para mes_num porque "Jan" nao e null, Number("Jan") e NaN
+     e o ano inteiro colapsava no mes corrente, deixando o grafico sem serie. */
+  const _mn = num(row.mes_num, null);
+  const mes = (_mn !== null && _mn >= 1 && _mn <= 12) ? _mn : num(row.mes, currentMes);
   const kpi = getKPI(id) || {};
   const meta = num(row.meta, num(kpi.meta, 0));
   // minimo/maximo NÃO lidos do Sheets — calculados via tolerancia_pct pelo resolveRef
@@ -1403,7 +1407,11 @@ function dmxApiToWeekly(row) {
   };
   const kpi = (typeof getKPI === 'function' ? getKPI(id) : null) || (Array.isArray(window.kpis) ? window.kpis.find(k => String(k.id) === id) : {}) || {};
   const ano = num(row.ano, currentAno);
-  const mes = num(row.mes ?? row.mes_num, currentMes);
+  /* v96: mes_num tem prioridade. Na aba de Operacoes o campo 'mes' vem como texto
+     ("Jan"); o ?? nao cai para mes_num porque "Jan" nao e null, Number("Jan") e NaN
+     e o ano inteiro colapsava no mes corrente, deixando o grafico sem serie. */
+  const _mn = num(row.mes_num, null);
+  const mes = (_mn !== null && _mn >= 1 && _mn <= 12) ? _mn : num(row.mes, currentMes);
   const etapa = num(row.semana ?? row.etapa, 1);
   const meta = num(row.meta_semana ?? row.meta, num(kpi.meta, null));
   const minimo = num(row.minimo_semana ?? row.minimo, num(kpi.minimo, null));
