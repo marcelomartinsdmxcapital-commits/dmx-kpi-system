@@ -22000,5 +22000,127 @@ window.dmxIrParaMesLancamento = function(novoMes){
 })();
 </script>
 
+<script id="dmx-v96-graficos-e-apresentacao">
+/* v96 — três correções independentes, todas por wrapper (nada é removido):
+   1. mês textual na Análise de Operações quebrava a série dos gráficos;
+   2. refresh automático trocando o KPI em apresentação e no painel executivo;
+   3. Análise de Operações abrindo em branco até trocar de sub-aba.          */
+(function(){
+  if(window.__dmxV96) return; window.__dmxV96 = true;
+
+  var CFG = window.DMX_V96 = Object.assign({
+    paginasSemAutoRefresh : ['diretoria','indice','ppr','kpi-slide','weekly-slide',
+                             'semanal','semanal-operacional','comparativo','operacoes'],
+    tentativasOperacoes   : 8,       // re-render da aba de Operações até os dados chegarem
+    intervaloTentativa    : 900,     // ms entre tentativas
+    logs                  : false
+  }, window.DMX_V96 || {});
+
+  function log(){ if(!CFG.logs) return; var a=[].slice.call(arguments);
+    console.log.apply(console, ['%c[v96]','background:#5E35B1;color:#fff;padding:1px 4px;border-radius:2px'].concat(a)); }
+
+  /* ───────────── 1. Mês textual quebrava o gráfico ─────────────
+     dmxApiToLaunch fazia num(row.mes ?? row.mes_num, currentMes). Na aba de
+     Operações o campo mes vem como "Jan"/"Fev"; o ?? não cai para mes_num
+     porque "Jan" não é null, Number("Jan") é NaN e a função devolvia o mês
+     corrente. Todos os lançamentos do ano colapsavam no mesmo mês: o card e o
+     acumulado ficavam certos, a linha não tinha como ser desenhada.           */
+  var MESES_TXT = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+  function mesNumerico(row){
+    var cand = [row.mes_num, row.mes, row.mesNum];
+    for(var i=0;i<cand.length;i++){
+      var v = cand[i];
+      if(v === null || v === undefined || v === '') continue;
+      if(typeof v === 'number' && isFinite(v) && v>=1 && v<=12) return v;
+      var s = String(v).trim();
+      var n = Number(s.replace(',','.'));
+      if(isFinite(n) && n>=1 && n<=12) return n;
+      var k = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').slice(0,3);
+      if(MESES_TXT[k]) return MESES_TXT[k];
+    }
+    return null;
+  }
+  var _toLaunch = window.dmxApiToLaunch;
+  if(typeof _toLaunch === 'function'){
+    window.dmxApiToLaunch = function(row){
+      var out = _toLaunch.apply(this, arguments);
+      if(out && row){
+        var m = mesNumerico(row);
+        if(m !== null && out.mes !== m){ log('mês corrigido', row.id_kpi, out.mes, '->', m); out.mes = m; }
+        if(m !== null && 'mes_num' in out) out.mes_num = m;
+      }
+      return out;
+    };
+  }
+
+  /* ───────────── 2. Refresh automático em apresentação ─────────────
+     refreshFromSheets já respeita dmxEdicaoEmAndamento(): quando devolve true,
+     ele reagenda em vez de recarregar. Em vez de desligar timer ou listener —
+     que são de outro escopo e voltariam a ser registrados — basta declarar que
+     uma apresentação em curso é um estado protegido, como uma edição.
+     O usuário continua podendo recarregar à mão.                              */
+  function paginaProtegida(){
+    var p = String(window.currentPage||'').toLowerCase();
+    if(CFG.paginasSemAutoRefresh.indexOf(p) >= 0) return true;
+    try{ if(document.fullscreenElement) return true; }catch(e){}
+    try{ if(document.querySelector('.slide-ativo,.apresentacao-ativa,#page-kpi-slide.active,#page-weekly-slide.active')) return true; }catch(e){}
+    return false;
+  }
+  var _edicao = window.dmxEdicaoEmAndamento;
+  window.dmxEdicaoEmAndamento = function(){
+    if(paginaProtegida()){ log('auto-refresh adiado:', window.currentPage); return true; }
+    return typeof _edicao === 'function' ? _edicao.apply(this, arguments) : false;
+  };
+  /* recarga manual continua passando: refreshFromSheets('manual') não consulta o guarda */
+  window.dmxForcarAtualizacao = function(){
+    if(typeof window.dmxRefreshPainelExecutivo === 'function') return window.dmxRefreshPainelExecutivo();
+    if(typeof window.dmxRefreshSheetsNow === 'function') return window.dmxRefreshSheetsNow();
+  };
+
+  /* ───────────── 3. Análise de Operações em branco ─────────────
+     renderOperacoes devolve cedo quando `operacoes` ainda está vazio e, se a
+     carga demora mais que o timeout de 8s, a tela fica sem conteúdo até o
+     usuário trocar de sub-aba e forçar outro render. Aqui, depois de cada
+     render, se o container continuar vazio, tenta de novo algumas vezes.      */
+  var _render = window.renderOperacoes;
+  if(typeof _render === 'function'){
+    window.renderOperacoes = function(){
+      var r = _render.apply(this, arguments);
+      try{
+        var cont = document.getElementById('ops-content');
+        var vazio = !cont || !cont.children.length ||
+                    /Carregando indicadores/.test(cont.textContent||'');
+        if(vazio && String(window.currentPage||'')==='operacoes'){
+          var n = (window.__dmxV96OpsTry||0) + 1;
+          if(n <= CFG.tentativasOperacoes){
+            window.__dmxV96OpsTry = n;
+            log('Operações ainda vazia, tentativa', n);
+            /* zera o cooldown de 12s para a carga poder ser refeita */
+            window.__opsLastTry = 0;
+            setTimeout(function(){
+              if(String(window.currentPage||'')!=='operacoes') return;
+              if(typeof window.renderOperacoes==='function') window.renderOperacoes();
+            }, CFG.intervaloTentativa * n);
+          }
+        } else {
+          window.__dmxV96OpsTry = 0;
+        }
+      }catch(e){ log('falha na retentativa', e); }
+      return r;
+    };
+  }
+  /* ao entrar na aba, zera o contador para a sequência de tentativas recomeçar */
+  var _nav = window.nav;
+  if(typeof _nav === 'function'){
+    window.nav = function(p){
+      if(String(p||'')==='operacoes') window.__dmxV96OpsTry = 0;
+      return _nav.apply(this, arguments);
+    };
+  }
+
+  log('v96 ativo');
+})();
+</script>
+
 </body>
 </html>
