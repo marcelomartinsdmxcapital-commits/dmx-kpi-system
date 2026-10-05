@@ -18817,7 +18817,11 @@ setTimeout(()=>{
     // (3) Fonte manual → meta lançada
     var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
     if(!l || l.meta==null || l.meta==='' || isNaN(Number(l.meta))) return null;
-    return Number(l.meta);
+    // v98: 0 = SEM meta, a mesma convenção que o resolveRef já usa ("0 ou vazio = sem
+    // meta neste mês"). Sem isto, um componente zerado entra como numerador 0 e o KPI
+    // pai exibe "meta 0,00%" como se fosse um alvo legítimo, em vez de dizer que não há.
+    var _mv = Number(l.meta);
+    return _mv === 0 ? null : _mv;
   }
   function avaliarFormulaMeta(expr, mes, ano){
     if(!expr || !expr.trim()) return null;
@@ -18845,11 +18849,19 @@ setTimeout(()=>{
     // v94.18: fórmula do mês tem precedência (vale para calculado E manual)
     var _fm = window.dmxFormulaMetaDoMes ? window.dmxFormulaMetaDoMes(kpiId, mes, ano) : '';
     if(_fm) return avaliarFormulaMeta(_fm, mes, ano);
+    // v98: a meta gravada na própria linha, já tratando 0 como "sem meta".
+    var _l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    var _gravada = (_l && _l.meta!=null && _l.meta!=='' && !isNaN(Number(_l.meta))
+                    && Number(_l.meta)!==0) ? Number(_l.meta) : null;
     if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
-      return avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
+      // A fórmula manda. Mas se ela não resolver (null) ou devolver 0, cai na meta
+      // gravada em vez de empurrar um zero para a tela: antes, qualquer falha da
+      // derivação virava "meta 0,00%" — número errado com cara de alvo.
+      var _calc = avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
+      if(_calc !== null && _calc !== undefined && _calc !== 0) return _calc;
+      return _gravada;
     }
-    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
-    return l && l.meta!=null && l.meta!=='' && !isNaN(Number(l.meta)) ? Number(l.meta) : null;
+    return _gravada;
   };
 
   // Recalcula todos os KPIs calculados para um mês/ano
@@ -21093,7 +21105,11 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     // (3) Fonte manual → meta lançada
     var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
     if(!l || l.meta==null || l.meta==='' || isNaN(Number(l.meta))) return null;
-    return Number(l.meta);
+    // v98: 0 = SEM meta, a mesma convenção que o resolveRef já usa ("0 ou vazio = sem
+    // meta neste mês"). Sem isto, um componente zerado entra como numerador 0 e o KPI
+    // pai exibe "meta 0,00%" como se fosse um alvo legítimo, em vez de dizer que não há.
+    var _mv = Number(l.meta);
+    return _mv === 0 ? null : _mv;
   }
   function avaliarFormulaMeta(expr, mes, ano){
     if(!expr || !expr.trim()) return null;
@@ -21121,11 +21137,19 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     // v94.18: fórmula do mês tem precedência (vale para calculado E manual)
     var _fm = window.dmxFormulaMetaDoMes ? window.dmxFormulaMetaDoMes(kpiId, mes, ano) : '';
     if(_fm) return avaliarFormulaMeta(_fm, mes, ano);
+    // v98: a meta gravada na própria linha, já tratando 0 como "sem meta".
+    var _l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
+    var _gravada = (_l && _l.meta!=null && _l.meta!=='' && !isNaN(Number(_l.meta))
+                    && Number(_l.meta)!==0) ? Number(_l.meta) : null;
     if(kpi.tipo_lancamento==='calculado' && kpi.formula_kpi){
-      return avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
+      // A fórmula manda. Mas se ela não resolver (null) ou devolver 0, cai na meta
+      // gravada em vez de empurrar um zero para a tela: antes, qualquer falha da
+      // derivação virava "meta 0,00%" — número errado com cara de alvo.
+      var _calc = avaliarFormulaMeta(kpi.formula_kpi, mes, ano);
+      if(_calc !== null && _calc !== undefined && _calc !== 0) return _calc;
+      return _gravada;
     }
-    var l = typeof getLaunch==='function' ? getLaunch(kpiId, mes, ano) : null;
-    return l && l.meta!=null && l.meta!=='' && !isNaN(Number(l.meta)) ? Number(l.meta) : null;
+    return _gravada;
   };
 
   // Recalcula todos os KPIs calculados para um mês/ano
