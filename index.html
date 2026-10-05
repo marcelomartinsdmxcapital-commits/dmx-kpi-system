@@ -1,3 +1,4 @@
+<!-- DMX KPI System — v99 — 05/10/2026 — Meta de KPI calculado a prova de falha: funde linhas duplicadas de lancamento, da ao resolveRef uma ultima instancia (meta gravada no proprio mes) quando a formula nao resolve, e impede que linha fabricada carregue meta 0 do catalogo. Catalogo embutido substituido pelo real (162 KPIs) e LAUNCHES_RAW esvaziado em 05/10. -->
 <!-- DMX KPI System — v94.21 — 28/09/2026 — Painel Executivo: gráficos desenhados no próprio painel (antes colidiam com a tela de área escondida e os KPIs Meta ficavam em branco); slide aberto pelo painel volta ao painel; KPI global sem peso redistribuído de área oculta. -->
 <!-- DMX KPI System — v94.20 — 25/09/2026 — (1) Acumulado do índice pelo semestre do mês de referência, com meses pareados (realizado só onde há meta). (2) PPR: metas globais passam a respeitar o sentido (PDD é Menor Melhor), usam meses pareados e o limitador de 120%/50%. (3) Painel Executivo no formato de apresentação das áreas, com os slides navegando pelos KPIs do painel. -->
 <!-- DMX KPI System — v94.19 — 24/09/2026 — Painel Executivo passa a ler SEMPRE a aba Config_PainelExecutivo (antes a leitura nunca rodava: window.apiGet não existia) e deixa de guardar a configuração no navegador. Só o administrador altera, sempre sobre a versão atual da aba, com confirmação de gravação. -->
@@ -5,7 +6,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v94.21",data:"28/09/2026",build:"painel-graficos-e-voltar-do-slide"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v99",data:"05/10/2026",build:"meta-a-prova-de-falha-kpi-calculado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -22148,6 +22149,195 @@ window.dmxIrParaMesLancamento = function(novoMes){
   }
 
   log('v96 ativo');
+})();
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PATCH v99 — META À PROVA DE FALHA (KPI calculado)
+     Sintoma: KPI001 (Índice de PDD) aparecia com "META MENSAL —" embora
+     Dados_Mensais tivesse meta 13,74 na própria linha E os componentes
+     (KPI106/KPI118) tivessem metas que derivam exatamente 13,74.
+     Causas estruturais atacadas aqui:
+       1. `launches` pode conter DUAS linhas para o mesmo KPI/mês/ano — uma
+          criada por dmxReconcileLaunchesWithCatalog ou por
+          dmxRecalcularKpisCalculados (meta = 0, o sentinela de "sem meta") e
+          outra vinda da API (meta real). Todo leitor usa .find(), que pega a
+          PRIMEIRA — podia ser a pobre. Agora as duplicatas são fundidas.
+       2. resolveRef, para KPI calculado, devolvia SÓ o que a fórmula desse.
+          Se qualquer elo falhasse, a meta virava null mesmo havendo meta
+          gravada no próprio mês. Agora há essa última instância.
+       3. dmxRecalcularKpisCalculados fabricava linha com meta: kpi.meta||0 —
+          um zero do catálogo que o motor lê como "sem meta".
+     Nada é removido: tudo por wrapper. Para desligar, apague este bloco.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script id="dmx-v99-meta-failsafe">
+(function(){
+  if(window.__dmxV99) return; window.__dmxV99 = true;
+
+  var NUMERICOS = ['meta','minimo','maximo','realizado','peso_ebitda','peso_indice','impacto'];
+  var TEXTUAIS  = ['comentario','justificativa','status','unidade','sentido','area','indicador','formula_meta'];
+
+  function n(v){
+    if(v===null||v===undefined||v==='') return null;
+    if(typeof v==='number') return isFinite(v)?v:null;
+    var s=String(v).trim().replace(/R\$/gi,'').replace(/%/g,'').replace(/\s/g,'');
+    if(s.indexOf(',')>=0 && s.indexOf('.')>=0)
+      s = s.lastIndexOf(',')>s.lastIndexOf('.') ? s.replace(/\./g,'').replace(',','.') : s.replace(/,/g,'');
+    else if(s.indexOf(',')>=0) s=s.replace(',','.');
+    var x=Number(s); return isFinite(x)?x:null;
+  }
+  function arrLanc(){
+    try{ if(typeof launches!=='undefined' && Array.isArray(launches)) return launches; }catch(e){}
+    return Array.isArray(window.launches) ? window.launches : null;
+  }
+  function vazioNum(v){ var x=n(v); return x===null || x===0; }
+  function vazioTxt(v){ return v===null || v===undefined || String(v).trim()===''; }
+
+  /* ── 1. Funde linhas duplicadas de lançamento ────────────────────────── */
+  window.dmxDedupLaunches = function(silencioso){
+    var arr = arrLanc(); if(!arr) return 0;
+    var pos = {}, dup = 0;
+    for(var i=0;i<arr.length;i++){
+      var l = arr[i]; if(!l || !l.id_kpi) continue;
+      var k = String(l.id_kpi).trim()+'|'+Number(l.ano)+'|'+Number(l.mes_num);
+      if(pos[k]===undefined){ pos[k]=i; continue; }
+      var base = arr[pos[k]];
+      NUMERICOS.forEach(function(c){ if(vazioNum(base[c]) && !vazioNum(l[c])) base[c]=l[c]; });
+      TEXTUAIS.forEach(function(c){ if(vazioTxt(base[c]) && !vazioTxt(l[c])) base[c]=l[c]; });
+      arr[i] = null; dup++;
+    }
+    if(dup){
+      for(var j=arr.length-1;j>=0;j--) if(arr[j]===null) arr.splice(j,1);
+      try{ localStorage.setItem('dmx_launches', JSON.stringify(arr)); }catch(e){}
+      if(!silencioso) console.warn('[v99] '+dup+' linha(s) duplicada(s) de lançamento fundida(s).');
+    }
+    return dup;
+  };
+
+  /* ── 2. resolveRef: última instância da meta de um KPI calculado ─────── */
+  var avisado = {};
+  function instalarResolveRef(){
+    var orig = window.resolveRef;
+    if(typeof orig !== 'function' || orig.__v99) return false;
+    var novo = function(kpi, mes, ano){
+      var ref = orig.apply(this, arguments) || {};
+      try{
+        var ehCalc = kpi && kpi.tipo_lancamento==='calculado' && kpi.formula_kpi;
+        if(ehCalc && (ref.meta===null || ref.meta===undefined)){
+          var l  = (typeof getLaunch==='function') ? getLaunch(kpi.id, mes, ano) : null;
+          var mv = n(l && l.meta);
+          if(mv!==null && mv!==0){
+            ref.meta = mv;
+            var tol = n(kpi.tolerancia_pct);
+            if(tol!==null && tol>0){
+              if(ref.minimo===null||ref.minimo===undefined) ref.minimo = Math.round(mv*(1-tol/100)*10000)/10000;
+              if(ref.maximo===null||ref.maximo===undefined) ref.maximo = Math.round(mv*(1+tol/100)*10000)/10000;
+            }
+            if(!avisado[kpi.id]){
+              avisado[kpi.id] = 1;
+              console.warn('[v99] '+kpi.id+': a formula de meta nao resolveu — usando a meta gravada '
+                + 'no proprio mes ('+mv+'). Confira as metas dos componentes de '+kpi.formula_kpi+'.');
+            }
+          }
+        }
+      }catch(e){}
+      return ref;
+    };
+    novo.__v99 = true;
+    window.resolveRef = novo;
+    try{ resolveRef = novo; }catch(e){}
+    return true;
+  }
+
+  /* ── 3. Linha fabricada para KPI calculado não inventa meta 0 ────────── */
+  function instalarRecalc(){
+    var orig = window.dmxRecalcularKpisCalculados;
+    if(typeof orig !== 'function' || orig.__v99) return false;
+    var novo = function(mes, ano){
+      var arr = arrLanc();
+      var antes = arr ? arr.length : 0;
+      var r = orig.apply(this, arguments);
+      try{
+        if(arr){
+          for(var i=antes;i<arr.length;i++){
+            var l = arr[i];
+            /* 0 vindo do catalogo e o sentinela de "sem meta" e mascararia a meta
+               real que chega de Dados_Mensais. Melhor nao ter campo do que ter zero. */
+            if(l && Number(l.meta)===0)   delete l.meta;
+            if(l && Number(l.minimo)===0) delete l.minimo;
+            if(l && Number(l.maximo)===0) delete l.maximo;
+          }
+        }
+        window.dmxDedupLaunches(true);
+      }catch(e){}
+      return r;
+    };
+    novo.__v99 = true;
+    window.dmxRecalcularKpisCalculados = novo;
+    return true;
+  }
+
+  /* ── 4. Dedup logo após cada carga mensal da API ─────────────────────── */
+  function instalarApply(){
+    var orig = window.dmxApplyMensalRows;
+    if(typeof orig !== 'function' || orig.__v99) return false;
+    var novo = function(rows){
+      var r = orig.apply(this, arguments);
+      try{ window.dmxDedupLaunches(true); }catch(e){}
+      return r;
+    };
+    novo.__v99 = true;
+    window.dmxApplyMensalRows = novo;
+    try{ dmxApplyMensalRows = novo; }catch(e){}
+    return true;
+  }
+
+  /* ── 5. Diagnóstico de uma linha: por onde a meta do calculado veio ──── */
+  window.dmxDiagnosticoMeta = function(kpiId, mes, ano){
+    kpiId = kpiId || 'KPI001';
+    mes   = Number(mes || window.currentMes || 0);
+    ano   = Number(ano || window.currentAno || 0);
+    var k = (window.kpis||[]).filter(function(x){ return x.id===kpiId; })[0];
+    if(!k){ console.warn('[v99] KPI nao encontrado no catalogo:', kpiId); return; }
+    var arr = arrLanc()||[];
+    var linhas = arr.filter(function(l){
+      return String(l.id_kpi).trim()===kpiId && Number(l.ano)===ano && Number(l.mes_num)===mes; });
+    var out = {
+      kpi: kpiId, mes: mes, ano: ano,
+      tipo_lancamento: k.tipo_lancamento, formula_kpi: k.formula_kpi,
+      linhas_no_array: linhas.length,
+      linha_usada: linhas[0] ? {meta: linhas[0].meta, realizado: linhas[0].realizado} : null,
+      meta_pela_formula: (typeof window.dmxAvaliarFormulaMeta==='function' && k.formula_kpi)
+        ? window.dmxAvaliarFormulaMeta(k.formula_kpi, mes, ano) : null,
+      dmxGetMeta: (typeof window.dmxGetMeta==='function') ? window.dmxGetMeta(kpiId, mes, ano) : null,
+      resolveRef: (typeof window.resolveRef==='function') ? window.resolveRef(k, mes, ano).meta : null,
+      componentes: {}
+    };
+    (String(k.formula_kpi||'').match(/KPI\d+/g)||[]).forEach(function(c){
+      var lc = arr.filter(function(l){
+        return String(l.id_kpi).trim()===c && Number(l.ano)===ano && Number(l.mes_num)===mes; });
+      out.componentes[c] = { linhas: lc.length, meta: lc[0] ? lc[0].meta : null, realizado: lc[0] ? lc[0].realizado : null };
+    });
+    if(console.table) console.table([out]); else console.log(out);
+    console.log('[v99] detalhe dos componentes:', out.componentes);
+    return out;
+  };
+
+  /* ── boot: instala assim que as funções existirem ────────────────────── */
+  var tentativas = 0;
+  (function instalar(){
+    instalarResolveRef(); instalarRecalc(); instalarApply();
+    var pronto = window.resolveRef && window.resolveRef.__v99
+              && window.dmxApplyMensalRows && window.dmxApplyMensalRows.__v99
+              && window.dmxRecalcularKpisCalculados && window.dmxRecalcularKpisCalculados.__v99;
+    if(++tentativas < 40 && !pronto) setTimeout(instalar, 250);
+  })();
+  setTimeout(function(){ try{ window.dmxDedupLaunches(); }catch(e){} }, 4500);
+  setTimeout(function(){ try{ window.dmxDedupLaunches(); }catch(e){} }, 9000);
+
+  console.log('%c DMX v99 — meta a prova de falha ','background:#0E9E82;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px',
+    '| diagnostico: dmxDiagnosticoMeta("KPI001", 9, 2026)');
 })();
 </script>
 
