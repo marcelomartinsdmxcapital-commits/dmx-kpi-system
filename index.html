@@ -6,7 +6,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v99",data:"05/10/2026",build:"meta-a-prova-de-falha-kpi-calculado"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v100",data:"06/10/2026",build:"coluna-tipo-de-preenchimento"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -859,6 +859,13 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
         <select class="filter-input" id="upd-vertente-filter" onchange="renderAtualizar()">
           <option value="">Meta + Controle</option><option value="Meta">Apenas Meta</option><option value="Controle">Apenas Controle</option>
         </select>
+        <select class="filter-input" id="upd-tipo-filter" onchange="renderAtualizar()" title="Como o valor deste KPI chega ao sistema">
+          <option value="">Todo tipo de preenchimento</option>
+          <option value="manual">✍️ Manual — você preenche</option>
+          <option value="automatico">⚙️ Automático — carga do DW</option>
+          <option value="calculado">🧮 Calculado — por fórmula</option>
+          <option value="__EDITAVEL__">✍️ + 🧮/⚙️ não — só o que você edita</option>
+        </select>
         <input class="filter-input" type="text" id="upd-search" placeholder="🔍  Filtrar..." oninput="renderAtualizar()" style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;background:#F0FDF9;border:1px solid #6EE7B7;border-radius:7px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--teal)">
           Editando: <span id="upd-period-label"></span>
@@ -870,7 +877,7 @@ kbd { background: var(--bg3); border: 1px solid var(--border); border-radius: 3p
       </div>
       <div class="table-wrap">
         <table class="data-table" id="upd-table">
-          <thead><tr><th>ID</th><th>Área</th><th>Indicador</th><th>Unid.</th><th>Sentido</th><th style="color:#2563EB">Meta ✎</th><th style="color:#DC2626">Mín ✎</th><th style="color:#DC2626">Máx ✎</th><th style="color:var(--teal)">Realizado ✎</th><th>Ating.</th><th>Status</th><th style="color:var(--teal)">Peso Índice ✎</th><th>Comentário</th><th>Editar</th></tr></thead>
+          <thead><tr><th>ID</th><th>Área</th><th>Indicador</th><th>Preenchimento</th><th>Unid.</th><th>Sentido</th><th style="color:#2563EB">Meta ✎</th><th style="color:#DC2626">Mín ✎</th><th style="color:#DC2626">Máx ✎</th><th style="color:var(--teal)">Realizado ✎</th><th>Ating.</th><th>Status</th><th style="color:var(--teal)">Peso Índice ✎</th><th>Comentário</th><th>Editar</th></tr></thead>
           <tbody id="upd-tbody"></tbody>
         </table>
       </div>
@@ -3213,14 +3220,82 @@ function renderKPICatalog() {
 
 // \u2500\u2500\u2500 ATUALIZAR DADOS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
+
+// ─── v100 — Tipo de preenchimento: Automático / Calculado / Manual ──────────
+// Automático = valor carregado do DW pela carga mensal (sem digitação).
+// Calculado  = derivado da fórmula do próprio KPI.
+// Manual     = a área precisa digitar.
+// A classificação oficial mora no cadastro (tipo_lancamento). A semente abaixo
+// cobre os KPIs já carregados por carga enquanto o cadastro não é republicado.
+window.DMX_AUTO_SEED = ["KPI004", "KPI008", "KPI009", "KPI010", "KPI011", "KPI014", "KPI036", "KPI040", "KPI041", "KPI046", "KPI047", "KPI048", "KPI050", "KPI053", "KPI068", "KPI080", "KPI081", "KPI086", "KPI087", "KPI089", "KPI092", "KPI095", "KPI096", "KPI105", "KPI106", "KPI107", "KPI108", "KPI109", "KPI110", "KPI117", "KPI118", "KPI119", "KPI120", "KPI121", "KPI122", "KPI123", "KPI125", "KPI126", "KPI128", "KPI138", "KPI139", "KPI140", "KPI141", "KPI142", "KPI147", "KPI151", "KPI152", "KPI153", "KPI155", "KPI157", "KPI158", "KPI159", "KPI161", "KPI162", "KPI164", "KPI165", "KPI167", "KPI168", "KPI170"];
+window.DMX_PREENCH = {
+  calculado:{rot:'Calculado',ico:'🧮',bg:'#EFF6FF',fg:'#1D4ED8',
+             dica:'Valor derivado da fórmula do KPI — não se digita.'},
+  automatico:{rot:'Automático',ico:'⚙️',bg:'#F5F3FF',fg:'#6D28D9',
+             dica:'Carregado do banco pela carga mensal — não se digita.'},
+  manual:{rot:'Manual',ico:'✍️',bg:'#FFFBEB',fg:'#B45309',
+             dica:'Precisa ser preenchido pela área.'}
+};
+window.__dmxTemAuto = null;
+window.dmxCadastroTemAutomatico = function(){
+  if(window.__dmxTemAuto !== null) return window.__dmxTemAuto;
+  var lista = window.kpis || [];
+  if(!lista.length) return false;          // catálogo ainda não carregou: não decide
+  window.__dmxTemAuto = lista.some(function(k){
+    return String((k||{}).tipo_lancamento||'').trim().toLowerCase() === 'automatico';
+  });
+  return window.__dmxTemAuto;
+};
+window.dmxTipoPreench = function(k){
+  try{
+    if(typeof k === 'string') k = (typeof getKPI==='function' ? getKPI(k) : null) || {id:k};
+    if(!k) return 'manual';
+    if(k.tipo_lancamento === 'calculado' && k.formula_kpi) return 'calculado';
+    var t = String(k.tipo_lancamento||'').trim().toLowerCase();
+    if(t === 'automatico' || t === 'automático') return 'automatico';
+    // O cadastro hoje grava 'manual' para todo mundo, então 'manual' ainda não
+    // distingue nada. Enquanto nenhum KPI estiver publicado como 'automatico',
+    // a semente decide; publicado o cadastro, ela se desliga sozinha e o Admin
+    // passa a mandar — inclusive para marcar algo de volta como Manual.
+    if(window.dmxCadastroTemAutomatico()) return 'manual';
+    return (window.DMX_AUTO_SEED||[]).indexOf(String(k.id||'')) >= 0 ? 'automatico' : 'manual';
+  }catch(e){ return 'manual'; }
+};
+window.dmxPreenchBadge = function(tipo, formula){
+  var c = window.DMX_PREENCH[tipo] || window.DMX_PREENCH.manual;
+  var dica = c.dica + (tipo==='calculado' && formula ? ' Fórmula: '+formula : '');
+  return '<span class="dmx-preench dmx-preench-'+tipo+'" title="'+String(dica).replace(/"/g,'&quot;')+'"'+
+    ' style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;'+
+    'background:'+c.bg+';color:'+c.fg+'">'+c.ico+' '+c.rot+'</span>';
+};
+// Trava da coluna Editar: só Manual abre o modal de lançamento.
+window.dmxPreenchTrava = function(tipo, formula){
+  if(tipo === 'manual') return null;
+  var c = window.DMX_PREENCH[tipo];
+  var dica = c.dica + (tipo==='calculado' && formula ? ' Fórmula: '+formula : '');
+  return '<span title="'+String(dica).replace(/"/g,'&quot;')+'"'+
+    ' style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;'+
+    'background:var(--bg3);color:var(--muted);border:1px solid var(--border)">🔒 '+c.rot+'</span>';
+};
+// true quando a linha deve sobreviver ao filtro de tipo de preenchimento.
+window.dmxInvalidaPreench = function(){ window.__dmxTemAuto = null; };
+window.dmxPreenchPassa = function(kpi, filtro){
+  if(!filtro) return true;
+  var t = window.dmxTipoPreench(kpi);
+  if(filtro === '__EDITAVEL__') return t === 'manual';
+  return t === filtro;
+};
+
 function renderAtualizar() {
   document.getElementById('upd-period-label').textContent = MES[currentMes] + '/' + currentAno;
   pendingUpdates = {};
   const af   = document.getElementById('upd-area-filter').value;
   const vf   = document.getElementById('upd-vertente-filter').value;
   const srch = document.getElementById('upd-search').value.toLowerCase();
+  const tf   = (document.getElementById('upd-tipo-filter')||{}).value||'';
   const filtered = kpis.filter(k => {
     if (!dmxKpiAtivo(k)) return false;
+    if (!window.dmxPreenchPassa(k, tf)) return false;
     if (af === '__FIN__') {
       // mostra apenas os KPIs do Painel Financeiro/CEO (áreas ocultas da navegação)
       if (!['CEO','Painel Financeiro','Painel Executivo'].includes(k.area)) return false;
@@ -3253,6 +3328,7 @@ function renderAtualizar() {
       '<td><span class="font-mono text-muted" style="font-size:10px">' + kpi.id + '</span></td>' +
       '<td><span class="tag tag-area" style="font-size:9px">' + kpi.area + '</span></td>' +
       '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="' + kpi.indicador + '">' + kpi.indicador + '</td>' +
+      '<td>' + window.dmxPreenchBadge(window.dmxTipoPreench(kpi), kpi.formula_kpi) + '</td>' +
       '<td class="text-muted text-sm">' + kpi.unidade + '</td>' +
       '<td><span class="tag tag-sentido" style="font-size:9px">' + (kpi.sentido === 'Maior Melhor' ? '\u25B2' : '\u25BC') + '</span></td>' +
       '<td>' + inp('meta', mv, 72, '#2563EB') + '</td>' +
@@ -3279,9 +3355,10 @@ function renderAtualizar() {
         return '<td>'+_pesoCell+'</td>';
       }()) +
       '<td><input type="hidden" id="com-' + kpi.id + '" value="' + com.replace(/"/g, '&quot;') + '"><span title="' + com.replace(/"/g, '&quot;') + '" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (com ? com : '—') + '</span></td>' +
-      (kpi.tipo_lancamento==='calculado'?
-        '<td><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8">🔢 KPI Calculado</span></td>' :
-        '<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\'' + kpi.id + '\',' + currentMes + ',' + currentAno + ')">✎ Editar</button></td>') +
+      (function(){
+        var _trava = window.dmxPreenchTrava(window.dmxTipoPreench(kpi), kpi.formula_kpi);
+        return '<td>' + (_trava || '<button class="btn btn-primary btn-sm" onclick="openEditLancamento(\'' + kpi.id + '\',' + currentMes + ',' + currentAno + ')">✎ Editar</button>') + '</td>';
+      }()) +
       '</tr>';
   }).join('');
 
@@ -3308,6 +3385,8 @@ function renderAtualizar() {
       allTargets.forEach(function(t){
         var vf2 = document.getElementById('upd-vertente-filter') ? document.getElementById('upd-vertente-filter').value : '';
         if(vf2 && t.vertente!==vf2) return;
+        var tf2 = (document.getElementById('upd-tipo-filter')||{}).value||'';
+        if(!window.dmxPreenchPassa(kpi, tf2)) return;
         var l2   = (typeof getLaunch==='function') ? getLaunch(kpi.id,currentMes,currentAno) : null;
         var ref2 = (typeof resolveRef==='function') ? resolveRef(kpi,currentMes,currentAno) : {meta:kpi.meta};
         var at2  = (l2&&typeof calcAting==='function') ? calcAting(kpi.sentido,l2.realizado,ref2.meta) : null;
@@ -3324,6 +3403,7 @@ function renderAtualizar() {
           '<td><span class="font-mono text-muted" style="font-size:10px">'+kpi.id+'</span></td>'+
           '<td><span class="tag tag-area" style="font-size:9px">'+t.area+'</span><span style="font-size:9px;background:#DBEAFE;color:#1D4ED8;border-radius:3px;padding:1px 5px;font-weight:700;margin-left:4px">de '+kpi.area+'</span></td>'+
           '<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+kpi.indicador+'</td>'+
+          '<td>'+window.dmxPreenchBadge(window.dmxTipoPreench(kpi), kpi.formula_kpi)+'</td>'+
           '<td class="text-muted text-sm">'+kpi.unidade+'</td>'+
           '<td><span class="tag tag-sentido" style="font-size:9px">'+(kpi.sentido==='Maior Melhor'?'▲':'▼')+'</span></td>'+
           '<td><input class="edit-cell" type="number" value="'+mv2+'" style="width:72px;border-color:#2563EB40;background:#2563EB08" readonly></td>'+
@@ -3334,7 +3414,7 @@ function renderAtualizar() {
           '<td>'+(typeof pill==='function'?pill(st2):st2)+'</td>'+
           '<td>'+pesoCell2+'</td>'+
           '<td><span title="'+String(com2).replace(/"/g,'&quot;')+'" style="font-size:11px;color:var(--muted);display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(com2||'—')+'</span></td>'+
-          (kpi.tipo_lancamento==='calculado'?'<td><span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8">🔢 KPI Calculado</span></td>':'<td><button class="btn btn-primary btn-sm" onclick="openEditLancamento(\''+kpi.id+'\','+currentMes+','+currentAno+')">✎ Editar</button></td>');
+          '<td>'+(window.dmxPreenchTrava(window.dmxTipoPreench(kpi), kpi.formula_kpi) || '<button class="btn btn-primary btn-sm" onclick="openEditLancamento(\''+kpi.id+'\','+currentMes+','+currentAno+')">✎ Editar</button>')+'</td>';
         tbody2.appendChild(tr);
       });
     });
@@ -3464,9 +3544,11 @@ function openEditLancamento(id_kpi, mes, ano) {
   const af = (document.getElementById('upd-area-filter')||{}).value||'';
   const vf = (document.getElementById('upd-vertente-filter')||{}).value||'';
   const srch = ((document.getElementById('upd-search')||{}).value||'').toLowerCase();
+  const tfNav = (document.getElementById('upd-tipo-filter')||{}).value||'';
   const kpisVisiveis = kpis.filter(k => {
     if(!dmxKpiAtivo(k)) return false;
-    if(k.tipo_lancamento==='calculado') return false;
+    if(window.dmxTipoPreench(k) !== 'manual') return false;   // v100: pula calculado e automático
+    if(!window.dmxPreenchPassa(k, tfNav)) return false;
     if(af && k.area!==af) return false;
     if(vf && k.vertente!==vf) return false;
     if(srch && !k.indicador.toLowerCase().includes(srch) && !k.id.toLowerCase().includes(srch)) return false;
@@ -7479,35 +7561,38 @@ window.buildShareSection = function(kpiId){
       var area = getAreaFromRow(tr);
 
       // Meta, mínimo, máximo, realizado e peso: deixa visual, sem input editável.
+      // v100: a coluna Preenchimento entrou no indice 3 e empurrou tudo a partir dali.
       var map = [
-        {idx:5,color:'#2563EB'}, {idx:6,color:'#DC2626'}, {idx:7,color:'#DC2626'}, {idx:8,color:'#0E9E82'}, {idx:11,color:'#0E9E82'}
+        {idx:6,color:'#2563EB'}, {idx:7,color:'#DC2626'}, {idx:8,color:'#DC2626'}, {idx:9,color:'#0E9E82'}, {idx:12,color:'#0E9E82'}
       ];
       map.forEach(function(m){
         var td = tr.children[m.idx];
         if(!td || td.getAttribute('data-dmx-readonly') === '1') return;
         var inp = td.querySelector('input');
         if(inp){
-          var suffix = (m.idx === 11 && inputDisplayValue(inp) !== '—') ? ' %' : '';
+          var suffix = (m.idx === 12 && inputDisplayValue(inp) !== '—') ? ' %' : '';
           td.innerHTML = displayBox(inputDisplayValue(inp) + suffix, m.color);
         }
         td.setAttribute('data-dmx-readonly','1');
       });
 
       // Remove botão de apagar realizado, se ainda existir.
-      var realTd = tr.children[8];
+      var realTd = tr.children[9];
       if(realTd){
         Array.prototype.slice.call(realTd.querySelectorAll('button')).forEach(function(b){ b.remove(); });
       }
 
       // Botão único de edição via modal, com contexto da área para peso.
-      var editTd = tr.children[13];
+      var editTd = tr.children[14];
       if(editTd){
         var _kpiAtu = (typeof getKPI==='function') ? getKPI(id) : (window.kpis||[]).find(function(k){return k.id===id;});
-        if(_kpiAtu && _kpiAtu.tipo_lancamento==='calculado'){
-          editTd.innerHTML = '<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#EFF6FF;color:#1D4ED8;white-space:nowrap" title="Valor calculado automaticamente pela fórmula: '+esc(_kpiAtu.formula_kpi||'')+'">🧮 Calculado</span>';
+        var _tipoAtu = window.dmxTipoPreench(_kpiAtu || id);
+        var _travaAtu = _kpiAtu ? window.dmxPreenchTrava(_tipoAtu, _kpiAtu.formula_kpi) : null;
+        if(_travaAtu){
+          editTd.innerHTML = _travaAtu;
           // mostra a fórmula visível abaixo do indicador, alertando para não esquecer os KPIs de origem
           var indTd = tr.children[2];
-          if(indTd && _kpiAtu.formula_kpi && !indTd.querySelector('.dmx-formula-hint')){
+          if(indTd && _tipoAtu==='calculado' && _kpiAtu.formula_kpi && !indTd.querySelector('.dmx-formula-hint')){
             indTd.innerHTML += '<div class="dmx-formula-hint" style="font-size:10px;color:#1D4ED8;margin-top:3px;line-height:1.3">🧮 <strong>Fórmula:</strong> '+esc(_kpiAtu.formula_kpi)+'<br><span style="color:#92400E">Lance os KPIs de origem para este cálculo funcionar.</span></div>';
           }
         } else {
@@ -8843,8 +8928,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
             <label>
               <span class="card-label">Tipo</span>
               <select id="adm-kpi-tipo-lancamento" class="filter-input" style="width:100%" onchange="document.getElementById('adm-kpi-formula-kpi-row').style.display=this.value==='calculado'?'block':'none'">
-                <option value="manual" ${(k.tipo_lancamento||'manual')==='manual'?'selected':''}>Manual (padrão)</option>
-                <option value="calculado" ${k.tipo_lancamento==='calculado'?'selected':''}>Calculado automaticamente</option>
+                <option value="manual" ${(k.tipo_lancamento||'manual')==='manual'?'selected':''}>✍️ Manual — a área digita</option>
+                <option value="automatico" ${k.tipo_lancamento==='automatico'?'selected':''}>⚙️ Automático — carga do banco</option>
+                <option value="calculado" ${k.tipo_lancamento==='calculado'?'selected':''}>🧮 Calculado — por fórmula</option>
               </select>
             </label>
             <div id="adm-kpi-formula-kpi-row" style="display:${k.tipo_lancamento==='calculado'?'block':'none'}">
@@ -13173,7 +13259,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     'mes-sel','ano-sel','area-mes-sel','slide-mes-sel',
     'weekly-area-filter','weekly-month-filter','weekly-year-filter','weekly-entry-step-filter','weekly-slide-mes-sel',
     'kpi-area-filter','kpi-pilar-filter','kpi-impacto-filter','kpi-status-filter','kpi-search',
-    'upd-area-filter','upd-vertente-filter','upd-search',
+    'upd-area-filter','upd-vertente-filter','upd-tipo-filter','upd-search',
     'plano-area-filter','plano-status-filter','plano-search',
     'indice-area-filter','indice-search','watch-search'
   ];
