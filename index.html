@@ -1,3 +1,4 @@
+<!-- DMX KPI System — v103 — 05/11/2026 — Plano PPR: o seletor de semestre (e o de mês) guarda a escolha e a restaura quando a sincronização re-renderiza a página; antes voltava sempre ao 1º semestre. (2) Admin: setores podem ser desligados do cálculo do PPR (gravado na aba Config_PPR do Sheets, linhas area_ppr). -->
 <!-- DMX KPI System — v99 — 05/10/2026 — Meta de KPI calculado a prova de falha: funde linhas duplicadas de lancamento, da ao resolveRef uma ultima instancia (meta gravada no proprio mes) quando a formula nao resolve, e impede que linha fabricada carregue meta 0 do catalogo. Catalogo embutido substituido pelo real (162 KPIs) e LAUNCHES_RAW esvaziado em 05/10. -->
 <!-- DMX KPI System — v94.21 — 28/09/2026 — Painel Executivo: gráficos desenhados no próprio painel (antes colidiam com a tela de área escondida e os KPIs Meta ficavam em branco); slide aberto pelo painel volta ao painel; KPI global sem peso redistribuído de área oculta. -->
 <!-- DMX KPI System — v94.20 — 25/09/2026 — (1) Acumulado do índice pelo semestre do mês de referência, com meses pareados (realizado só onde há meta). (2) PPR: metas globais passam a respeitar o sentido (PDD é Menor Melhor), usam meses pareados e o limitador de 120%/50%. (3) Painel Executivo no formato de apresentação das áreas, com os slides navegando pelos KPIs do painel. -->
@@ -6,7 +7,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v101",data:"19/10/2026",build:"kpi115-automatico"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v103",data:"05/11/2026",build:"ppr-semestre-e-setores"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -3227,7 +3228,7 @@ function renderKPICatalog() {
 // Manual     = a área precisa digitar.
 // A classificação oficial mora no cadastro (tipo_lancamento). A semente abaixo
 // cobre os KPIs já carregados por carga enquanto o cadastro não é republicado.
-window.DMX_AUTO_SEED = ["KPI004", "KPI008", "KPI009", "KPI010", "KPI011", "KPI014", "KPI036", "KPI040", "KPI041", "KPI046", "KPI047", "KPI048", "KPI050", "KPI053", "KPI068", "KPI080", "KPI081", "KPI086", "KPI087", "KPI089", "KPI092", "KPI095", "KPI096", "KPI105", "KPI106", "KPI107", "KPI108", "KPI109", "KPI110", "KPI115", "KPI117", "KPI118", "KPI119", "KPI120", "KPI121", "KPI122", "KPI123", "KPI125", "KPI126", "KPI128", "KPI138", "KPI139", "KPI140", "KPI141", "KPI142", "KPI147", "KPI151", "KPI152", "KPI153", "KPI155", "KPI157", "KPI158", "KPI159", "KPI161", "KPI162", "KPI164", "KPI165", "KPI167", "KPI168", "KPI170"];
+window.DMX_AUTO_SEED = ["KPI004", "KPI008", "KPI009", "KPI010", "KPI011", "KPI014", "KPI036", "KPI040", "KPI041", "KPI046", "KPI047", "KPI048", "KPI050", "KPI053", "KPI068", "KPI080", "KPI081", "KPI086", "KPI087", "KPI089", "KPI092", "KPI095", "KPI096", "KPI105", "KPI106", "KPI107", "KPI108", "KPI109", "KPI110", "KPI115", "KPI117", "KPI118", "KPI119", "KPI120", "KPI121", "KPI122", "KPI123", "KPI125", "KPI126", "KPI128", "KPI138", "KPI139", "KPI140", "KPI141", "KPI142", "KPI143", "KPI147", "KPI151", "KPI152", "KPI153", "KPI155", "KPI157", "KPI158", "KPI159", "KPI161", "KPI162", "KPI164", "KPI165", "KPI167", "KPI168", "KPI170"];
 window.DMX_PREENCH = {
   calculado:{rot:'Calculado',ico:'🧮',bg:'#EFF6FF',fg:'#1D4ED8',
              dica:'Valor derivado da fórmula do KPI — não se digita.'},
@@ -16745,7 +16746,12 @@ setTimeout(()=>{
   function getAreaList(){
     return (typeof areas485==='function'?areas485():
       [...new Set(kpisAll().map(function(k){ return k.area; }).filter(Boolean))].sort())
-      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
+      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); })
+      .filter(function(a){ return typeof window.dmxPprAreaAtiva!=='function'||window.dmxPprAreaAtiva(a); });   // v103: setores desligados no Admin
+  }
+  function notaOff(){
+    var o=(typeof window.dmxPprAreasDesligadas==='function')?window.dmxPprAreasDesligadas():[];
+    return o.length?' &nbsp;·&nbsp; <span style="color:var(--muted)">Fora do cálculo: '+esc(o.join(', '))+'</span>':'';
   }
 
   // ── Atingimento de um KPI num intervalo (v94.20) ─────────────────────────
@@ -16970,11 +16976,11 @@ setTimeout(()=>{
         '<button id="ppr-btn-sem" onclick="window.dmxPprSetModo(\'semestral\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Semestral</button>'+
         '<button id="ppr-btn-mes" onclick="window.dmxPprSetModo(\'mensal\')" style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer">Mensal</button>'+
       '</div>'+
-      '<select id="ppr-sem-sel2" class="filter-input" style="width:200px;margin:0" onchange="window.dmxPprCalcSem()">'+
+      '<select id="ppr-sem-sel2" class="filter-input" style="width:200px;margin:0" onchange="window.dmxPprGuardaSel(\'sem\',this.value);window.dmxPprCalcSem()">'+
         '<option value="1">1º Semestre — Jan a Jun</option>'+
         '<option value="2">2º Semestre — Jul a Dez</option>'+
       '</select>'+
-      '<select id="ppr-mes-sel2" class="filter-input" style="width:140px;margin:0;display:none" onchange="window.dmxPprCalcMes()">'+
+      '<select id="ppr-mes-sel2" class="filter-input" style="width:140px;margin:0;display:none" onchange="window.dmxPprGuardaSel(\'mes\',this.value);window.dmxPprCalcMes()">'+
         '<option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>'+
         '<option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>'+
         '<option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>'+
@@ -16987,9 +16993,20 @@ setTimeout(()=>{
     var divMes=document.createElement('div');
     divMes.id='ppr-mensal-res'; divMes.style.cssText='display:none;margin-top:0';
     if(cards) page.insertBefore(divMes,cards); else page.appendChild(divMes);
+    // v103 — a sincronização com o Sheets chama renderPPR(), que reescreve a página e recria esta
+    // barra; sem guardar a escolha, o seletor voltava sempre ao 1º semestre. Agora o semestre e o
+    // mês escolhidos ficam guardados e são restaurados a cada recriação. Sem escolha guardada,
+    // abre no semestre/mês do período de referência.
+    var mesRef=Number(window.currentMes||5);
+    var ss=document.getElementById('ppr-sem-sel2');
+    if(ss) ss.value=lerSel('sem')||(mesRef>=7?'2':'1');
     var ms=document.getElementById('ppr-mes-sel2');
-    if(ms) ms.value=String(window.currentMes||5);
+    if(ms) ms.value=lerSel('mes')||String(mesRef);
   }
+
+  var SEL_KEYS={sem:'dmx_ppr_sem_sel_v103',mes:'dmx_ppr_mes_sel_v103'};
+  function lerSel(t){ try{ return localStorage.getItem(SEL_KEYS[t])||''; }catch(e){ return ''; } }
+  window.dmxPprGuardaSel=function(t,v){ try{ localStorage.setItem(SEL_KEYS[t],String(v)); }catch(e){} };
 
   // ── Aplica modo ───────────────────────────────────────────────────────────
   function aplicaModo(modo){
@@ -17057,7 +17074,7 @@ setTimeout(()=>{
       out.innerHTML='<strong>'+sem.label+' ('+sem.short+')/'+ano+'</strong> &nbsp;·&nbsp; '+
         'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
         'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
-        'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+        'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>'+notaOff();
       tabDiv.innerHTML=renderTabela(sorted,cfg,sem.label+' — '+sem.short+'/'+ano);
     }
     // Tabela de transparência dentro do semestral-bloco
@@ -17092,7 +17109,7 @@ setTimeout(()=>{
     out.innerHTML='<strong>'+esc(periodoLabel)+'</strong> &nbsp;·&nbsp; '+
       'Global: <strong style="color:var(--teal)">'+pct(media)+'</strong> &nbsp;·&nbsp; '+
       'Melhor: <strong style="color:var(--green)">'+esc(sorted[0].area)+' '+pct(sorted[0].total)+'</strong> &nbsp;·&nbsp; '+
-      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>';
+      'Atenção: <strong style="color:var(--red)">'+esc(sorted[sorted.length-1].area)+' '+pct(sorted[sorted.length-1].total)+'</strong>'+notaOff();
     var aviso=(!cfg.kpi1&&!cfg.kpi2&&!cfg.kpi3)?
       '<div style="padding:9px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:12px;color:#92400E;margin-bottom:12px">'+
       '⚠️ <b>Configuração mensal não definida.</b> Configure os KPIs do programa mensal em <b>Admin / Sheets</b>. Exibindo com config semestral como prévia.'+
@@ -21742,7 +21759,8 @@ window.dmxIrParaMesLancamento = function(novoMes){
   function pprAreaList(){
     return (typeof areas485==='function'?areas485():
       Array.from(new Set(pprKpisAll().map(function(k){ return k.area; }).filter(Boolean))).sort())
-      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); });
+      .filter(function(a){ return !['CEO','Painel Financeiro','Painel Executivo'].includes(String(a||'').trim()); })
+      .filter(function(a){ return typeof window.dmxPprAreaAtiva!=='function'||window.dmxPprAreaAtiva(a); });   // v103: setores desligados no Admin
   }
   function pprCalcAting(kpiId, ano, ini, fim){
     try{
@@ -21888,6 +21906,8 @@ window.dmxIrParaMesLancamento = function(novoMes){
            'KPI Global 2=' + (k2?k2.indicador:'—') + ' (peso ' + fmtPct(cfg.peso2) + ') | ' +
            'KPI Global 3=' + (k3?k3.indicador:'—') + ' (peso ' + fmtPct(cfg.peso3) + ') | ' +
            'Índice da Área (peso ' + fmtPct(cfg.pesoArea) + ')');
+      if(typeof window.dmxPprAreasDesligadas==='function' && window.dmxPprAreasDesligadas().length)
+        push('Setores fora do cálculo do PPR (desligados no Admin): ' + window.dmxPprAreasDesligadas().join(', '));
 
       var SEMS = [{label:'1º Semestre (Jan–Jun)', ini:1, fim:6}, {label:'2º Semestre (Jul–Dez)', ini:7, fim:12}];
       SEMS.forEach(function(sem){
@@ -22426,6 +22446,371 @@ window.dmxIrParaMesLancamento = function(novoMes){
     '| diagnostico: dmxDiagnosticoMeta("KPI001", 9, 2026)');
 })();
 </script>
+
+<!-- PATCH v103 — PPR: o Admin pode desligar setores do cálculo do PPR -->
+
+<script>
+
+(function(){
+
+  if(window.__dmxPprAreasOffV103) return;
+
+  window.__dmxPprAreasOffV103 = true;
+
+
+
+  // Onde fica gravado: aba Config_PPR do Sheets, junto com os KPIs/pesos do PPR semestral, uma
+
+  // linha por setor: {mes_ref:'area_ppr', area:<setor>, kpi_id:'__area_ppr__', peso:1 participa | 0 desligado}.
+
+  // Como o salvarConfigPPR regrava a aba inteira, toda gravação de config PPR (de qualquer tela)
+
+  // passa a levar também as linhas dos setores — ver o wrap do dmxApiPost abaixo.
+
+  var LSK = 'dmx_ppr_areas_off_v103';
+
+  var MES_REF = 'area_ppr', KID = '__area_ppr__';
+
+  var FORA = ['CEO','Painel Financeiro','Painel Executivo','Mensal','Semanal'];
+
+
+
+  function norm(a){ return String(a||'').trim(); }
+
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function lsGet(){ try{ var v=JSON.parse(localStorage.getItem(LSK)||'[]'); return Array.isArray(v)?v.map(norm):[]; }catch(e){ return []; } }
+
+  function lsSet(v){ try{ localStorage.setItem(LSK, JSON.stringify(v)); }catch(e){} }
+
+  var off = lsGet();
+
+
+
+  window.dmxPprAreaAtiva = function(a){ return off.indexOf(norm(a)) < 0; };
+
+  window.dmxPprAreasDesligadas = function(){ return off.slice(); };
+
+
+
+  function todasAreas(){
+
+    var base = (typeof window.areas485==='function') ? window.areas485()
+
+             : (window.kpis||[]).map(function(k){ return k && k.area; });
+
+    var set = {};
+
+    base.concat(off).forEach(function(a){ a=norm(a); if(a && FORA.indexOf(a)<0) set[a]=1; });
+
+    return Object.keys(set).sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+
+  }
+
+  function slug(a){ return norm(a).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\W+/g,'_').toLowerCase(); }
+
+  function areaRows(){
+
+    var agora = new Date().toISOString();
+
+    return todasAreas().map(function(a){
+
+      return {id:'ppr_area_'+slug(a), mes_ref:MES_REF, area:a, kpi_id:KID, peso:(off.indexOf(a)<0?1:0), ativo:true, criado_em:agora};
+
+    });
+
+  }
+
+
+
+  // ── toda gravação de salvarConfigPPR leva as linhas dos setores ──────────────────────────
+
+  function wrapApi(){
+
+    var orig = window.dmxApiPost;
+
+    if(typeof orig!=='function' || orig.__v103areas) return;
+
+    var w = function(tipo, payload){
+
+      if(tipo==='salvarConfigPPR' && payload && Array.isArray(payload.rows)){
+
+        var rows = payload.rows.filter(function(r){ return !(r && r.mes_ref===MES_REF); });
+
+        payload = Object.assign({}, payload, {rows: rows.concat(areaRows())});
+
+      }
+
+      return orig.apply(this, [tipo, payload].concat([].slice.call(arguments, 2)));
+
+    };
+
+    w.__v103areas = true;
+
+    window.dmxApiPost = w;
+
+  }
+
+
+
+  // ── leitura do Sheets ────────────────────────────────────────────────────────────────────
+
+  function apiUrl(){ return (typeof window.dmxGetApiUrl==='function' ? window.dmxGetApiUrl() : window.DMX_API_URL || '').trim(); }
+
+  function jsonp(tipo){
+
+    return new Promise(function(resolve, reject){
+
+      var url = apiUrl(); if(!url){ reject(new Error('API não configurada')); return; }
+
+      var cb = 'dmxAreasPpr_' + Date.now();
+
+      var full = url.replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'') + (url.indexOf('?')>=0?'&':'?') +
+
+                 'tipo=' + encodeURIComponent(tipo) + '&callback=' + cb + '&t=' + Date.now();
+
+      var timer = setTimeout(function(){ delete window[cb]; reject(new Error('Timeout')); }, 15000);
+
+      window[cb] = function(d){ clearTimeout(timer); delete window[cb]; resolve(d); };
+
+      var s = document.createElement('script'); s.src = full;
+
+      s.onerror = function(){ clearTimeout(timer); delete window[cb]; reject(new Error('JSONP erro')); };
+
+      document.head.appendChild(s); setTimeout(function(){ try{ document.head.removeChild(s); }catch(e){} }, 16000);
+
+    });
+
+  }
+
+  function rerender(){
+
+    try{
+
+      if(document.getElementById('page-ppr')?.classList.contains('active') && typeof window.renderPPR==='function') window.renderPPR();
+
+    }catch(e){}
+
+    fillPanel();
+
+  }
+
+  window.dmxPprCarregarSetores = function(){
+
+    return jsonp('config_ppr').then(function(r){
+
+      var rows = (r && (r.data || r.rows)) || [];
+
+      var linhas = rows.filter(function(x){ return x && x.mes_ref===MES_REF; });
+
+      if(!linhas.length) return off;                       // nada gravado ainda: mantém o local
+
+      off = linhas.filter(function(x){ return Number(x.peso)===0; }).map(function(x){ return norm(x.area); });
+
+      lsSet(off); rerender();
+
+      return off;
+
+    }).catch(function(e){ console.warn('[PPR setores] leitura falhou:', e); return off; });
+
+  };
+
+
+
+  // ── gravação a partir do Admin ───────────────────────────────────────────────────────────
+
+  function cfgRows(){
+
+    var cfg = null; try{ cfg = JSON.parse(localStorage.getItem('dmx_ppr_config_v1')||'null'); }catch(e){}
+
+    if(!cfg || !cfg.kpi1) return null;
+
+    var agora = new Date().toISOString(), id = function(){ return Date.now()+'_'+Math.random().toString(36).slice(2,7); };
+
+    return [
+
+      {id:id(), mes_ref:'kpi1',    area:'__global__', kpi_id:cfg.kpi1||'', peso:cfg.peso1||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'peso1',   area:'__global__', kpi_id:cfg.kpi1||'', peso:cfg.peso1||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'kpi2',    area:'__global__', kpi_id:cfg.kpi2||'', peso:cfg.peso2||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'peso2',   area:'__global__', kpi_id:cfg.kpi2||'', peso:cfg.peso2||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'kpi3',    area:'__global__', kpi_id:cfg.kpi3||'', peso:cfg.peso3||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'peso3',   area:'__global__', kpi_id:cfg.kpi3||'', peso:cfg.peso3||0,    ativo:true, criado_em:agora},
+
+      {id:id(), mes_ref:'pesoArea',area:'__global__', kpi_id:'__area__',  peso:cfg.pesoArea||0, ativo:true, criado_em:agora},
+
+    ];
+
+  }
+
+  function toast(m){ if(typeof window.showToast==='function') window.showToast(m); else console.log(m); }
+
+
+
+  window.dmxPprSalvarSetores = function(){
+
+    var box = document.getElementById('dmx-ppr-setores-admin'); if(!box) return;
+
+    var novo = [];
+
+    box.querySelectorAll('input[data-ppr-area]').forEach(function(ch){ if(!ch.checked) novo.push(norm(ch.dataset.pprArea)); });
+
+    var ativos = todasAreas().filter(function(a){ return novo.indexOf(a)<0; });
+
+    if(!ativos.length){ toast('⚠️ Pelo menos um setor precisa participar do PPR.'); return; }
+
+    var rows = cfgRows();
+
+    if(!rows){ toast('⚠️ Configuração do PPR ainda não carregada — aguarde a sincronização e tente de novo.'); return; }
+
+    var antes = off; off = novo; lsSet(off);
+
+    wrapApi();
+
+    var st = document.getElementById('dmx-ppr-setores-status'); if(st) st.textContent = 'Gravando no Sheets…';
+
+    Promise.resolve(window.dmxApiPost('salvarConfigPPR', {rows: rows})).then(function(r){
+
+      if(r && r.ok !== false){
+
+        toast('✓ Setores do PPR salvos' + (off.length ? ' — fora do cálculo: ' + off.join(', ') : ' — todos participam'));
+
+        if(st) st.textContent = 'Gravado em ' + new Date().toLocaleString('pt-BR') + '.';
+
+      } else {
+
+        off = antes; lsSet(off);
+
+        toast('❌ Não foi possível gravar os setores do PPR no Sheets.');
+
+        if(st) st.textContent = 'Falha ao gravar — nada mudou.';
+
+      }
+
+      rerender();
+
+    });
+
+  };
+
+
+
+  // ── painel no Admin ──────────────────────────────────────────────────────────────────────
+
+  function fillPanel(){
+
+    var box = document.getElementById('dmx-ppr-setores-admin'); if(!box) return;
+
+    var lista = box.querySelector('#dmx-ppr-setores-lista'); if(!lista) return;
+
+    lista.innerHTML = todasAreas().map(function(a){
+
+      var on = off.indexOf(a) < 0;
+
+      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border,#E5E7EB);border-radius:6px;cursor:pointer;background:'+(on?'#F0FDF4':'#FEF2F2')+'">'+
+
+               '<input type="checkbox" data-ppr-area="'+esc(a)+'"'+(on?' checked':'')+' onchange="this.parentNode.style.background=this.checked?\'#F0FDF4\':\'#FEF2F2\'">'+
+
+               '<span style="font-size:12px;font-weight:600">'+esc(a)+'</span>'+
+
+             '</label>';
+
+    }).join('');
+
+  }
+
+  function injectPanel(){
+
+    var host = document.getElementById('admin-root'); if(!host) return;
+
+    if(!document.getElementById('dmx-ppr-setores-admin')){
+
+      var div = document.createElement('div');
+
+      div.id = 'dmx-ppr-setores-admin';
+
+      div.className = 'card';
+
+      div.style.cssText = 'margin-top:16px;padding:16px';
+
+      div.innerHTML =
+
+        '<div class="section-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
+
+          '<div><div class="section-title">Setores no cálculo do PPR</div>'+
+
+          '<div class="text-muted text-sm mt-1">Desmarque o setor que não deve entrar no PPR. Ele sai da tabela, da média Global e do Relatório de Análise, '+
+
+          'nos dois modos (semestral e mensal). Os KPIs e o índice do setor continuam normais nas demais telas.</div></div>'+
+
+          '<button class="btn btn-primary btn-sm" onclick="window.dmxPprSalvarSetores()">Salvar setores</button>'+
+
+        '</div>'+
+
+        '<div id="dmx-ppr-setores-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:12px"></div>'+
+
+        '<div id="dmx-ppr-setores-status" class="text-muted text-sm" style="margin-top:8px"></div>';
+
+      var ref = document.getElementById('dmx-ppr-mensal-admin') || document.getElementById('dmx-ppr-admin-panel');
+
+      if(ref && ref.parentElement) ref.parentElement.insertBefore(div, ref.nextSibling); else host.appendChild(div);
+
+    }
+
+    fillPanel();
+
+  }
+
+  function wrapAdmin(){
+
+    var orig = window.renderAdminDMX;
+
+    if(typeof orig!=='function' || orig.__v103areas) return;
+
+    var w = async function(){
+
+      var r = await orig.apply(this, arguments);
+
+      setTimeout(injectPanel, 400);          // depois dos painéis PPR semestral (150 ms) e mensal
+
+      return r;
+
+    };
+
+    Object.assign(w, orig);
+
+    w.__v103areas = true;
+
+    window.renderAdminDMX = w;
+
+  }
+
+
+
+  function instalar(){
+
+    wrapApi(); wrapAdmin();
+
+    if(document.getElementById('page-admin')?.classList.contains('active')) injectPanel();
+
+  }
+
+  setTimeout(instalar, 1500);
+
+  setTimeout(instalar, 5000);                 // reforço: outras rotinas redefinem dmxApiPost/renderAdminDMX no boot
+
+  setTimeout(function(){ window.dmxPprCarregarSetores(); }, 3000);
+
+  console.log('[DMX] v103 — PPR: setores desligáveis no Admin', off.length ? '| fora: ' + off.join(', ') : '');
+
+})();
+
+</script>
+
 
 </body>
 </html>
