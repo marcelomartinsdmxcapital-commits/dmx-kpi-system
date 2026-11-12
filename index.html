@@ -1,3 +1,4 @@
+<!-- DMX KPI System — v104 — 12/11/2026 — Painel Executivo: (1) fim do loop de re-render: as camadas de segurança v48.4–v48.9 recriavam o chip do usuário e reescreviam as classes do menu a cada quadro (MutationObserver realimentado), o que redesenhava os gráficos sem parar; agora só mexem no DOM quando algo muda. (2) Modo apresentação não volta mais sozinho: a carga da API restaurava a tela gravada (o painel não se gravava) e o guarda da v95 era apagado pela v60/v61; slides e painel passam a ser atualizados no lugar. (3) 'Painel Executivo' reconhecido como nome da aba em todas as camadas; kpi-slide/weekly-slide liberados como sub-telas. -->
 <!-- DMX KPI System — v103 — 05/11/2026 — Plano PPR: o seletor de semestre (e o de mês) guarda a escolha e a restaura quando a sincronização re-renderiza a página; antes voltava sempre ao 1º semestre. (2) Admin: setores podem ser desligados do cálculo do PPR (gravado na aba Config_PPR do Sheets, linhas area_ppr). -->
 <!-- DMX KPI System — v99 — 05/10/2026 — Meta de KPI calculado a prova de falha: funde linhas duplicadas de lancamento, da ao resolveRef uma ultima instancia (meta gravada no proprio mes) quando a formula nao resolve, e impede que linha fabricada carregue meta 0 do catalogo. Catalogo embutido substituido pelo real (162 KPIs) e LAUNCHES_RAW esvaziado em 05/10. -->
 <!-- DMX KPI System — v94.21 — 28/09/2026 — Painel Executivo: gráficos desenhados no próprio painel (antes colidiam com a tela de área escondida e os KPIs Meta ficavam em branco); slide aberto pelo painel volta ao painel; KPI global sem peso redistribuído de área oculta. -->
@@ -7,7 +8,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v103",data:"05/11/2026",build:"ppr-semestre-e-setores"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v104",data:"12/11/2026",build:"painel-executivo-sem-loop"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -11272,10 +11273,16 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(page === 'admin') return false;
     if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return true; // cada área será validada por canArea
+    if(page === 'kpi-slide' || page === 'weekly-slide') return true; // v104: apresentação é sub-tela (dados já filtrados por área)
+    if(page === 'financeiro-v82') page = 'financeiro';               // v104: id da página do Painel Executivo
     const abas = userAbas(u);
     if(hasAll(abas)) return true;
     const label = pageMap[page] || page;
-    return abas.map(key).includes(key(label));
+    // v104: o Painel Executivo também aparece como "Painel Financeiro"/"Financeiro" nas camadas v48.7–v48.9;
+    // aceitar os três nomes evita que uma camada libere o item e outra o esconda (briga = loop/redirecionamento).
+    const nomes = page === 'financeiro' ? [label,'PAINEL EXECUTIVO','PAINEL FINANCEIRO','FINANCEIRO'] : [label];
+    const ak = abas.map(key);
+    return nomes.some(n => ak.includes(key(n)));
   }
   window.dmxV483CanPage = canPage;
   window.dmxV483CanArea = canArea;
@@ -11535,34 +11542,53 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     if(page === 'admin') return false;
     if(page === 'indice') return false; // Índice de Eficiência: exclusivo do Admin
     if(page === 'area-detail') return true;
+    if(page === 'kpi-slide' || page === 'weekly-slide') return true; // v104: apresentação é sub-tela (dados já filtrados por área)
+    if(page === 'financeiro-v82') page = 'financeiro';               // v104: id da página do Painel Executivo
     const abas = userAbas(u);
     if(hasAll(abas)) return true;
     const label = pageMap[page] || page;
-    return abas.map(key).includes(key(label));
+    // v104: o Painel Executivo também aparece como "Painel Financeiro"/"Financeiro" nas camadas v48.7–v48.9;
+    // aceitar os três nomes evita que uma camada libere o item e outra o esconda (briga = loop/redirecionamento).
+    const nomes = page === 'financeiro' ? [label,'PAINEL EXECUTIVO','PAINEL FINANCEIRO','FINANCEIRO'] : [label];
+    const ak = abas.map(key);
+    return nomes.some(n => ak.includes(key(n)));
   }
 
-  function ensureFinalChip(){
-    const u = session();
+  // v104 — chip do usuário IDEMPOTENTE e único para todas as camadas (v48.4, v48.7, v48.8, v48.9).
+  // Antes cada camada removia e recriava o chip (ou reescrevia o texto) a cada chamada; como a
+  // v48.9 chama isso dentro de um MutationObserver, a topbar mudava ~60x/s e os gráficos do
+  // Painel Executivo eram redimensionados sem parar. Agora só toca no DOM quando algo mudou.
+  window.dmxChipIdem = function(u){
     const bar = document.querySelector('.topbar');
     if(!bar || !u) return;
-
-    // Remove chips antigos de forma definitiva.
     document.querySelectorAll('#dmx-security-chip, #dmx-user-chip, .dmx-security-chip, .dmx-user-chip').forEach(el=>{
       if(el.id !== 'dmx-final-user-chip') el.remove();
     });
-
-    let chip = document.getElementById('dmx-final-user-chip');
+    const chips = document.querySelectorAll('#dmx-final-user-chip');
+    for(let i=1;i<chips.length;i++) chips[i].remove();
+    let chip = chips[0] || null;
     if(!chip){
       chip = document.createElement('div');
       chip.id = 'dmx-final-user-chip';
-      // Insere antes dos botões de sair/senha quando possível.
+      chip.className = 'dmx-security-chip';
       const logout = document.getElementById('dmx-logout-btn');
       const pwd = document.getElementById('dmx-change-password-btn');
-      bar.insertBefore(chip, pwd || logout || null);
+      if(pwd && pwd.parentNode) pwd.parentNode.insertBefore(chip, pwd);
+      else if(logout && logout.parentNode) logout.parentNode.insertBefore(chip, logout);
+      else bar.appendChild(chip);
     }
-    const nome = u.nome || u.email || 'Usuário';
-    chip.textContent = '👤 ' + nome;
-    chip.title = nome;
+    if(!chip.classList.contains('dmx-security-chip')) chip.classList.add('dmx-security-chip');
+    const nome = String(u.nome || u.name || u.email || 'Usuário');
+    const txt = '👤 ' + nome;
+    if(chip.textContent !== txt) chip.textContent = txt;
+    if(chip.title !== nome) chip.title = nome;
+  };
+  // v104 — remove classes só quando presentes (classList.remove sempre gera mutação de atributo).
+  window.dmxRmCls = function(el){
+    for(let i=1;i<arguments.length;i++){ if(el.classList.contains(arguments[i])) el.classList.remove(arguments[i]); }
+  };
+  function ensureFinalChip(){
+    window.dmxChipIdem(session());
   }
 
   function ensureAreaItems(){
@@ -11600,7 +11626,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       el.classList.toggle('dmx-v484-allowed', !!ok);
       el.classList.toggle('dmx-v484-denied', !ok);
       if(ok){
-        el.classList.remove('dmx-hidden-by-v48','dmx-hidden-by-role','dmx-hidden-by-security');
+        window.dmxRmCls(el,'dmx-hidden-by-v48','dmx-hidden-by-role','dmx-hidden-by-security');
       }
     });
 
@@ -12271,7 +12297,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const PAGE_ALIASES = {
     dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],
     diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
-    financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
+    financeiro:['PAINEL EXECUTIVO','PAINEL FINANCEIRO','FINANCEIRO'],
     kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],
     atualizar:['ATUALIZAR DADOS','LANÇAMENTOS','LANCAMENTOS'],
     planos:['PLANOS DE AÇÃO','PLANOS DE ACAO','PLANO DE AÇÃO','PLANO DE ACAO'],
@@ -12312,7 +12338,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function cleanForbiddenClasses(el, allowed){
     if(!el) return;
-    ['dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48','dmx-v484-hidden','dmx-v487-hidden'].forEach(c=>el.classList.remove(c));
+    window.dmxRmCls(el,'dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48','dmx-v484-hidden','dmx-v487-hidden'); // v104: só se presente
     if(!allowed) el.classList.add('dmx-v487-hidden');
   }
   function applyStableVisibility(){
@@ -12395,6 +12421,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
   function fixUserChip(){
     const u = readSession(); if(!u) return;
+    if(window.dmxChipIdem){ window.dmxChipIdem(u); return; } // v104: idempotente
     const bar = document.querySelector('.topbar'); if(!bar) return;
     document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip').forEach(el=>{ if(el.id !== 'dmx-final-user-chip') el.remove(); });
     let chip = document.getElementById('dmx-final-user-chip');
@@ -12451,12 +12478,13 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   function tabs(u){return unique([].concat(split(u?.abas),split(u?.abasAcesso),split(u?.['Abas de Acesso']),split(u?.paginas)));}
   function areas(u){return unique([].concat(split(u?.areas),split(u?.area),split(u?.['Área']),split(u?.areasLiberadas)));}
   function all(arr){return (arr||[]).some(x=>['TODAS','TODOS','*','ALL'].includes(norm(x)));}
-  const aliases={dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
+  const aliases={dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],financeiro:['PAINEL EXECUTIVO','PAINEL FINANCEIRO','FINANCEIRO'],kpis:['CATALOGO DE KPIS','CATÁLOGO DE KPIS','CATALOGO KPI','CATÁLOGO KPI'],atualizar:['ATUALIZAR DADOS'],planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],ppr:['PLANO PPR','PPR'],indice:['INDICE EFICIENCIA','ÍNDICE EFICIÊNCIA'],'semanal-operacional':['SEMANAL'],admin:['ADMIN / SHEETS','ADMIN'], 'area-detail':['AREA','ÁREA']};
   function canPage(p,u=session()){ if(!u) return false; if(isAdmin(u)) return true; if(p==='admin') return false; if(p==='area-detail') return areas(u).length>0 || tabs(u).map(norm).includes('AREA') || all(tabs(u)); const t=tabs(u); if(all(t)) return true; return (aliases[p]||[p]).some(a=>t.map(norm).includes(norm(a))); }
   function canArea(a,u=session()){ if(!u) return false; if(isAdmin(u)) return true; const ar=areas(u); if(all(ar)) return true; return ar.map(norm).includes(norm(a)); }
 
   function fixChip(){
     const u=session(); if(!u) return;
+    if(window.dmxChipIdem){ window.dmxChipIdem(u); return; } // v104: idempotente
     const bar=document.querySelector('.topbar'); if(!bar) return;
     document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip,#dmx-final-user-chip').forEach(e=>e.remove());
     const chip=document.createElement('div');
@@ -12491,7 +12519,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
       const p=el.dataset.page, a=el.dataset.area;
       const ok=a?canArea(a,u):canPage(p,u);
       el.classList.toggle('dmx-v488-hidden', !ok);
-      if(ok) el.classList.remove('dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48');
+      if(ok) window.dmxRmCls(el,'dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48'); // v104
     });
     fixChip();
   }
@@ -12582,7 +12610,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   const PAGE_ALIAS = {
     dashboard:['DASHBOARD OPERACIONAL','EXECUTIVO','DASHBOARD'],
     diretoria:['MODO DIRETORIA','DIRETORIA','PAINEL DIRETORIA'],
-    financeiro:['PAINEL FINANCEIRO','FINANCEIRO'],
+    financeiro:['PAINEL EXECUTIVO','PAINEL FINANCEIRO','FINANCEIRO'],
     kpis:['CATALOGO DE KPIS','CATALOGO KPI','CATÁLOGO DE KPIS','CATÁLOGO KPI'],
     atualizar:['ATUALIZAR DADOS','ATUALIZAR'],
     planos:['PLANOS DE ACAO','PLANOS DE AÇÃO'],
@@ -12616,11 +12644,19 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
     return a.map(key).includes(key(area));
   }
 
+  // v104: idempotente. Antes removia classes e o display de todos os itens a cada chamada; cada remoção gera
+  // mutação de atributo e o MutationObserver desta própria camada (no fim do bloco) chamava applyMenuLock de novo
+  // no quadro seguinte — loop eterno (~60x/s) que fazia o Painel Executivo "renderizar o tempo todo".
   function hardHide(el, hide){
     if(!el) return;
     el.classList.toggle('dmx-v489-hidden', !!hide);
-    if(hide){ el.style.setProperty('display','none','important'); }
-    else { el.style.removeProperty('display'); el.classList.remove('dmx-v488-hidden','dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48'); }
+    if(hide){
+      if(el.style.getPropertyValue('display')!=='none' || el.style.getPropertyPriority('display')!=='important')
+        el.style.setProperty('display','none','important');
+    } else {
+      if(el.style.getPropertyValue('display')) el.style.removeProperty('display');
+      window.dmxRmCls(el,'dmx-v488-hidden','dmx-v487-hidden','dmx-v484-hidden','dmx-hidden-by-role','dmx-hidden-by-security','dmx-hidden-by-v48');
+    }
   }
 
   function getBaseAreas(){
@@ -12651,6 +12687,7 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function fixUserChip(u){
+    if(window.dmxChipIdem){ window.dmxChipIdem(u); return; } // v104: idempotente
     const bar = document.querySelector('.topbar');
     if(!bar || !u) return;
     document.querySelectorAll('#dmx-user-chip,#dmx-security-chip,.dmx-user-chip,.dmx-security-chip,#dmx-final-user-chip').forEach(e=>e.remove());
@@ -13823,6 +13860,9 @@ window.dmxShareSheetsInfo=function(){ return {version:'v32', regra:'Cadastro_KPI
   }
 
   function installRestoreOverrides(){
+    // v104: instala uma única vez. Cada boot embrulhava de novo (cadeia v60↔v61 crescia) e reatribuía
+    // window.renderCurrentPage, apagando o guarda da v95.
+    if(window.__dmxV60RestoreInstalado) return; window.__dmxV60RestoreInstalado = true;
     const prevRestore = window.dmxRestoreUiState;
     window.dmxRestoreUiState = function(){
       if(restoreKpiSlide()) return true;
@@ -19828,6 +19868,9 @@ body.dmx-tv-mode .slide-body { padding-top: 10px; }
     document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); p.style.display=''; });
     var page=document.getElementById(PAGE_ID); if(page) page.classList.add('active');
     try{ window.currentPage='financeiro'; }catch(e){}
+    // v104: grava o Painel Executivo como tela atual; sem isso a restauração disparada pela carga da API
+    // (renderCurrentPage → restoreState) devolvia o usuário à tela anterior.
+    try{ if(typeof window.dmxSaveUiState==='function') window.dmxSaveUiState('financeiro','CEO'); }catch(e){}
     var t=document.getElementById('topbar-title'); if(t) t.textContent='Painel Executivo';
     renderFin();
     fetchCfg().then(function(){ if(window.currentPage==='financeiro') renderFin(); })
@@ -22066,6 +22109,14 @@ window.dmxIrParaMesLancamento = function(novoMes){
   if(typeof renderOriginal === 'function' && !renderOriginal.__dmxV95){
     var renderNovo = function(){
       if(editando()){ log('re-render adiado: edição em andamento'); return; }
+      /* v104 — painel e apresentação: atualiza no lugar, sem navegar. Com o slide aberto a partir do
+         painel, window.currentPage continua 'financeiro'; alinhar/restaurar devolvia o usuário ao painel. */
+      try{
+        var ativa = function(id){ var e=document.getElementById(id); return !!(e && e.classList.contains('active')); };
+        if(ativa('page-kpi-slide')){ if(typeof window.renderKPISlide==='function') window.renderKPISlide(); log('slide atualizado no lugar'); return; }
+        if(ativa('page-weekly-slide')){ if(typeof window.renderWeeklySlide==='function') window.renderWeeklySlide(); log('slide semanal atualizado no lugar'); return; }
+        if(ativa('page-financeiro-v82')){ if(typeof window.dmxRenderPainelFinanceiro==='function') window.dmxRenderPainelFinanceiro(); log('painel atualizado no lugar'); return; }
+      }catch(e){}
       if(bootConcluido){
         var atual = String(window.currentPage || '');
         if(atual && atual !== paginaPersistida()){
@@ -22076,6 +22127,11 @@ window.dmxIrParaMesLancamento = function(novoMes){
     };
     renderNovo.__dmxV95 = true;
     window.renderCurrentPage = renderNovo;
+    // v104: v60/v61 reatribuíam renderCurrentPage em timers do boot (até ~7,6 s); confere por 15 s.
+    var vigia = setInterval(function(){
+      if(window.renderCurrentPage !== renderNovo){ renderOriginal = window.renderCurrentPage; window.renderCurrentPage = renderNovo; log('guarda reinstalado'); }
+    }, 500);
+    setTimeout(function(){ clearInterval(vigia); }, 15000);
   }
 
   /* ────────── 3. Throttle da recarga automática da API ──────────
@@ -22448,369 +22504,187 @@ window.dmxIrParaMesLancamento = function(novoMes){
 </script>
 
 <!-- PATCH v103 — PPR: o Admin pode desligar setores do cálculo do PPR -->
-
 <script>
-
 (function(){
-
   if(window.__dmxPprAreasOffV103) return;
-
   window.__dmxPprAreasOffV103 = true;
 
-
-
   // Onde fica gravado: aba Config_PPR do Sheets, junto com os KPIs/pesos do PPR semestral, uma
-
   // linha por setor: {mes_ref:'area_ppr', area:<setor>, kpi_id:'__area_ppr__', peso:1 participa | 0 desligado}.
-
   // Como o salvarConfigPPR regrava a aba inteira, toda gravação de config PPR (de qualquer tela)
-
   // passa a levar também as linhas dos setores — ver o wrap do dmxApiPost abaixo.
-
   var LSK = 'dmx_ppr_areas_off_v103';
-
   var MES_REF = 'area_ppr', KID = '__area_ppr__';
-
   var FORA = ['CEO','Painel Financeiro','Painel Executivo','Mensal','Semanal'];
 
-
-
   function norm(a){ return String(a||'').trim(); }
-
   function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-
   function lsGet(){ try{ var v=JSON.parse(localStorage.getItem(LSK)||'[]'); return Array.isArray(v)?v.map(norm):[]; }catch(e){ return []; } }
-
   function lsSet(v){ try{ localStorage.setItem(LSK, JSON.stringify(v)); }catch(e){} }
-
   var off = lsGet();
 
-
-
   window.dmxPprAreaAtiva = function(a){ return off.indexOf(norm(a)) < 0; };
-
   window.dmxPprAreasDesligadas = function(){ return off.slice(); };
 
-
-
   function todasAreas(){
-
     var base = (typeof window.areas485==='function') ? window.areas485()
-
              : (window.kpis||[]).map(function(k){ return k && k.area; });
-
     var set = {};
-
     base.concat(off).forEach(function(a){ a=norm(a); if(a && FORA.indexOf(a)<0) set[a]=1; });
-
     return Object.keys(set).sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
-
   }
-
   function slug(a){ return norm(a).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\W+/g,'_').toLowerCase(); }
-
   function areaRows(){
-
     var agora = new Date().toISOString();
-
     return todasAreas().map(function(a){
-
       return {id:'ppr_area_'+slug(a), mes_ref:MES_REF, area:a, kpi_id:KID, peso:(off.indexOf(a)<0?1:0), ativo:true, criado_em:agora};
-
     });
-
   }
-
-
 
   // ── toda gravação de salvarConfigPPR leva as linhas dos setores ──────────────────────────
-
   function wrapApi(){
-
     var orig = window.dmxApiPost;
-
     if(typeof orig!=='function' || orig.__v103areas) return;
-
     var w = function(tipo, payload){
-
       if(tipo==='salvarConfigPPR' && payload && Array.isArray(payload.rows)){
-
         var rows = payload.rows.filter(function(r){ return !(r && r.mes_ref===MES_REF); });
-
         payload = Object.assign({}, payload, {rows: rows.concat(areaRows())});
-
       }
-
       return orig.apply(this, [tipo, payload].concat([].slice.call(arguments, 2)));
-
     };
-
     w.__v103areas = true;
-
     window.dmxApiPost = w;
-
   }
-
-
 
   // ── leitura do Sheets ────────────────────────────────────────────────────────────────────
-
   function apiUrl(){ return (typeof window.dmxGetApiUrl==='function' ? window.dmxGetApiUrl() : window.DMX_API_URL || '').trim(); }
-
   function jsonp(tipo){
-
     return new Promise(function(resolve, reject){
-
       var url = apiUrl(); if(!url){ reject(new Error('API não configurada')); return; }
-
       var cb = 'dmxAreasPpr_' + Date.now();
-
       var full = url.replace(/([?&])tipo=[^&]*&?/,'$1').replace(/[?&]$/,'') + (url.indexOf('?')>=0?'&':'?') +
-
                  'tipo=' + encodeURIComponent(tipo) + '&callback=' + cb + '&t=' + Date.now();
-
       var timer = setTimeout(function(){ delete window[cb]; reject(new Error('Timeout')); }, 15000);
-
       window[cb] = function(d){ clearTimeout(timer); delete window[cb]; resolve(d); };
-
       var s = document.createElement('script'); s.src = full;
-
       s.onerror = function(){ clearTimeout(timer); delete window[cb]; reject(new Error('JSONP erro')); };
-
       document.head.appendChild(s); setTimeout(function(){ try{ document.head.removeChild(s); }catch(e){} }, 16000);
-
     });
-
   }
-
   function rerender(){
-
     try{
-
       if(document.getElementById('page-ppr')?.classList.contains('active') && typeof window.renderPPR==='function') window.renderPPR();
-
     }catch(e){}
-
     fillPanel();
-
   }
-
   window.dmxPprCarregarSetores = function(){
-
     return jsonp('config_ppr').then(function(r){
-
       var rows = (r && (r.data || r.rows)) || [];
-
       var linhas = rows.filter(function(x){ return x && x.mes_ref===MES_REF; });
-
       if(!linhas.length) return off;                       // nada gravado ainda: mantém o local
-
       off = linhas.filter(function(x){ return Number(x.peso)===0; }).map(function(x){ return norm(x.area); });
-
       lsSet(off); rerender();
-
       return off;
-
     }).catch(function(e){ console.warn('[PPR setores] leitura falhou:', e); return off; });
-
   };
-
-
 
   // ── gravação a partir do Admin ───────────────────────────────────────────────────────────
-
   function cfgRows(){
-
     var cfg = null; try{ cfg = JSON.parse(localStorage.getItem('dmx_ppr_config_v1')||'null'); }catch(e){}
-
     if(!cfg || !cfg.kpi1) return null;
-
     var agora = new Date().toISOString(), id = function(){ return Date.now()+'_'+Math.random().toString(36).slice(2,7); };
-
     return [
-
       {id:id(), mes_ref:'kpi1',    area:'__global__', kpi_id:cfg.kpi1||'', peso:cfg.peso1||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'peso1',   area:'__global__', kpi_id:cfg.kpi1||'', peso:cfg.peso1||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'kpi2',    area:'__global__', kpi_id:cfg.kpi2||'', peso:cfg.peso2||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'peso2',   area:'__global__', kpi_id:cfg.kpi2||'', peso:cfg.peso2||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'kpi3',    area:'__global__', kpi_id:cfg.kpi3||'', peso:cfg.peso3||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'peso3',   area:'__global__', kpi_id:cfg.kpi3||'', peso:cfg.peso3||0,    ativo:true, criado_em:agora},
-
       {id:id(), mes_ref:'pesoArea',area:'__global__', kpi_id:'__area__',  peso:cfg.pesoArea||0, ativo:true, criado_em:agora},
-
     ];
-
   }
-
   function toast(m){ if(typeof window.showToast==='function') window.showToast(m); else console.log(m); }
 
-
-
   window.dmxPprSalvarSetores = function(){
-
     var box = document.getElementById('dmx-ppr-setores-admin'); if(!box) return;
-
     var novo = [];
-
     box.querySelectorAll('input[data-ppr-area]').forEach(function(ch){ if(!ch.checked) novo.push(norm(ch.dataset.pprArea)); });
-
     var ativos = todasAreas().filter(function(a){ return novo.indexOf(a)<0; });
-
     if(!ativos.length){ toast('⚠️ Pelo menos um setor precisa participar do PPR.'); return; }
-
     var rows = cfgRows();
-
     if(!rows){ toast('⚠️ Configuração do PPR ainda não carregada — aguarde a sincronização e tente de novo.'); return; }
-
     var antes = off; off = novo; lsSet(off);
-
     wrapApi();
-
     var st = document.getElementById('dmx-ppr-setores-status'); if(st) st.textContent = 'Gravando no Sheets…';
-
     Promise.resolve(window.dmxApiPost('salvarConfigPPR', {rows: rows})).then(function(r){
-
       if(r && r.ok !== false){
-
         toast('✓ Setores do PPR salvos' + (off.length ? ' — fora do cálculo: ' + off.join(', ') : ' — todos participam'));
-
         if(st) st.textContent = 'Gravado em ' + new Date().toLocaleString('pt-BR') + '.';
-
       } else {
-
         off = antes; lsSet(off);
-
         toast('❌ Não foi possível gravar os setores do PPR no Sheets.');
-
         if(st) st.textContent = 'Falha ao gravar — nada mudou.';
-
       }
-
       rerender();
-
     });
-
   };
 
-
-
   // ── painel no Admin ──────────────────────────────────────────────────────────────────────
-
   function fillPanel(){
-
     var box = document.getElementById('dmx-ppr-setores-admin'); if(!box) return;
-
     var lista = box.querySelector('#dmx-ppr-setores-lista'); if(!lista) return;
-
     lista.innerHTML = todasAreas().map(function(a){
-
       var on = off.indexOf(a) < 0;
-
       return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border,#E5E7EB);border-radius:6px;cursor:pointer;background:'+(on?'#F0FDF4':'#FEF2F2')+'">'+
-
                '<input type="checkbox" data-ppr-area="'+esc(a)+'"'+(on?' checked':'')+' onchange="this.parentNode.style.background=this.checked?\'#F0FDF4\':\'#FEF2F2\'">'+
-
                '<span style="font-size:12px;font-weight:600">'+esc(a)+'</span>'+
-
              '</label>';
-
     }).join('');
-
   }
-
   function injectPanel(){
-
     var host = document.getElementById('admin-root'); if(!host) return;
-
     if(!document.getElementById('dmx-ppr-setores-admin')){
-
       var div = document.createElement('div');
-
       div.id = 'dmx-ppr-setores-admin';
-
       div.className = 'card';
-
       div.style.cssText = 'margin-top:16px;padding:16px';
-
       div.innerHTML =
-
         '<div class="section-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">'+
-
           '<div><div class="section-title">Setores no cálculo do PPR</div>'+
-
           '<div class="text-muted text-sm mt-1">Desmarque o setor que não deve entrar no PPR. Ele sai da tabela, da média Global e do Relatório de Análise, '+
-
           'nos dois modos (semestral e mensal). Os KPIs e o índice do setor continuam normais nas demais telas.</div></div>'+
-
           '<button class="btn btn-primary btn-sm" onclick="window.dmxPprSalvarSetores()">Salvar setores</button>'+
-
         '</div>'+
-
         '<div id="dmx-ppr-setores-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:12px"></div>'+
-
         '<div id="dmx-ppr-setores-status" class="text-muted text-sm" style="margin-top:8px"></div>';
-
       var ref = document.getElementById('dmx-ppr-mensal-admin') || document.getElementById('dmx-ppr-admin-panel');
-
       if(ref && ref.parentElement) ref.parentElement.insertBefore(div, ref.nextSibling); else host.appendChild(div);
-
     }
-
     fillPanel();
-
   }
-
   function wrapAdmin(){
-
     var orig = window.renderAdminDMX;
-
     if(typeof orig!=='function' || orig.__v103areas) return;
-
     var w = async function(){
-
       var r = await orig.apply(this, arguments);
-
       setTimeout(injectPanel, 400);          // depois dos painéis PPR semestral (150 ms) e mensal
-
       return r;
-
     };
-
     Object.assign(w, orig);
-
     w.__v103areas = true;
-
     window.renderAdminDMX = w;
-
   }
-
-
 
   function instalar(){
-
     wrapApi(); wrapAdmin();
-
     if(document.getElementById('page-admin')?.classList.contains('active')) injectPanel();
-
   }
-
   setTimeout(instalar, 1500);
-
   setTimeout(instalar, 5000);                 // reforço: outras rotinas redefinem dmxApiPost/renderAdminDMX no boot
-
   setTimeout(function(){ window.dmxPprCarregarSetores(); }, 3000);
-
   console.log('[DMX] v103 — PPR: setores desligáveis no Admin', off.length ? '| fora: ' + off.join(', ') : '');
-
 })();
-
 </script>
-
 
 </body>
 </html>
