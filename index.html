@@ -1,4 +1,4 @@
-<!-- DMX KPI System — v104 — 12/11/2026 — Painel Executivo: (1) fim do loop de re-render: as camadas de segurança v48.4–v48.9 recriavam o chip do usuário e reescreviam as classes do menu a cada quadro (MutationObserver realimentado), o que redesenhava os gráficos sem parar; agora só mexem no DOM quando algo muda. (2) Modo apresentação não volta mais sozinho: a carga da API restaurava a tela gravada (o painel não se gravava) e o guarda da v95 era apagado pela v60/v61; slides e painel passam a ser atualizados no lugar. (3) 'Painel Executivo' reconhecido como nome da aba em todas as camadas; kpi-slide/weekly-slide liberados como sub-telas. -->
+<!-- DMX KPI System — v105 — 23/11/2026 — Semanal: KPIs extras por mês voltam a carregar da planilha (mes_ref vinha como data) e compartilhamentos como Meta da aba Compartilhamentos_KPI passam a valer. || v104 — 12/11/2026 — Painel Executivo: (1) fim do loop de re-render: as camadas de segurança v48.4–v48.9 recriavam o chip do usuário e reescreviam as classes do menu a cada quadro (MutationObserver realimentado), o que redesenhava os gráficos sem parar; agora só mexem no DOM quando algo muda. (2) Modo apresentação não volta mais sozinho: a carga da API restaurava a tela gravada (o painel não se gravava) e o guarda da v95 era apagado pela v60/v61; slides e painel passam a ser atualizados no lugar. (3) 'Painel Executivo' reconhecido como nome da aba em todas as camadas; kpi-slide/weekly-slide liberados como sub-telas. Painel Financeiro no Semanal só para Admin. -->
 <!-- DMX KPI System — v103 — 05/11/2026 — Plano PPR: o seletor de semestre (e o de mês) guarda a escolha e a restaura quando a sincronização re-renderiza a página; antes voltava sempre ao 1º semestre. (2) Admin: setores podem ser desligados do cálculo do PPR (gravado na aba Config_PPR do Sheets, linhas area_ppr). -->
 <!-- DMX KPI System — v99 — 05/10/2026 — Meta de KPI calculado a prova de falha: funde linhas duplicadas de lancamento, da ao resolveRef uma ultima instancia (meta gravada no proprio mes) quando a formula nao resolve, e impede que linha fabricada carregue meta 0 do catalogo. Catalogo embutido substituido pelo real (162 KPIs) e LAUNCHES_RAW esvaziado em 05/10. -->
 <!-- DMX KPI System — v94.21 — 28/09/2026 — Painel Executivo: gráficos desenhados no próprio painel (antes colidiam com a tela de área escondida e os KPIs Meta ficavam em branco); slide aberto pelo painel volta ao painel; KPI global sem peso redistribuído de área oculta. -->
@@ -8,7 +8,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<script>window.DMX_VERSION={versao:"v104",data:"12/11/2026",build:"painel-executivo-sem-loop"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
+<script>window.DMX_VERSION={versao:"v105",data:"23/11/2026",build:"semanal-extras-compartilhamentos-fin-admin"};console.log("%c DMX KPI System "+window.DMX_VERSION.versao+" ","background:#00796B;color:#fff;font-weight:bold;padding:2px 6px;border-radius:3px","|",window.DMX_VERSION.data);</script>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <script>
@@ -22683,6 +22683,129 @@ window.dmxIrParaMesLancamento = function(novoMes){
   setTimeout(instalar, 5000);                 // reforço: outras rotinas redefinem dmxApiPost/renderAdminDMX no boot
   setTimeout(function(){ window.dmxPprCarregarSetores(); }, 3000);
   console.log('[DMX] v103 — PPR: setores desligáveis no Admin', off.length ? '| fora: ' + off.join(', ') : '');
+})();
+</script>
+
+<script>
+/* v105 — 23/11/2026 — Semanal: (1) KPIs extras por mês voltam a carregar da planilha: o Sheets grava
+   mes_ref "2026-11" como data e a API devolve "2026-11-01T03:00:00.000Z"; a chave local ficava
+   "dmx_weekly_extra_<área>_2026_11-01T03:00:00.000Z" e a tela procurava "..._2026_11" (não achava).
+   Agora as chaves são normalizadas (e os ids deduplicados) antes de cada leitura.
+   (2) Compartilhamentos como Meta: a versão final de dmxLoadShares lia só o campo 'compartilhar' do
+   cadastro, que a API não devolve; a aba Compartilhamentos_KPI (carregada no localStorage
+   dmx_meta_compartilhada_v1) era ignorada. Agora as duas fontes são somadas. */
+(function(){
+  var PFX='dmx_weekly_extra_', SHARE_LS='dmx_meta_compartilhada_v1';
+  function normalizaExtras(){
+    try{
+      var keys=[]; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k && k.indexOf(PFX)===0) keys.push(k); }
+      keys.forEach(function(k){
+        var ids; try{ ids=JSON.parse(localStorage.getItem(k)||'[]')||[]; }catch(e){ ids=[]; }
+        var m=k.match(/^dmx_weekly_extra_(.+)_(\d{4})_(\d{2})-(\d{2})T(.+)$/), destino=k;
+        if(m){
+          var dt=new Date(m[2]+'-'+m[3]+'-'+m[4]+'T'+m[5]);
+          if(!isNaN(dt)) destino=PFX+m[1]+'_'+dt.getFullYear()+'_'+(dt.getMonth()+1);
+        } else {
+          var m2=k.match(/^dmx_weekly_extra_(.+)_(\d{4})_0(\d)$/);   // "2026-08" vira "2026_08"; a tela usa "2026_8"
+          if(m2) destino=PFX+m2[1]+'_'+m2[2]+'_'+m2[3];
+        }
+        var atual=[]; if(destino!==k){ try{ atual=JSON.parse(localStorage.getItem(destino)||'[]')||[]; }catch(e){} }
+        var uni=[]; atual.concat(ids).forEach(function(x){ if(x && uni.indexOf(x)<0) uni.push(x); });
+        localStorage.setItem(destino, JSON.stringify(uni));
+        if(destino!==k) localStorage.removeItem(k);
+      });
+    }catch(e){ console.warn('[DMX v105] normalizaExtras', e); }
+  }
+  function instalaExtras(){
+    var orig=window.loadWeeklyExtra;
+    if(typeof orig!=='function' || orig.__v105) return;
+    var w=function(){ normalizaExtras(); return orig.apply(this, arguments); };
+    w.__v105=true; window.loadWeeklyExtra=w;
+  }
+  function instalaShares(){
+    var orig=window.dmxLoadShares;
+    if(typeof orig!=='function' || orig.__v105) return;
+    var w=function(){
+      var map={}; try{ map=orig.apply(this, arguments)||{}; }catch(e){ map={}; }
+      var ls={}; try{ ls=JSON.parse(localStorage.getItem(SHARE_LS)||'{}')||{}; }catch(e){}
+      Object.keys(ls).forEach(function(id){
+        var s=map[id]||(map[id]={meta_areas:[], controle_areas:{}, pesos:{}});
+        if(!Array.isArray(s.meta_areas)) s.meta_areas=[];
+        (ls[id].meta_areas||[]).forEach(function(a){ if(a && s.meta_areas.indexOf(a)<0) s.meta_areas.push(a); });
+      });
+      return map;
+    };
+    w.__v105=true; window.dmxLoadShares=w;
+  }
+  /* (3) Painel Financeiro no Semanal só para Admin (decisão do Marcelo, 23/11/2026): a área continua
+     "Painel Financeiro" no cadastro; para quem não é Admin ela some do filtro de áreas, do Modo TV
+     e de "Todos os setores". */
+  var FIN=['CEO','Painel Financeiro','Painel Executivo'];
+  function isFin(a){ return FIN.indexOf(String(a||'').trim())>=0; }
+  function usuario(){
+    try{
+      if(window.DMX_CURRENT_USER) return window.DMX_CURRENT_USER;
+      var raw=localStorage.getItem('dmx_current_user_v48')||localStorage.getItem('dmx_current_user_v43')||
+              localStorage.getItem('dmx_user_session_v48')||localStorage.getItem('dmx_user_session_v43');
+      return raw?JSON.parse(raw):null;
+    }catch(e){ return null; }
+  }
+  function ehAdmin(){
+    var u=usuario(); if(!u) return false;
+    var p=String(u.permissao||u.perfilApi||u.perfil||u.cargo||u.role||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toUpperCase();
+    return p==='ADMIN'||p==='ADMINISTRADOR';
+  }
+  function tiraOpcoesFin(sel){
+    if(!sel || ehAdmin()) return;
+    Array.prototype.slice.call(sel.options).forEach(function(o){ if(isFin(o.value)) o.remove(); });
+    if(isFin(sel.value) || sel.selectedIndex<0) sel.value='__ALL__';
+  }
+  function instalaFin(){
+    var ff=window.fillWeeklyFilters;
+    if(typeof ff==='function' && !ff.__v105){
+      var wf=function(){ var r=ff.apply(this, arguments); tiraOpcoesFin(document.getElementById('weekly-area-filter')); return r; };
+      wf.__v105=true; window.fillWeeklyFilters=wf;
+    }
+    var sf=window.selectedForArea;
+    if(typeof sf==='function' && !sf.__v105){
+      var ws=function(area){
+        if(ehAdmin()) return sf.apply(this, arguments);
+        if(isFin(area)) return [];
+        var ids=sf.apply(this, arguments)||[];
+        if(area!=='__ALL__') return ids;
+        var ks=window.kpis||[], areaDe={};
+        ks.forEach(function(k){ areaDe[k.id]=k.area; });
+        var permitidos={};                 // KPI do Painel Financeiro fica se outra área o usa (compartilhado/extra)
+        Array.from(new Set(ks.map(function(k){ return String(k.area||'').trim(); }))).forEach(function(a){
+          if(!a || isFin(a) || a.toLowerCase()==='mensal') return;
+          try{ (sf(a)||[]).forEach(function(id){ permitidos[id]=1; }); }catch(e){}
+        });
+        return ids.filter(function(id){ return !isFin(areaDe[id]) || permitidos[id]; });
+      };
+      ws.__v105=true; window.selectedForArea=ws;
+    }
+    var tv=window.dmxTvModeStart;
+    if(typeof tv==='function' && !tv.__v105){
+      var wt=function(){
+        var r=tv.apply(this, arguments), sel=document.getElementById('dmx-tv-area');
+        if(sel && ehAdmin()){            // Admin: garante as áreas do Painel Financeiro mesmo se a lista foi montada por outro usuário
+          var tem=Array.prototype.map.call(sel.options, function(o){ return o.value; });
+          Array.from(new Set((window.kpis||[]).map(function(k){ return String(k.area||'').trim(); }))).filter(isFin).forEach(function(a){
+            if(tem.indexOf(a)<0){ var o=document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o); }
+          });
+        } else tiraOpcoesFin(sel);
+        return r;
+      };
+      wt.__v105=true; window.dmxTvModeStart=wt;
+    }
+    tiraOpcoesFin(document.getElementById('weekly-area-filter'));
+  }
+  function instalar(){ instalaExtras(); instalaShares(); instalaFin(); }
+  normalizaExtras();
+  setTimeout(instalar, 1500);
+  setTimeout(instalar, 5000);    // outras camadas redefinem dmxLoadShares no boot
+  setTimeout(function(){ normalizaExtras(); if(window.currentPage==='semanal-operacional' && typeof renderWeeklyOperational==='function') renderWeeklyOperational(); }, 6000);
+  console.log('[DMX] v105 — Semanal: extras por mês e compartilhamentos da planilha');
 })();
 </script>
 
